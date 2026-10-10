@@ -183,8 +183,8 @@ Tingkat retensi tertinggi terjadi pada postingan berdurasi singkat yang menampil
         toolUsed,
         latencyMs,
         persona,
-        model: "ANALYTIC-SOSMED-COMBO",
-        gateway: "Hermes v3.4 @ 76.13.193.138",
+        model: "Sosmed Analytics",
+        gateway: "Hermes AI",
       },
     });
   } catch (error: any) {

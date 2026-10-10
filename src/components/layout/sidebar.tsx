@@ -9,8 +9,6 @@ import {
   Bot,
   MessageCircle,
   BarChart3,
-  Settings,
-  Sparkles,
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,11 +38,6 @@ const navigationItems = [
     name: "Analytics",
     href: "/analytics",
     icon: BarChart3,
-  },
-  {
-    name: "Setting",
-    href: "/settings",
-    icon: Settings,
   },
 ];
 
@@ -101,24 +94,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-
-      {/* Hermes VPS Status Box */}
-      <div className="p-6 m-4 rounded-2xl bg-[#F4F7FE] border border-[#E2E8F0]">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#16DBCC] animate-pulse" />
-            <span className="text-xs font-semibold text-[#343C6A]">
-              Hermes AI
-            </span>
-          </div>
-          <span className="text-[11px] font-mono text-[#718EBF] bg-white px-2 py-0.5 rounded-full border border-[#EDF2F7]">
-            :8643
-          </span>
-        </div>
-        <p className="text-xs text-[#718EBF] leading-relaxed">
-          Profile <strong className="text-[#343C6A]">threads</strong> active on VPS 76.13.193.138
-        </p>
-      </div>
     </aside>
   );
 }

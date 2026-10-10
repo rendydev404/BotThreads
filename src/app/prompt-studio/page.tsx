@@ -124,7 +124,7 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
       const errorMsg: ChatMessage = {
         id: `err-${Date.now()}`,
         role: "assistant",
-        content: `Maaf, terjadi kendala saat menghubungi engine Hermes: ${err.message}. Silakan periksa koneksi bot di VPS.`,
+        content: `Maaf, terjadi kendala saat memproses prompt: ${err.message}. Silakan coba beberapa saat lagi.`,
         timestamp: "WIB",
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -155,8 +155,8 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
               <Bot className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-[#343C6A]">Hermes Agent v3.4</p>
-              <p className="text-[11px] text-[#718EBF]">Profile: threads (VPS:8643)</p>
+              <p className="text-xs font-bold text-[#343C6A]">Hermes AI</p>
+              <p className="text-[11px] text-[#718EBF]">Analisis Threads Aktif</p>
             </div>
           </div>
           <span className="w-2.5 h-2.5 rounded-full bg-[#16DBCC] animate-pulse" />
@@ -169,12 +169,12 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
               <Cpu className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-[#343C6A]">Model Sosmed Combo</p>
-              <p className="text-[11px] text-[#718EBF]">via 9router (Latency ~112ms)</p>
+              <p className="text-xs font-bold text-[#343C6A]">Model Sosmed AI</p>
+              <p className="text-[11px] text-[#718EBF]">Respon Cepat Real-time</p>
             </div>
           </div>
-          <span className="text-[10px] font-mono font-bold text-[#1814F3] bg-[#1814F3]/10 px-2 py-0.5 rounded-full">
-            Active
+          <span className="text-[10px] font-bold text-[#1814F3] bg-[#1814F3]/10 px-2.5 py-0.5 rounded-full">
+            Ready
           </span>
         </div>
 

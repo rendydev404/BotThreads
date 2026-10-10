@@ -2,8 +2,7 @@
 
 import React, { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Search, Bell, Settings, X, ShieldAlert } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Search, Bell, X } from "lucide-react";
 
 const titleMap: Record<string, string> = {
   "/": "Overview",
@@ -11,7 +10,6 @@ const titleMap: Record<string, string> = {
   "/prompt-studio": "Hermes AI Prompt Studio",
   "/auto-comment": "Auto Comment Bot",
   "/analytics": "Analytics & Metrics",
-  "/settings": "System Settings",
 };
 
 export function Header() {
@@ -33,7 +31,7 @@ export function Header() {
         </h1>
       </div>
 
-      {/* Right Controls: Custom Search + Actions + Profile */}
+      {/* Right Controls: Custom Search + Notifications + Profile */}
       <div className="flex items-center gap-3 md:gap-5">
         {/* Custom Pill Search (No Native OS Control) */}
         <div className="relative hidden sm:flex items-center">
@@ -57,20 +55,12 @@ export function Header() {
           )}
         </div>
 
-        {/* Circular Action: Settings Button */}
-        <button
-          aria-label="Settings"
-          className="w-11 h-11 rounded-full bg-[#F5F7FA] text-[#718EBF] hover:text-[#1814F3] hover:bg-[#F0F3F8] flex items-center justify-center transition-colors"
-        >
-          <Settings className="w-5 h-5" strokeWidth={2} />
-        </button>
-
         {/* Circular Action: Notification Bell with Red Badge */}
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             aria-label="Notifications"
-            className="w-11 h-11 rounded-full bg-[#F5F7FA] text-[#718EBF] hover:text-[#1814F3] hover:bg-[#F0F3F8] flex items-center justify-center transition-colors relative"
+            className="w-11 h-11 rounded-full bg-[#F5F7FA] text-[#718EBF] hover:text-[#1814F3] hover:bg-[#F0F3F8] flex items-center justify-center transition-colors relative cursor-pointer"
           >
             <Bell className="w-5 h-5" strokeWidth={2} />
             {hasNotifications && (
@@ -90,7 +80,7 @@ export function Header() {
                     setHasNotifications(false);
                     setShowNotifications(false);
                   }}
-                  className="text-xs text-[#1814F3] font-medium hover:underline"
+                  className="text-xs text-[#1814F3] font-medium hover:underline cursor-pointer"
                 >
                   Tandai Dibaca
                 </button>
@@ -103,7 +93,7 @@ export function Header() {
                       Sync Metrik Sukses
                     </p>
                     <p className="text-[11px] text-[#718EBF]">
-                      Akun @sukashawarma berhasil sinkronisasi 12 postingan baru.
+                      Akun Threads berhasil sinkronisasi 1,680 postingan.
                     </p>
                   </div>
                 </div>
@@ -114,7 +104,7 @@ export function Header() {
                       Hermes Agent Siap
                     </p>
                     <p className="text-[11px] text-[#718EBF]">
-                      Gateway VPS terhubung dengan model ANALYTIC-SOSMED-COMBO.
+                      AI Engine siap memproses prompt dan analisis performa.
                     </p>
                   </div>
                 </div>

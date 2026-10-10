@@ -71,8 +71,8 @@ export function QuickPromptCard() {
               Quick AI Prompt (Hermes)
             </h4>
           </div>
-          <span className="text-xs font-mono text-[#16DBCC] bg-[#16DBCC]/10 px-2.5 py-0.5 rounded-full font-semibold">
-            threads profile
+          <span className="text-xs font-semibold text-[#16DBCC] bg-[#16DBCC]/10 px-2.5 py-0.5 rounded-full">
+            AI Assistant
           </span>
         </div>
 
