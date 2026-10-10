@@ -1,29 +1,37 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowUpRight,
-  ArrowDownRight,
   Search,
   Sparkles,
   Trash2,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Video,
   FileText,
   Image as ImageIcon,
   Layers,
-  Filter,
+  Eye,
+  Heart,
+  MessageCircle,
+  X,
+  TrendingUp,
+  BarChart2,
+  Users,
+  Check,
 } from "lucide-react";
-import { cn, formatNumber, formatDateWIB } from "@/lib/utils";
+import { cn, formatNumber, formatDateWIB, formatRelativeTime } from "@/lib/utils";
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 
 interface PostItem {
   id: string;
   mediaId: string;
   mediaType: string;
+  formatLabel: string;
+  formatKey: string;
   text: string;
   permalink?: string;
   postedAt: string;
@@ -34,21 +42,68 @@ interface PostItem {
   er: number;
   isPositive: boolean;
   account: string;
+  accountName: string;
+  accountAvatar?: string;
+}
+
+interface AccountOption {
+  username: string;
+  displayName: string;
+  count: number;
 }
 
 export default function PostsPage() {
   const router = useRouter();
   const [posts, setPosts] = useState<PostItem[]>([]);
+  const [accounts, setAccounts] = useState<AccountOption[]>([]);
+  const [stats, setStats] = useState({
+    totalPosts: 0,
+    totalViews: 0,
+    totalLikes: 0,
+    totalReplies: 0,
+  });
   const [loading, setLoading] = useState(true);
+
+  // Filters
   const [activeTab, setActiveTab] = useState<"all" | "top" | "flop">("all");
+  const [selectedAccount, setSelectedAccount] = useState<string>("all");
+  const [selectedFormat, setSelectedFormat] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [limitPerPage, setLimitPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Custom Account Dropdown state (No native select!)
+  const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
+  const [accountSearchText, setAccountSearchText] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Destructive delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedPostToDelete, setSelectedPostToDelete] = useState<PostItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsAccountDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -56,14 +111,19 @@ export default function PostsPage() {
       const params = new URLSearchParams({
         tab: activeTab,
         page: currentPage.toString(),
-        limit: "8",
+        limit: limitPerPage.toString(),
+        account: selectedAccount,
+        format: selectedFormat,
       });
-      if (searchQuery) params.set("search", searchQuery);
+      if (debouncedSearch) params.set("search", debouncedSearch);
 
       const res = await fetch(`/api/posts?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
-        setPosts(data.posts);
+        setPosts(data.posts || []);
+        if (data.accounts) setAccounts(data.accounts);
+        if (data.stats) setStats(data.stats);
+        setTotalCount(data.pagination?.total || 0);
         setTotalPages(data.pagination?.totalPages || 1);
       }
     } catch (err) {
@@ -75,13 +135,7 @@ export default function PostsPage() {
 
   useEffect(() => {
     fetchPosts();
-  }, [activeTab, currentPage]);
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCurrentPage(1);
-    fetchPosts();
-  };
+  }, [activeTab, selectedAccount, selectedFormat, debouncedSearch, currentPage, limitPerPage]);
 
   const openDeleteModal = (post: PostItem) => {
     setSelectedPostToDelete(post);
@@ -110,31 +164,121 @@ export default function PostsPage() {
     }
   };
 
-  const getTypeIcon = (type: string) => {
-    const t = type.toUpperCase();
-    if (t === "VIDEO") return <Video className="w-3.5 h-3.5 text-[#16DBCC]" />;
-    if (t === "CAROUSEL") return <Layers className="w-3.5 h-3.5 text-[#FFBB38]" />;
-    if (t === "IMAGE") return <ImageIcon className="w-3.5 h-3.5 text-[#FF4B4A]" />;
-    return <FileText className="w-3.5 h-3.5 text-[#1814F3]" />;
+  const getFormatBadge = (formatLabel: string) => {
+    if (formatLabel === "Video") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16DBCC]/10 text-[#0f8b81] font-semibold text-[11px]">
+          <Video className="w-3.5 h-3.5 text-[#16DBCC]" />
+          Video
+        </span>
+      );
+    }
+    if (formatLabel === "Carousel") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FFBB38]/15 text-[#a87405] font-semibold text-[11px]">
+          <Layers className="w-3.5 h-3.5 text-[#FFBB38]" />
+          Carousel
+        </span>
+      );
+    }
+    if (formatLabel === "Foto") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FF4B4A]/10 text-[#c22e2e] font-semibold text-[11px]">
+          <ImageIcon className="w-3.5 h-3.5 text-[#FF4B4A]" />
+          Foto
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1814F3]/10 text-[#1814F3] font-semibold text-[11px]">
+        <FileText className="w-3.5 h-3.5 text-[#1814F3]" />
+        Teks
+      </span>
+    );
   };
+
+  const filteredAccounts = accounts.filter(
+    (a) =>
+      a.username.toLowerCase().includes(accountSearchText.toLowerCase()) ||
+      a.displayName.toLowerCase().includes(accountSearchText.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
+      {/* Page Title & Context */}
       <div>
         <h2 className="text-xl md:text-2xl font-bold text-[#343C6A] tracking-tight">
-          Threads Content & Posts Hub
+          Content & Posts Hub
         </h2>
         <p className="text-xs md:text-sm text-[#718EBF] mt-0.5">
-          Analisis granular setiap postingan Threads dan rekomendasi optimasi bot AI
+          Eksplorasi seluruh postingan Threads terpublikasi, tinjau impresi audiens, dan analisis via AI
         </p>
       </div>
 
-      {/* Main Table Card */}
-      <div className="neo-card p-6 md:p-8">
-        {/* Table Controls: Tabs (Left) & Search (Right) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#EDF2F7]">
-          {/* Custom Tabs with Solid Blue Underline */}
+      {/* Top Metric Strip (Real Aggregates) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="neo-card p-4 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-[#1814F3]/10 text-[#1814F3] flex items-center justify-center shrink-0">
+            <FileText className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold text-[#718EBF] uppercase">
+              Total Postingan
+            </span>
+            <h4 className="text-xl font-bold text-[#343C6A]">
+              {formatNumber(stats.totalPosts)}
+            </h4>
+          </div>
+        </div>
+
+        <div className="neo-card p-4 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-[#16DBCC]/15 text-[#16DBCC] flex items-center justify-center shrink-0">
+            <Eye className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold text-[#718EBF] uppercase">
+              Total Penayangan
+            </span>
+            <h4 className="text-xl font-bold text-[#343C6A]">
+              {formatNumber(stats.totalViews)}
+            </h4>
+          </div>
+        </div>
+
+        <div className="neo-card p-4 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-[#FF4B4A]/10 text-[#FF4B4A] flex items-center justify-center shrink-0">
+            <Heart className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold text-[#718EBF] uppercase">
+              Total Likes
+            </span>
+            <h4 className="text-xl font-bold text-[#343C6A]">
+              {formatNumber(stats.totalLikes)}
+            </h4>
+          </div>
+        </div>
+
+        <div className="neo-card p-4 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-[#FFBB38]/15 text-[#FFBB38] flex items-center justify-center shrink-0">
+            <MessageCircle className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold text-[#718EBF] uppercase">
+              Total Replies
+            </span>
+            <h4 className="text-xl font-bold text-[#343C6A]">
+              {formatNumber(stats.totalReplies)}
+            </h4>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Card */}
+      <div className="neo-card p-5 md:p-7 space-y-5">
+        {/* Row 1: Tabs & Search Bar */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#EDF2F7]">
+          {/* Custom Tabs */}
           <div className="flex items-center gap-6">
             <button
               onClick={() => {
@@ -148,7 +292,7 @@ export default function PostsPage() {
                   : "text-[#718EBF] hover:text-[#343C6A]"
               )}
             >
-              All Posts
+              Semua Postingan
               {activeTab === "all" && (
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1814F3] rounded-full" />
               )}
@@ -182,164 +326,296 @@ export default function PostsPage() {
                   : "text-[#718EBF] hover:text-[#343C6A]"
               )}
             >
-              Flop / Evaluasi
+              Perlu Evaluasi
               {activeTab === "flop" && (
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1814F3] rounded-full" />
               )}
             </button>
           </div>
 
-          {/* Custom Search Bar */}
-          <form onSubmit={handleSearchSubmit} className="relative">
+          {/* Search Box */}
+          <div className="relative w-full md:w-72">
             <Search className="w-4 h-4 text-[#718EBF] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cari caption postingan..."
-              className="w-full sm:w-64 h-10 pl-10 pr-4 bg-[#F5F7FA] text-xs text-[#343C6A] placeholder-[#8BA3CB] rounded-full border border-transparent focus:border-[#1814F3]/30 focus:bg-white focus:outline-none transition-all"
+              className="w-full h-10 pl-10 pr-8 bg-[#F5F7FA] text-xs text-[#343C6A] placeholder-[#8BA3CB] rounded-full border border-transparent focus:border-[#1814F3]/30 focus:bg-white focus:outline-none transition-all"
             />
-          </form>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#718EBF] hover:text-[#343C6A] p-0.5 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Responsive Table */}
-        <div className="overflow-x-auto mt-4">
+        {/* Row 2: Secondary Filters (Custom Account Dropdown & Format Filter Chips) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          {/* Custom Account Selector (No Native Browser Control!) */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
+              className="h-9 px-4 rounded-xl bg-[#F5F7FA] hover:bg-[#EDF2F7] text-xs font-semibold text-[#343C6A] border border-[#EDF2F7] flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <Users className="w-3.5 h-3.5 text-[#1814F3]" />
+              <span>
+                {selectedAccount === "all"
+                  ? "Semua Akun Threads"
+                  : `@${selectedAccount}`}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "w-3.5 h-3.5 text-[#718EBF] transition-transform",
+                  isAccountDropdownOpen && "rotate-180"
+                )}
+              />
+            </button>
+
+            {/* Custom Dropdown Menu */}
+            {isAccountDropdownOpen && (
+              <div className="absolute left-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-[#EDF2F7] p-2 z-40 animate-in fade-in zoom-in-95 duration-150">
+                <div className="p-2 border-b border-[#EDF2F7]">
+                  <input
+                    type="text"
+                    value={accountSearchText}
+                    onChange={(e) => setAccountSearchText(e.target.value)}
+                    placeholder="Cari akun..."
+                    className="w-full h-8 px-3 text-xs bg-[#F5F7FA] rounded-lg border-none focus:outline-none text-[#343C6A]"
+                  />
+                </div>
+                <div className="max-h-56 overflow-y-auto py-1 space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAccount("all");
+                      setCurrentPage(1);
+                      setIsAccountDropdownOpen(false);
+                    }}
+                    className={cn(
+                      "w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer",
+                      selectedAccount === "all"
+                        ? "bg-[#1814F3]/10 text-[#1814F3] font-bold"
+                        : "text-[#343C6A] hover:bg-[#F4F7FE]"
+                    )}
+                  >
+                    <span>Semua Akun (32)</span>
+                    {selectedAccount === "all" && <Check className="w-3.5 h-3.5" />}
+                  </button>
+                  {filteredAccounts.map((acc) => (
+                    <button
+                      key={acc.username}
+                      type="button"
+                      onClick={() => {
+                        setSelectedAccount(acc.username);
+                        setCurrentPage(1);
+                        setIsAccountDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer",
+                        selectedAccount === acc.username
+                          ? "bg-[#1814F3]/10 text-[#1814F3] font-bold"
+                          : "text-[#343C6A] hover:bg-[#F4F7FE]"
+                      )}
+                    >
+                      <div className="truncate pr-2">
+                        <span className="font-semibold block truncate">
+                          @{acc.username}
+                        </span>
+                        <span className="text-[10px] text-[#718EBF] truncate">
+                          {acc.displayName}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-[#718EBF] font-mono bg-[#F5F7FA] px-1.5 py-0.5 rounded">
+                        {acc.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Format Filter Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+            {[
+              { id: "all", label: "Semua Format" },
+              { id: "TEXT", label: "Teks (1.4K)" },
+              { id: "VIDEO", label: "Video (197)" },
+              { id: "CAROUSEL", label: "Carousel (18)" },
+              { id: "IMAGE", label: "Foto (40)" },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => {
+                  setSelectedFormat(f.id);
+                  setCurrentPage(1);
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap",
+                  selectedFormat === f.id
+                    ? "bg-[#343C6A] text-white shadow-xs"
+                    : "bg-[#F5F7FA] text-[#718EBF] hover:text-[#343C6A] hover:bg-[#EDF2F7]"
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Clean Natural Data Table */}
+        <div className="overflow-x-auto rounded-2xl border border-[#EDF2F7]">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-[#EDF2F7] text-[11px] uppercase tracking-wider text-[#718EBF] font-bold">
-                <th className="py-4 px-3 w-12 text-center">Status</th>
-                <th className="py-4 px-4 min-w-[260px]">Cuplikan Konten</th>
-                <th className="py-4 px-3">Post ID</th>
-                <th className="py-4 px-3">Format</th>
-                <th className="py-4 px-3">Akun</th>
-                <th className="py-4 px-3">Tanggal & Jam</th>
-                <th className="py-4 px-3 text-right">ER (%)</th>
-                <th className="py-4 px-3 text-center">Aksi</th>
+              <tr className="bg-[#F8FAFC] border-b border-[#EDF2F7] text-[11px] uppercase tracking-wider text-[#718EBF] font-bold">
+                <th className="py-3.5 px-4 min-w-[340px]">Konten Threads</th>
+                <th className="py-3.5 px-3">Format</th>
+                <th className="py-3.5 px-4">Metrik Impresi</th>
+                <th className="py-3.5 px-3 text-right">Engagement (ER)</th>
+                <th className="py-3.5 px-3 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EDF2F7] text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-[#718EBF]">
+                  <td colSpan={5} className="py-16 text-center text-[#718EBF]">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <div className="w-6 h-6 border-2 border-[#1814F3] border-t-transparent rounded-full animate-spin" />
-                      <span>Memuat data postingan Threads...</span>
+                      <span className="text-xs font-medium">
+                        Memuat data postingan Threads...
+                      </span>
                     </div>
                   </td>
                 </tr>
               ) : posts.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-[#718EBF]">
-                    Tidak ada postingan yang sesuai dengan filter.
+                  <td colSpan={5} className="py-16 text-center text-[#718EBF]">
+                    <p className="font-semibold text-sm text-[#343C6A]">
+                      Tidak ada postingan ditemukan
+                    </p>
+                    <p className="text-xs text-[#718EBF] mt-1">
+                      Coba ganti filter akun atau kata kunci pencarian Anda
+                    </p>
                   </td>
                 </tr>
               ) : (
                 posts.map((post) => (
                   <tr
                     key={post.id}
-                    className="hover:bg-[#F4F7FE]/60 transition-colors group"
+                    className="hover:bg-[#F9FBFE] transition-colors group"
                   >
-                    {/* Performance Direction Indicator */}
-                    <td className="py-4 px-3 text-center">
-                      <div
-                        className={cn(
-                          "w-8 h-8 rounded-full flex items-center justify-center mx-auto",
-                          post.isPositive
-                            ? "bg-[#16DBCC]/15 text-[#16DBCC]"
-                            : "bg-[#FF4B4A]/15 text-[#FF4B4A]"
-                        )}
-                      >
-                        {post.isPositive ? (
-                          <ArrowUpRight className="w-4 h-4" strokeWidth={2.5} />
-                        ) : (
-                          <ArrowDownRight className="w-4 h-4" strokeWidth={2.5} />
-                        )}
-                      </div>
-                    </td>
+                    {/* Column 1: Content Caption & Account */}
+                    <td className="py-4 px-4 align-top">
+                      <div className="space-y-1.5 max-w-lg">
+                        {/* Poster Header */}
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-[#1814F3]/10 text-[#1814F3] font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {post.account.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-bold text-[#343C6A] hover:underline cursor-pointer">
+                            @{post.account}
+                          </span>
+                          <span className="text-[#CBD5E1]">&bull;</span>
+                          <span className="text-[11px] text-[#718EBF]">
+                            {formatRelativeTime(post.postedAt)}
+                          </span>
+                        </div>
 
-                    {/* Content Preview */}
-                    <td className="py-4 px-4">
-                      <div className="max-w-md">
-                        <p className="font-semibold text-[#343C6A] line-clamp-2 leading-relaxed">
+                        {/* Caption text */}
+                        <p className="text-xs text-[#343C6A] font-medium leading-relaxed line-clamp-3">
                           {post.text}
                         </p>
+
+                        {/* Permalink direct link */}
                         {post.permalink && (
-                          <a
-                            href={post.permalink}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[11px] text-[#1814F3] inline-flex items-center gap-1 mt-1 hover:underline"
-                          >
-                            <span>Buka di Threads</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
+                          <div className="pt-0.5">
+                            <a
+                              href={post.permalink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[11px] font-semibold text-[#1814F3] hover:underline inline-flex items-center gap-1"
+                            >
+                              <span>Lihat di Threads</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
                         )}
                       </div>
                     </td>
 
-                    {/* Post ID */}
-                    <td className="py-4 px-3 font-mono font-medium text-[#718EBF]">
-                      #{post.mediaId.slice(-8)}
+                    {/* Column 2: Format Badge */}
+                    <td className="py-4 px-3 align-top whitespace-nowrap">
+                      {getFormatBadge(post.formatLabel)}
                     </td>
 
-                    {/* Type Badge */}
-                    <td className="py-4 px-3">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F5F7FA] font-medium text-[#343C6A] text-[11px]">
-                        {getTypeIcon(post.mediaType)}
-                        <span>{post.mediaType}</span>
-                      </span>
+                    {/* Column 3: Real Metrics (Views, Likes, Replies) */}
+                    <td className="py-4 px-4 align-top whitespace-nowrap">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5 text-[#343C6A]" title="Views">
+                          <Eye className="w-3.5 h-3.5 text-[#718EBF]" />
+                          <span className="font-bold">{formatNumber(post.views)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[#343C6A]" title="Likes">
+                          <Heart className="w-3.5 h-3.5 text-[#FF4B4A]" />
+                          <span className="font-semibold">{formatNumber(post.likes)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[#343C6A]" title="Replies">
+                          <MessageCircle className="w-3.5 h-3.5 text-[#16DBCC]" />
+                          <span className="font-semibold">{formatNumber(post.replies)}</span>
+                        </div>
+                      </div>
                     </td>
 
-                    {/* Account */}
-                    <td className="py-4 px-3 font-medium text-[#343C6A]">
-                      @{post.account}
+                    {/* Column 4: Engagement Rate */}
+                    <td className="py-4 px-3 align-top text-right whitespace-nowrap">
+                      <div className="inline-flex flex-col items-end">
+                        <span
+                          className={cn(
+                            "font-bold text-xs px-2.5 py-0.5 rounded-full inline-block",
+                            post.er >= 4.0
+                              ? "text-[#16DBCC] bg-[#16DBCC]/10"
+                              : "text-[#343C6A] bg-[#EDF2F7]"
+                          )}
+                        >
+                          {post.er}%
+                        </span>
+                        <span className="text-[10px] text-[#718EBF] mt-0.5">
+                          {post.er >= 4.0 ? "High ER" : "Standard"}
+                        </span>
+                      </div>
                     </td>
 
-                    {/* Date */}
-                    <td className="py-4 px-3 text-[#718EBF] whitespace-nowrap">
-                      {formatDateWIB(post.postedAt)}
-                    </td>
-
-                    {/* ER (%) */}
-                    <td className="py-4 px-3 text-right">
-                      <span
-                        className={cn(
-                          "font-bold text-sm px-2.5 py-0.5 rounded-full inline-block",
-                          post.isPositive
-                            ? "text-[#16DBCC] bg-[#16DBCC]/10"
-                            : "text-[#FF4B4A] bg-[#FF4B4A]/10"
-                        )}
-                      >
-                        {post.er}%
-                      </span>
-                      <span className="block text-[10px] text-[#718EBF] mt-0.5">
-                        {formatNumber(post.views)} views
-                      </span>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-4 px-3 text-center whitespace-nowrap">
+                    {/* Column 5: Actions */}
+                    <td className="py-4 px-3 align-top text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-2">
-                        {/* Custom Pill Analyze AI */}
+                        {/* Button Prompt AI */}
                         <button
                           onClick={() =>
                             router.push(
                               `/prompt-studio?prompt=${encodeURIComponent(
-                                `Analisis postingan Threads #${post.mediaId}: "${post.text.slice(0, 100)}" dengan ER ${post.er}%`
+                                `Analisis postingan Threads dari @${post.account}: "${post.text.slice(0, 100)}" (Views: ${post.views}, Likes: ${post.likes}, Replies: ${post.replies}, ER: ${post.er}%). Berikan evaluasi hook dan rekomendasi konten perbaikannya.`
                               )}`
                             )
                           }
-                          className="px-3 py-1.5 rounded-full bg-[#1814F3]/10 hover:bg-[#1814F3] text-[#1814F3] hover:text-white font-semibold text-[11px] transition-all flex items-center gap-1 cursor-pointer"
+                          title="Analisis postingan ini dengan Hermes AI"
+                          className="h-8 px-3 rounded-lg bg-[#1814F3]/10 hover:bg-[#1814F3] text-[#1814F3] hover:text-white font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                         >
-                          <Sparkles className="w-3 h-3" />
-                          <span>Analyze AI</span>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Tanya AI</span>
                         </button>
 
-                        {/* Custom Delete Action (Guarded by Mandatory Confirmation) */}
+                        {/* Delete Button (Protected with Mandatory Modal) */}
                         <button
                           onClick={() => openDeleteModal(post)}
                           aria-label="Hapus post"
-                          className="w-7 h-7 rounded-full text-[#718EBF] hover:text-[#FF4B4A] hover:bg-[#FF4B4A]/10 flex items-center justify-center transition-colors cursor-pointer"
+                          title="Hapus data post"
+                          className="w-8 h-8 rounded-lg text-[#718EBF] hover:text-[#FF4B4A] hover:bg-[#FF4B4A]/10 flex items-center justify-center transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -352,42 +628,42 @@ export default function PostsPage() {
           </table>
         </div>
 
-        {/* Custom Pagination */}
-        <div className="flex items-center justify-between pt-6 mt-4 border-t border-[#EDF2F7]">
-          <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage <= 1}
-            className="flex items-center gap-1 px-4 py-2 rounded-full border border-[#EDF2F7] text-xs font-semibold text-[#718EBF] hover:text-[#343C6A] hover:bg-[#F4F7FE] disabled:opacity-40 disabled:pointer-events-none transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            <span>Previous</span>
-          </button>
-
-          <div className="flex items-center gap-2">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-              <button
-                key={pageNum}
-                onClick={() => setCurrentPage(pageNum)}
-                className={cn(
-                  "w-8 h-8 rounded-full text-xs font-bold transition-all",
-                  currentPage === pageNum
-                    ? "bg-[#1814F3] text-white shadow-sm shadow-[#1814F3]/30"
-                    : "text-[#718EBF] hover:text-[#343C6A] hover:bg-[#F4F7FE]"
-                )}
-              >
-                {pageNum}
-              </button>
-            ))}
+        {/* Footer: Pagination & Records Info */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+          {/* Records Counter */}
+          <div className="text-xs text-[#718EBF]">
+            Menampilkan{" "}
+            <strong className="text-[#343C6A]">
+              {totalCount > 0 ? (currentPage - 1) * limitPerPage + 1 : 0}–
+              {Math.min(currentPage * limitPerPage, totalCount)}
+            </strong>{" "}
+            dari <strong className="text-[#343C6A]">{formatNumber(totalCount)}</strong> postingan
           </div>
 
-          <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage >= totalPages}
-            className="flex items-center gap-1 px-4 py-2 rounded-full border border-[#EDF2F7] text-xs font-semibold text-[#718EBF] hover:text-[#343C6A] hover:bg-[#F4F7FE] disabled:opacity-40 disabled:pointer-events-none transition-colors"
-          >
-            <span>Next</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          {/* Pagination Controls */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-[#EDF2F7] text-xs font-semibold text-[#718EBF] hover:text-[#343C6A] hover:bg-[#F4F7FE] disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Sebelumnya</span>
+            </button>
+
+            <span className="text-xs font-bold text-[#343C6A] px-2">
+              Halaman {currentPage} dari {totalPages}
+            </span>
+
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-[#EDF2F7] text-xs font-semibold text-[#718EBF] hover:text-[#343C6A] hover:bg-[#F4F7FE] disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
+            >
+              <span>Berikutnya</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -398,7 +674,11 @@ export default function PostsPage() {
         onConfirm={handleConfirmDelete}
         tableName="ThreadsPostStat"
         recordIdentifier={`Media ID: #${selectedPostToDelete?.mediaId}`}
-        description={selectedPostToDelete ? `Caption: "${selectedPostToDelete.text.slice(0, 80)}..."` : undefined}
+        description={
+          selectedPostToDelete
+            ? `Post milik @${selectedPostToDelete.account}: "${selectedPostToDelete.text.slice(0, 80)}..."`
+            : undefined
+        }
         isDeleting={isDeleting}
       />
     </div>

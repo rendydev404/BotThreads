@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { cleanPostText } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,6 +9,9 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "10", 10)));
     const tab = searchParams.get("tab") || "all"; // "all" | "top" | "flop"
     const search = searchParams.get("search") || "";
+    const accountFilter = searchParams.get("account") || "all";
+    const formatFilter = searchParams.get("format") || "all";
+    const sortBy = searchParams.get("sortBy") || "recent"; // "recent" | "views_desc" | "likes_desc"
 
     const skip = (page - 1) * limit;
 
@@ -19,15 +23,35 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Determine ordering based on tab
+    if (accountFilter && accountFilter !== "all") {
+      whereClause.threadsAccount = {
+        username: accountFilter,
+      };
+    }
+
+    if (formatFilter && formatFilter !== "all") {
+      if (formatFilter === "TEXT") {
+        whereClause.mediaType = { contains: "TEXT", mode: "insensitive" };
+      } else if (formatFilter === "VIDEO") {
+        whereClause.mediaType = { contains: "VIDEO", mode: "insensitive" };
+      } else if (formatFilter === "CAROUSEL") {
+        whereClause.mediaType = { contains: "CAROUSEL", mode: "insensitive" };
+      } else if (formatFilter === "IMAGE") {
+        whereClause.mediaType = { contains: "IMAGE", mode: "insensitive" };
+      }
+    }
+
+    // Determine ordering
     let orderBy: any = { postedAt: "desc" };
-    if (tab === "top") {
+    if (tab === "top" || sortBy === "views_desc") {
       orderBy = { views: "desc" };
     } else if (tab === "flop") {
       orderBy = { views: "asc" };
+    } else if (sortBy === "likes_desc") {
+      orderBy = { likes: "desc" };
     }
 
-    const [totalCount, postsRaw] = await Promise.all([
+    const [totalCount, postsRaw, accountList, totalViewsAgg] = await Promise.all([
       prisma.threadsPostStat.count({ where: whereClause }),
       prisma.threadsPostStat.findMany({
         where: whereClause,
@@ -51,9 +75,26 @@ export async function GET(request: NextRequest) {
             select: {
               username: true,
               displayName: true,
+              avatarUrl: true,
             },
           },
         },
+      }),
+      prisma.threadsAccount.findMany({
+        select: {
+          username: true,
+          displayName: true,
+          _count: {
+            select: { postStats: true },
+          },
+        },
+        orderBy: {
+          postStats: { _count: "desc" },
+        },
+        take: 35,
+      }),
+      prisma.threadsPostStat.aggregate({
+        _sum: { views: true, likes: true, replies: true },
       }),
     ]);
 
@@ -64,11 +105,29 @@ export async function GET(request: NextRequest) {
       const er = Number(((engagements / views) * 100).toFixed(1));
       const isPositive = er >= 4.0;
 
+      // Clean display format name
+      const mType = post.mediaType.toUpperCase();
+      let formatLabel = "Teks";
+      let formatKey = "TEXT";
+      if (mType.includes("VIDEO")) {
+        formatLabel = "Video";
+        formatKey = "VIDEO";
+      } else if (mType.includes("CAROUSEL") || mType.includes("ALBUM")) {
+        formatLabel = "Carousel";
+        formatKey = "CAROUSEL";
+      } else if (mType.includes("IMAGE") || mType.includes("PHOTO")) {
+        formatLabel = "Foto";
+        formatKey = "IMAGE";
+      }
+
       return {
         id: post.id,
         mediaId: post.mediaId,
         mediaType: post.mediaType,
-        text: post.text || "(Tidak ada caption teks)",
+        formatLabel,
+        formatKey,
+        text: cleanPostText(post.text),
+        rawText: post.text,
         permalink: post.permalink,
         postedAt: post.postedAt,
         views: post.views,
@@ -78,12 +137,25 @@ export async function GET(request: NextRequest) {
         er: er,
         isPositive,
         account: post.threadsAccount?.username || "sukashawarma",
+        accountName: post.threadsAccount?.displayName || "Suka Shawarma",
+        accountAvatar: post.threadsAccount?.avatarUrl,
       };
     });
 
     return NextResponse.json({
       success: true,
       posts,
+      accounts: accountList.map((a) => ({
+        username: a.username || "",
+        displayName: a.displayName,
+        count: a._count.postStats,
+      })),
+      stats: {
+        totalPosts: totalCount,
+        totalViews: totalViewsAgg._sum.views || 0,
+        totalLikes: totalViewsAgg._sum.likes || 0,
+        totalReplies: totalViewsAgg._sum.replies || 0,
+      },
       pagination: {
         page,
         limit,
@@ -93,80 +165,10 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("Error in /api/posts:", error);
-    // Return sample mock data if DB empty or starting up
-    const mockPosts = [
-      {
-        id: "post-1",
-        mediaId: "12548796",
-        mediaType: "VIDEO",
-        text: "Kelezatan shawarma rempah asli yang dipanggang lambat hingga juicy!",
-        permalink: "https://threads.net/@sukashawarma/post/1",
-        postedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-        views: 48200,
-        likes: 3120,
-        replies: 420,
-        reposts: 180,
-        er: 7.7,
-        isPositive: true,
-        account: "sukashawarma",
-      },
-      {
-        id: "post-2",
-        mediaId: "12548797",
-        mediaType: "TEXT",
-        text: "Kenapa saus garlic kami beda dari yang lain? Simak rahasianya di utas ini 🧄",
-        permalink: "https://threads.net/@sukashawarma/post/2",
-        postedAt: new Date(Date.now() - 3600000 * 6).toISOString(),
-        views: 24300,
-        likes: 1250,
-        replies: 190,
-        reposts: 64,
-        er: 6.2,
-        isPositive: true,
-        account: "sukashawarma",
-      },
-      {
-        id: "post-3",
-        mediaId: "12548798",
-        mediaType: "CAROUSEL",
-        text: "5 Perbedaan Doner Kebab vs Arabic Shawarma Tradisional.",
-        permalink: "https://threads.net/@sukashawarma/post/3",
-        postedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-        views: 18900,
-        likes: 890,
-        replies: 82,
-        reposts: 45,
-        er: 5.4,
-        isPositive: true,
-        account: "sukashawarma",
-      },
-      {
-        id: "post-4",
-        mediaId: "12548799",
-        mediaType: "IMAGE",
-        text: "Outlet buka jam 10 pagi hari ini, ada promo bundling 2 porsi!",
-        permalink: "https://threads.net/@sukashawarma/post/4",
-        postedAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-        views: 5200,
-        likes: 110,
-        replies: 12,
-        reposts: 4,
-        er: 2.4,
-        isPositive: false,
-        account: "sukashawarma",
-      },
-    ];
-
-    return NextResponse.json({
-      success: true,
-      posts: mockPosts,
-      pagination: {
-        page: 1,
-        limit: 10,
-        total: mockPosts.length,
-        totalPages: 1,
-      },
-    });
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
   }
 }
 
@@ -174,16 +176,25 @@ export async function DELETE(request: NextRequest) {
   try {
     const { id } = await request.json();
     if (!id) {
-      return NextResponse.json({ success: false, error: "ID post wajib disertakan" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "ID post wajib disertakan" },
+        { status: 400 }
+      );
     }
 
     await prisma.threadsPostStat.delete({
       where: { id },
     });
 
-    return NextResponse.json({ success: true, message: `Post ${id} berhasil dihapus dari database` });
+    return NextResponse.json({
+      success: true,
+      message: `Post ${id} berhasil dihapus dari database`,
+    });
   } catch (error: any) {
     console.error("Error deleting post:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
   }
 }
