@@ -191,6 +191,10 @@ export function FloatingAiBubble() {
           message: text,
           persona: activePersona,
           account: "all",
+          history: messages.slice(-6).map((m) => ({
+            sender: m.sender,
+            text: m.text,
+          })),
         }),
       });
 

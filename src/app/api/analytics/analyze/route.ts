@@ -130,26 +130,34 @@ DILARANG menggunakan emoji (gunakan tanda kurung siku [ ] atau bullet point). Gu
       // Continue to Gemini fallback
     }
 
-    // Try Gemini if available
+    // Try Gemini 3.8 Flash if available
     if (!aiResultText && geminiKey) {
       try {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`;
         const gRes = await fetch(geminiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(16000),
           body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: systemPrompt }],
+            },
             contents: [
               {
-                parts: [
-                  { text: `${systemPrompt}\n\n${promptContext}` },
-                ],
+                role: "user",
+                parts: [{ text: promptContext }],
               },
             ],
+            generationConfig: {
+              temperature: 0.4,
+              maxOutputTokens: 2048,
+            },
           }),
         });
         if (gRes.ok) {
           const gData = await gRes.json();
-          aiResultText = gData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          aiResultText =
+            gData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
         }
       } catch (e) {
         // Fallback to deterministic expert logic below
