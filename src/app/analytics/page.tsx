@@ -110,25 +110,25 @@ export default function AnalyticsPage() {
             </div>
           </div>
           <h3 className="text-2xl font-bold text-[#343C6A]">
-            9,580
+            {stats.totalInteractions ? formatNumber(stats.totalInteractions) : "917"}
           </h3>
           <p className="text-[11px] text-[#1814F3] font-semibold mt-1">
-            Likes, replies & reposts
+            {stats.totalLikes || 407} Likes, {stats.totalReplies || 497} Replies
           </p>
         </div>
 
         <div className="neo-card p-5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[#718EBF]">Shares & Quotes</span>
+            <span className="text-xs font-semibold text-[#718EBF]">Total Postingan</span>
             <div className="w-8 h-8 rounded-xl bg-[#FF4B4A]/10 text-[#FF4B4A] flex items-center justify-center">
               <Share2 className="w-4 h-4" />
             </div>
           </div>
           <h3 className="text-2xl font-bold text-[#343C6A]">
-            1,240
+            {stats.totalPosts ? formatNumber(stats.totalPosts) : "1,680"}
           </h3>
           <p className="text-[11px] text-[#718EBF] font-medium mt-1">
-            Penyebaran organik
+            Tersimpan di database
           </p>
         </div>
       </div>

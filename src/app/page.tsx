@@ -112,6 +112,7 @@ export default function DashboardPage() {
             totalViews={stats.totalViews}
             avgER={stats.avgER}
             primaryAccount={stats.primaryAccount}
+            secondaryAccount={stats.secondaryAccount || "kemitraansukashawarma"}
             maskedCardId={stats.maskedCardId}
             secondaryCardId={stats.secondaryCardId}
           />

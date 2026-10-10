@@ -8,6 +8,7 @@ interface HeroAccountCardProps {
   totalViews: number;
   avgER: number;
   primaryAccount: string;
+  secondaryAccount?: string;
   maskedCardId?: string;
   secondaryCardId?: string;
 }
@@ -16,8 +17,9 @@ export function HeroAccountCards({
   totalViews,
   avgER,
   primaryAccount,
-  maskedCardId = "7194 **** **** 8820",
-  secondaryCardId = "5542 **** **** 1234",
+  secondaryAccount = "kemitraansukashawarma",
+  maskedCardId = "3855 **** **** 6364",
+  secondaryCardId = "2974 **** **** 8454",
 }: HeroAccountCardProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -27,7 +29,7 @@ export function HeroAccountCards({
         <div className="flex items-center justify-between">
           <div>
             <span className="text-xs uppercase tracking-wider text-white/70 font-semibold">
-              Total Impresi (7 Hari)
+              Total Impresi Akumulasi
             </span>
             <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mt-1">
               {formatNumber(totalViews)}
@@ -48,16 +50,16 @@ export function HeroAccountCards({
           </div>
           <div>
             <span className="block text-[10px] uppercase text-white/60">
-              Bot Status
+              Sinkronisasi
             </span>
             <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-300">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Aktif Sync
+              Database Live
             </span>
           </div>
         </div>
 
-        {/* Card Footer: Masked ID + Design Circles */}
+        {/* Card Footer: Masked Threads ID + Design Circles */}
         <div className="flex items-center justify-between pt-3 border-t border-white/15">
           <span className="font-mono text-base tracking-widest text-white/90">
             {maskedCardId}
@@ -70,7 +72,7 @@ export function HeroAccountCards({
         </div>
       </div>
 
-      {/* Secondary Card: Clean White Card (Avg ER & Benchmark) */}
+      {/* Secondary Card: Clean White Card (Akun Kemitraan) */}
       <div className="relative overflow-hidden rounded-3xl bg-white text-[#343C6A] p-6 sm:p-7 border border-[#EDF2F7] shadow-sm flex flex-col justify-between min-h-[210px]">
         {/* Top Header */}
         <div className="flex items-center justify-between">
@@ -81,7 +83,7 @@ export function HeroAccountCards({
             <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#343C6A] mt-1 flex items-baseline gap-2">
               {avgER}% ER
               <span className="text-xs font-semibold text-[#16DBCC] bg-[#16DBCC]/10 px-2 py-0.5 rounded-full inline-flex items-center gap-0.5">
-                <ArrowUpRight className="w-3.5 h-3.5" /> +1.4%
+                <ArrowUpRight className="w-3.5 h-3.5" /> Aktif
               </span>
             </h3>
           </div>
@@ -94,15 +96,15 @@ export function HeroAccountCards({
         <div className="flex items-center gap-6 my-2 text-xs">
           <div>
             <span className="block text-[10px] uppercase text-[#718EBF]">
-              Benchmark F&B
+              Akun Kemitraan
             </span>
-            <span className="font-semibold text-[#343C6A]">3.8% – 4.5%</span>
+            <span className="font-semibold text-[#343C6A]">@{secondaryAccount}</span>
           </div>
           <div>
             <span className="block text-[10px] uppercase text-[#718EBF]">
-              Kualitas Interaksi
+              Total Postingan
             </span>
-            <span className="font-semibold text-[#1814F3]">High Performer</span>
+            <span className="font-semibold text-[#1814F3]">262 Posts</span>
           </div>
         </div>
 

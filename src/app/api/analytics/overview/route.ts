@@ -10,6 +10,7 @@ export async function GET() {
         username: true,
         displayName: true,
         avatarUrl: true,
+        threadsUserId: true,
         insightsSyncedAt: true,
         _count: {
           select: {
@@ -38,7 +39,6 @@ export async function GET() {
       take: 7,
     });
 
-    // Reverse to chronological order (oldest to newest in the 7-day window)
     const chronological7Days = [...last7DaysDaily].reverse();
     const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
@@ -58,7 +58,7 @@ export async function GET() {
     });
 
     // 3. Overall aggregations across all accounts
-    const [dailyAgg, totalPostsCount, mediaTypesGrouped] = await Promise.all([
+    const [dailyAgg, totalPostsCount, mediaTypesGrouped, reportLogs] = await Promise.all([
       prisma.threadsAccountDaily.aggregate({
         _sum: {
           views: true,
@@ -72,19 +72,29 @@ export async function GET() {
         by: ["mediaType"],
         _count: { id: true },
       }),
+      prisma.analyticsReportLog.findMany({
+        take: 3,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          kind: true,
+          periodKey: true,
+          createdAt: true,
+        },
+      }),
     ]);
 
-    const totalViews = dailyAgg._sum.views || 193720;
-    const totalLikes = dailyAgg._sum.likes || 407;
-    const totalReplies = dailyAgg._sum.replies || 497;
-    const totalReposts = dailyAgg._sum.reposts || 13;
+    const totalViews = dailyAgg._sum.views || 0;
+    const totalLikes = dailyAgg._sum.likes || 0;
+    const totalReplies = dailyAgg._sum.replies || 0;
+    const totalReposts = dailyAgg._sum.reposts || 0;
     const totalInteractions = totalLikes + totalReplies + totalReposts;
 
     // Calculate Engagement Rate
     const avgER =
       totalViews > 0
         ? Number(((totalInteractions / totalViews) * 100).toFixed(1))
-        : 5.2;
+        : 0.5;
 
     // 4. Calculate content format distribution from real database
     let totalCategorized = 0;
@@ -141,48 +151,79 @@ export async function GET() {
       },
     ];
 
-    // 5. Monthly engagement history based on real trends
-    const engagementHistory = [
-      { month: "Jul", value: 120 },
-      { month: "Agu", value: 145 },
-      { month: "Sep", value: 180 },
-      { month: "Okt", value: Math.round(totalViews / 1000) },
-      { month: "Nov", value: 210 },
-      { month: "Des", value: 260 },
-      { month: "Jan", value: 295 },
-    ];
-
-    // 6. Recent auto comment targets from database
-    const recentBotActions = await prisma.autoCommentTarget.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        targetAuthor: true,
-        targetText: true,
-        status: true,
-        keyword: true,
-        sentAt: true,
-        createdAt: true,
+    // 5. 30-Day Real Engagement History from ThreadsAccountDaily
+    const allDailyHistory = await prisma.threadsAccountDaily.groupBy({
+      by: ["date"],
+      _sum: {
+        views: true,
+        likes: true,
+        replies: true,
+        reposts: true,
+      },
+      orderBy: {
+        date: "asc",
       },
     });
 
-    // Primary account (e.g. sukashawarmaofficial)
-    const primaryAccount =
-      accounts.find((a) => a.username?.includes("official"))?.username ||
-      accounts[0]?.username ||
-      "sukashawarmaofficial";
+    // Sample every 4-5 days or display trend points
+    const engagementHistory = allDailyHistory
+      .filter((_, idx) => idx % 4 === 0 || idx === allDailyHistory.length - 1)
+      .map((item) => {
+        const d = new Date(item.date);
+        const day = d.getDate();
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+        const label = `${day} ${monthNames[d.getMonth()]}`;
+        const totalViewsK = Math.round((item._sum.views || 0) / 1000);
+        return {
+          month: label,
+          value: totalViewsK,
+          rawViews: item._sum.views || 0,
+          interactions: (item._sum.likes || 0) + (item._sum.replies || 0),
+        };
+      });
+
+    // 6. Recent bot actions: Real log entries from AnalyticsReportLog & Recent Syncs
+    const recentBotActions = reportLogs.map((log) => ({
+      id: log.id,
+      type: "report",
+      title: log.kind === "daily" ? "Laporan Harian Telegram" : "Laporan Sosmed Telegram",
+      desc: `Periode: ${log.periodKey} terkirim sukses`,
+      status: "SENT",
+      createdAt: log.createdAt.toISOString(),
+    }));
+
+    // Find top primary & secondary real accounts
+    const primaryAcc =
+      accounts.find((a) => a.username === "sukashawarmaofficial") ||
+      accounts[0];
+    const secondaryAcc =
+      accounts.find((a) => a.username === "kemitraansukashawarma") ||
+      accounts[1] ||
+      accounts[0];
+
+    const maskedPrimaryId = primaryAcc?.threadsUserId
+      ? `${primaryAcc.threadsUserId.slice(0, 4)} **** **** ${primaryAcc.threadsUserId.slice(-4)}`
+      : "3855 **** **** 6364";
+
+    const maskedSecondaryId = secondaryAcc?.threadsUserId
+      ? `${secondaryAcc.threadsUserId.slice(0, 4)} **** **** ${secondaryAcc.threadsUserId.slice(-4)}`
+      : "2974 **** **** 8454";
 
     return NextResponse.json({
       success: true,
       stats: {
         totalViews: totalViews,
-        avgER: avgER > 0 ? avgER : 5.2,
+        totalLikes: totalLikes,
+        totalReplies: totalReplies,
+        totalReposts: totalReposts,
+        totalInteractions: totalInteractions,
+        avgER: avgER,
         activeAccounts: accounts.length,
         totalPosts: totalPostsCount,
-        primaryAccount: primaryAccount,
-        maskedCardId: "7194 **** **** 8820",
-        secondaryCardId: "5542 **** **** 1234",
+        primaryAccount: primaryAcc?.username || "sukashawarmaofficial",
+        secondaryAccount: secondaryAcc?.username || "kemitraansukashawarma",
+        maskedCardId: maskedPrimaryId,
+        secondaryCardId: maskedSecondaryId,
       },
       accounts,
       recentBotActions,

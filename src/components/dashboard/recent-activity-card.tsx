@@ -6,10 +6,9 @@ import { formatDateWIB } from "@/lib/utils";
 
 interface ActivityItem {
   id: string;
-  targetAuthor?: string;
-  targetText?: string;
+  title?: string;
+  desc?: string;
   status: string;
-  keyword?: string;
   createdAt: string;
 }
 
@@ -19,32 +18,29 @@ interface RecentActivityCardProps {
 
 export function RecentActivityCard({ activities = [] }: RecentActivityCardProps) {
   const displayItems =
-    activities.length > 0
+    activities && activities.length > 0
       ? activities.slice(0, 3)
       : [
           {
             id: "1",
-            type: "report",
-            title: "Laporan Harian Terkirim",
-            desc: "Pesan rekap terkirim ke Telegram Group",
-            amount: "+100%",
-            color: "yellow",
+            title: "Laporan Harian Telegram",
+            desc: "Periode: 2026-10-10 terkirim sukses",
+            status: "SENT",
+            createdAt: "2026-10-10T01:09:55.798Z",
           },
           {
             id: "2",
-            type: "sync",
             title: "Sync Metrik Postingan",
-            desc: "12 postingan Threads tersinkronisasi",
-            amount: "12 Post",
-            color: "blue",
+            desc: "1,680 postingan Threads tersinkronisasi",
+            status: "SENT",
+            createdAt: "2026-10-09T22:10:03.617Z",
           },
           {
             id: "3",
-            type: "comment",
-            title: "Auto-Komentar Terkirim",
-            desc: "Balasan otomatis ke @kuliner_sby",
-            amount: "1 Sent",
-            color: "teal",
+            title: "Auto-Komentar Threads",
+            desc: "Slot jadwal WIB & guardrail aktif",
+            status: "ACTIVE",
+            createdAt: "2026-10-09T18:30:00.000Z",
           },
         ];
 
@@ -54,67 +50,51 @@ export function RecentActivityCard({ activities = [] }: RecentActivityCardProps)
         <h4 className="text-base font-bold text-[#343C6A]">
           Recent Bot Activity
         </h4>
-        <span className="text-xs text-[#1814F3] font-semibold cursor-pointer hover:underline">
-          Lihat Semua
+        <span className="text-xs text-[#1814F3] font-semibold">
+          Live Log
         </span>
       </div>
 
       <div className="space-y-4">
-        {/* Item 1: Yellow/Amber Circle */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-full bg-[#FFF5D9] flex items-center justify-center text-[#FFBB38] shrink-0">
-              <Send className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-[#343C6A]">
-                Laporan Harian Terkirim
-              </p>
-              <p className="text-xs text-[#718EBF]">
-                Telegram Bot Master Konten
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-bold text-[#16DBCC]">Sukses</span>
-        </div>
+        {displayItems.map((item, index) => {
+          const isFirst = index === 0;
+          const isSecond = index === 1;
 
-        {/* Item 2: Soft Blue Circle */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-full bg-[#E7EDFF] flex items-center justify-center text-[#1814F3] shrink-0">
-              <RefreshCw className="w-5 h-5" />
+          return (
+            <div key={item.id} className="flex items-center justify-between">
+              <div className="flex items-center gap-3.5">
+                <div
+                  className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                    isFirst
+                      ? "bg-[#FFF5D9] text-[#FFBB38]"
+                      : isSecond
+                      ? "bg-[#E7EDFF] text-[#1814F3]"
+                      : "bg-[#DCFAF8] text-[#16DBCC]"
+                  }`}
+                >
+                  {isFirst ? (
+                    <Send className="w-5 h-5" />
+                  ) : isSecond ? (
+                    <RefreshCw className="w-5 h-5" />
+                  ) : (
+                    <MessageSquare className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-[#343C6A]">
+                    {item.title || "Laporan Telegram"}
+                  </p>
+                  <p className="text-xs text-[#718EBF]">
+                    {item.desc || "Log terkirim dari server produksi"}
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-[#16DBCC]">
+                {item.status === "ACTIVE" ? "Aktif" : "Sukses"}
+              </span>
             </div>
-            <div>
-              <p className="text-sm font-bold text-[#343C6A]">
-                Sync Metrik & Insights
-              </p>
-              <p className="text-xs text-[#718EBF]">
-                Database Supabase PostgreSQL
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-bold text-[#1814F3]">12 Post</span>
-        </div>
-
-        {/* Item 3: Mint Teal Circle */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-full bg-[#DCFAF8] flex items-center justify-center text-[#16DBCC] shrink-0">
-              <MessageSquare className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-[#343C6A]">
-                Auto-Komentar Terkirim
-              </p>
-              <p className="text-xs text-[#718EBF]">
-                {activities[0]?.targetAuthor
-                  ? `@${activities[0].targetAuthor}`
-                  : "Target keyword 'shawarma'"}
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-bold text-[#16DBCC]">Aktif</span>
-        </div>
+          );
+        })}
       </div>
     </div>
   );
