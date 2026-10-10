@@ -8,7 +8,6 @@ import {
   FileText,
   Bot,
   MessageCircle,
-  BarChart3,
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,11 +32,6 @@ const navigationItems = [
     name: "Auto Comment",
     href: "/auto-comment",
     icon: MessageCircle,
-  },
-  {
-    name: "Analytics",
-    href: "/analytics",
-    icon: BarChart3,
   },
 ];
 
