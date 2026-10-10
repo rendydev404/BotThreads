@@ -6,7 +6,6 @@ import {
   X,
   Maximize2,
   Minimize2,
-  Minus,
   Send,
   Copy,
   Check,
@@ -14,7 +13,6 @@ import {
   GripHorizontal,
   Bot,
   User,
-  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -55,21 +53,31 @@ export function FloatingAiBubble() {
     },
   ]);
 
-  // Draggable Window State
+  // Ultra-smooth GPU Drag State
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef({ mouseX: 0, mouseY: 0, posX: 0, posY: 0 });
+  const posRef = useRef({ x: 0, y: 0 });
+  const dragStartRef = useRef({ mouseX: 0, mouseY: 0, initialX: 0, initialY: 0 });
+  const rafIdRef = useRef<number | null>(null);
   const windowRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize position at bottom-right on mount
+  // Initialize position to bottom-right corner safely
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const defaultRight = Math.max(20, window.innerWidth - 440);
-      const defaultTop = Math.max(80, window.innerHeight - 660);
-      setPosition({ x: defaultRight, y: defaultTop });
+      const initialX = Math.max(16, window.innerWidth - 440);
+      const initialY = Math.max(20, window.innerHeight - 640);
+      posRef.current = { x: initialX, y: initialY };
+      setPosition({ x: initialX, y: initialY });
     }
   }, []);
+
+  // Sync window transform whenever position state updates (non-dragging)
+  useEffect(() => {
+    if (windowRef.current && !isDragging && !isFullScreen) {
+      windowRef.current.style.transform = `translate3d(${position.x}px, ${position.y}px, 0)`;
+    }
+  }, [position, isDragging, isFullScreen]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -78,55 +86,83 @@ export function FloatingAiBubble() {
     }
   }, [messages, isOpen]);
 
-  // Pointer drag handlers
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isFullScreen) return; // Do not drag in full screen mode
-    const target = e.target as HTMLElement;
-    // Don't drag if clicking buttons inside header
-    if (target.closest("button")) return;
-
-    setIsDragging(true);
-    dragStartRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      posX: position.x,
-      posY: position.y,
-    };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!isDragging || isFullScreen) return;
+  // Mouse / Pointer Move listener (Runs on window, decoupled via RAF for 120Hz smoothness)
+  const onPointerMove = useCallback(
+    (e: PointerEvent) => {
+      if (isFullScreen) return;
 
       const deltaX = e.clientX - dragStartRef.current.mouseX;
       const deltaY = e.clientY - dragStartRef.current.mouseY;
 
-      const newX = dragStartRef.current.posX + deltaX;
-      const newY = dragStartRef.current.posY + deltaY;
+      let nextX = dragStartRef.current.initialX + deltaX;
+      let nextY = dragStartRef.current.initialY + deltaY;
 
-      // Bound coordinates within viewport
-      const maxX = Math.max(0, window.innerWidth - (windowRef.current?.offsetWidth || 400));
-      const maxY = Math.max(0, window.innerHeight - (windowRef.current?.offsetHeight || 500));
+      // Viewport bounds clamp
+      const winWidth = windowRef.current?.offsetWidth || 420;
+      const winHeight = windowRef.current?.offsetHeight || 580;
+      const maxX = Math.max(10, window.innerWidth - winWidth - 10);
+      const maxY = Math.max(10, window.innerHeight - winHeight - 10);
 
-      setPosition({
-        x: Math.min(Math.max(10, newX), maxX - 10),
-        y: Math.min(Math.max(10, newY), maxY - 10),
+      nextX = Math.min(Math.max(10, nextX), maxX);
+      nextY = Math.min(Math.max(10, nextY), maxY);
+
+      posRef.current = { x: nextX, y: nextY };
+
+      // Update DOM style directly using requestAnimationFrame (Zero React re-render lag)
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (windowRef.current) {
+          windowRef.current.style.transform = `translate3d(${nextX}px, ${nextY}px, 0)`;
+        }
       });
     },
-    [isDragging, isFullScreen]
+    [isFullScreen]
   );
 
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isDragging) {
-      setIsDragging(false);
-      try {
-        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch (err) {
-        // Safe ignore
-      }
+  const onPointerUp = useCallback(() => {
+    setIsDragging(false);
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
+
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+
+    // Save final position to React state
+    setPosition(posRef.current);
+  }, [onPointerMove]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isFullScreen) return;
+
+    // Ignore if clicked on buttons or input
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("input") || target.closest("textarea")) {
+      return;
     }
+
+    setIsDragging(true);
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "grabbing";
+
+    dragStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      initialX: posRef.current.x,
+      initialY: posRef.current.y,
+    };
+
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    window.addEventListener("pointerup", onPointerUp);
   };
+
+  // Clean up RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [onPointerMove, onPointerUp]);
 
   // Send message to backend
   const handleSendMessage = async (textToSend = inputMessage) => {
@@ -234,31 +270,44 @@ export function FloatingAiBubble() {
               ? undefined
               : {
                   position: "fixed",
-                  left: `${position.x}px`,
-                  top: `${position.y}px`,
+                  left: 0,
+                  top: 0,
+                  transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
                   zIndex: 50,
+                  willChange: "transform",
                 }
           }
           className={cn(
-            "bg-white border border-[#EDF2F7] shadow-2xl flex flex-col overflow-hidden transition-all duration-200",
+            "bg-white border border-[#EDF2F7] flex flex-col overflow-hidden",
+            isDragging && "select-none pointer-events-auto",
             isFullScreen
-              ? "fixed inset-2 sm:inset-6 z-50 rounded-3xl max-w-5xl mx-auto shadow-2xl"
-              : "w-[94vw] sm:w-[430px] h-[580px] max-h-[85vh] rounded-3xl"
+              ? "fixed inset-2 sm:inset-6 z-50 rounded-3xl max-w-5xl mx-auto shadow-2xl transition-all duration-300 ease-out"
+              : cn(
+                  "w-[94vw] sm:w-[430px] h-[580px] max-h-[85vh] rounded-3xl",
+                  isDragging
+                    ? "transition-none shadow-[0_30px_70px_rgba(24,20,243,0.22)] scale-[1.008]"
+                    : "transition-shadow duration-200 shadow-2xl"
+                )
           )}
         >
-          {/* Header Bar - Serves as Draggable Handle */}
+          {/* Header Bar - High Performance Drag Handle */}
           <div
             onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
             className={cn(
-              "px-5 py-3.5 bg-[#F8FAFC] border-b border-[#EDF2F7] flex items-center justify-between select-none",
-              isFullScreen ? "cursor-default" : "cursor-grab active:cursor-grabbing"
+              "px-5 py-3.5 bg-[#F8FAFC] border-b border-[#EDF2F7] flex items-center justify-between select-none touch-none",
+              isFullScreen
+                ? "cursor-default"
+                : isDragging
+                ? "cursor-grabbing bg-[#F1F5F9]"
+                : "cursor-grab hover:bg-[#F1F5F9]/80 transition-colors"
             )}
+            title={isFullScreen ? undefined : "Klik dan tahan untuk menggeser jendela"}
           >
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0 pointer-events-none">
               {!isFullScreen && (
-                <GripHorizontal className="w-4 h-4 text-[#718EBF] shrink-0" />
+                <div className="flex items-center justify-center p-1 rounded-md text-[#718EBF]">
+                  <GripHorizontal className="w-4 h-4" />
+                </div>
               )}
               <div className="w-8 h-8 rounded-xl bg-[#1814F3] text-white flex items-center justify-center shrink-0 shadow-xs">
                 <Sparkles className="w-4 h-4" />
@@ -269,7 +318,7 @@ export function FloatingAiBubble() {
                     Hermes Dashboard Assistant
                   </h4>
                   <span className="text-[9px] font-bold text-[#10B981] bg-[#10B981]/10 px-1.5 py-0.5 rounded-full shrink-0">
-                    Live Context
+                    Live
                   </span>
                 </div>
                 <p className="text-[10px] text-[#718EBF] truncate">
@@ -278,7 +327,7 @@ export function FloatingAiBubble() {
               </div>
             </div>
 
-            {/* Window Controls */}
+            {/* Window Controls (Not draggable) */}
             <div className="flex items-center gap-1 shrink-0 ml-2">
               <button
                 type="button"
