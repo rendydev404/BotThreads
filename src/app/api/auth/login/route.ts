@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { clearFailures, lockedSeconds, recordFailure } from "@/lib/rate-limit";
 import { findUserByIdentifier, normalizeIdentifier } from "@/lib/users";
+import { isSameOrigin } from "@/lib/same-origin";
 
 const MAX_PER_IP = 5;
 const MAX_PER_IDENTIFIER = 10;
@@ -41,8 +42,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) {
+  if (!isSameOrigin(req)) {
     return json({ error: "Permintaan tidak valid." }, 403);
   }
 

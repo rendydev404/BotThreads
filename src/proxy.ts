@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth";
 import { safeNextPath } from "@/lib/safe-next";
 import { getSessionUserId } from "@/lib/users";
+import { isSameOrigin } from "@/lib/same-origin";
 
 const PUBLIC_API = ["/api/auth/login", "/api/auth/logout"];
 
@@ -38,8 +39,7 @@ export async function proxy(request: NextRequest) {
 
   // Perlindungan CSRF untuk aksi yang mengubah data
   if (isApi && request.method !== "GET" && request.method !== "HEAD") {
-    const origin = request.headers.get("origin");
-    if (origin && origin !== request.nextUrl.origin) {
+    if (!isSameOrigin(request)) {
       return NextResponse.json(
         { success: false, error: "Permintaan tidak valid." },
         { status: 403 }
