@@ -9,7 +9,8 @@
     "lint": "eslint",
     "prisma:generate": "prisma generate",
     "auth:secret": "node scripts/gen-secret.mjs",
-    "user:create": "node scripts/create-user.mjs"
+    "user:create": "node scripts/create-user.mjs",
+    "env:push": "node scripts/push-env-to-coolify.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
