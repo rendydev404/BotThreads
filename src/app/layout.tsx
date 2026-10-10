@@ -4,6 +4,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
+import { FloatingAiBubble } from "@/components/chat/floating-ai-bubble";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta",
@@ -41,6 +42,9 @@ export default function RootLayout({
 
         {/* Mobile-First Bottom Navigation Bar */}
         <BottomNav />
+
+        {/* Floating Context-Aware AI Chat Bubble (Draggable & Fullscreen) */}
+        <FloatingAiBubble />
       </body>
     </html>
   );
