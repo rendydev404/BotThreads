@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
       allDailyHistory,
       topPost,
       reportLogs,
+      accountDailyGroupBy,
     ] = await Promise.all([
       // A. Aggregated sum of views and interactions
       prisma.threadsAccountDaily.aggregate({
@@ -144,6 +145,17 @@ export async function GET(request: NextRequest) {
           kind: true,
           periodKey: true,
           createdAt: true,
+        },
+      }),
+
+      // H. Account Daily summary for leaderboard
+      prisma.threadsAccountDaily.groupBy({
+        by: ["threadsAccountId"],
+        _sum: {
+          views: true,
+          likes: true,
+          replies: true,
+          reposts: true,
         },
       }),
     ]);
@@ -289,6 +301,37 @@ export async function GET(request: NextRequest) {
           totalAccounts: accounts.length,
         };
 
+    const accountDailyStatsMap = new Map(
+      accountDailyGroupBy.map((g: any) => [g.threadsAccountId, g])
+    );
+
+    const leaderboard = accounts
+      .map((a: any) => {
+        const d: any = accountDailyStatsMap.get(a.id);
+        const views = d?._sum.views || 0;
+        const likes = d?._sum.likes || 0;
+        const replies = d?._sum.replies || 0;
+        const reposts = d?._sum.reposts || 0;
+        const posts = a._count?.postStats || 0;
+        const er =
+          views > 0
+            ? Number((((likes + replies + reposts) / views) * 100).toFixed(2))
+            : 0;
+        return {
+          id: a.id,
+          username: a.username || "outlet",
+          displayName: a.displayName || a.username || "Cabang",
+          avatarUrl: a.avatarUrl,
+          posts,
+          views,
+          likes,
+          replies,
+          reposts,
+          er,
+        };
+      })
+      .sort((a, b) => b.views - a.views);
+
     return NextResponse.json({
       success: true,
       currentAccount,
@@ -303,6 +346,7 @@ export async function GET(request: NextRequest) {
         totalPosts: totalPostsCount,
       },
       accounts,
+      leaderboard,
       topPost,
       weeklyActivity,
       contentFormats,

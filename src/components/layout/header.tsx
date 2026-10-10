@@ -2,107 +2,85 @@
 
 import React, { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Search, Bell, X } from "lucide-react";
+import { Bell, Radio, CheckCircle2, User } from "lucide-react";
 
 const titleMap: Record<string, string> = {
-  "/": "Overview",
-  "/posts": "Content & Posts Hub",
-  "/prompt-studio": "Hermes AI Prompt Studio",
+  "/": "Ringkasan Performa Threads",
+  "/posts": "Semua Postingan Cabang",
+  "/prompt-studio": "Studio AI & Analisis",
 };
 
 export function Header() {
   const pathname = usePathname();
-  const [searchQuery, setSearchQuery] = useState("");
   const [hasNotifications, setHasNotifications] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
 
   const title =
     titleMap[pathname] ||
-    (pathname.startsWith("/posts") ? "Content & Posts Hub" : "Dashboard");
+    (pathname.startsWith("/posts") ? "Semua Postingan Cabang" : "Dashboard");
 
   return (
-    <header className="h-20 bg-white border-b border-[#EDF2F7] px-4 md:px-8 flex items-center justify-between sticky top-0 z-20">
-      {/* Page Title */}
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-[#343C6A] tracking-tight">
+    <header className="h-20 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between sticky top-0 z-20">
+      {/* Page Title & Live Fleet Badge */}
+      <div className="flex items-center gap-3">
+        <h1 className="text-lg md:text-xl font-extrabold text-[#1E293B] tracking-tight">
           {title}
         </h1>
+        <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>32 Cabang Aktif</span>
+        </div>
       </div>
 
-      {/* Right Controls: Custom Search + Notifications + Profile */}
-      <div className="flex items-center gap-3 md:gap-5">
-        {/* Custom Pill Search (No Native OS Control) */}
-        <div className="relative hidden sm:flex items-center">
-          <div className="absolute left-4 text-[#718EBF] pointer-events-none">
-            <Search className="w-4 h-4" />
-          </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search for something"
-            className="w-48 lg:w-64 h-11 pl-11 pr-8 bg-[#F5F7FA] text-[#343C6A] placeholder-[#8BA3CB] text-sm rounded-full border border-transparent focus:border-[#1814F3]/30 focus:bg-white focus:outline-none transition-all"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 text-[#718EBF] hover:text-[#343C6A] p-0.5"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+      {/* Right Controls: Database Sync Status + Notifications + Profile */}
+      <div className="flex items-center gap-3 md:gap-4">
+        {/* System Sync Pill */}
+        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-[#64748B]">
+          <Radio className="w-3.5 h-3.5 text-[#1814F3]" />
+          <span className="font-medium">Supabase Real-time</span>
         </div>
 
-        {/* Circular Action: Notification Bell with Red Badge */}
+        {/* Action: Notification Bell */}
         <div className="relative">
           <button
+            type="button"
             onClick={() => setShowNotifications(!showNotifications)}
-            aria-label="Notifications"
-            className="w-11 h-11 rounded-full bg-[#F5F7FA] text-[#718EBF] hover:text-[#1814F3] hover:bg-[#F0F3F8] flex items-center justify-center transition-colors relative cursor-pointer"
+            aria-label="Notifikasi"
+            className="w-10 h-10 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[#64748B] hover:text-[#1814F3] hover:bg-[#F1F5F9] flex items-center justify-center transition-colors relative cursor-pointer"
           >
-            <Bell className="w-5 h-5" strokeWidth={2} />
+            <Bell className="w-4 h-4" />
             {hasNotifications && (
-              <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full bg-[#FF4B4A] ring-2 ring-white" />
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#FF4B4A] ring-2 ring-white" />
             )}
           </button>
 
           {/* Custom Notification Popover */}
           {showNotifications && (
-            <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl p-4 shadow-xl border border-[#EDF2F7] z-50">
+            <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl p-4 shadow-xl border border-[#E2E8F0] z-50">
               <div className="flex items-center justify-between pb-3 border-b border-[#EDF2F7]">
-                <h4 className="font-bold text-sm text-[#343C6A]">
-                  Notifikasi Bot
+                <h4 className="font-bold text-xs text-[#1E293B]">
+                  Notifikasi Sistem
                 </h4>
                 <button
+                  type="button"
                   onClick={() => {
                     setHasNotifications(false);
                     setShowNotifications(false);
                   }}
-                  className="text-xs text-[#1814F3] font-medium hover:underline cursor-pointer"
+                  className="text-[11px] text-[#1814F3] font-semibold hover:underline cursor-pointer"
                 >
                   Tandai Dibaca
                 </button>
               </div>
               <div className="py-2 space-y-2">
-                <div className="p-2.5 rounded-xl bg-[#F4F7FE] flex gap-3 items-start">
-                  <span className="w-2 h-2 rounded-full bg-[#16DBCC] mt-1.5 shrink-0" />
+                <div className="p-2.5 rounded-xl bg-[#F8FAFC] border border-[#F1F5F9] flex gap-2.5 items-start">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-xs font-semibold text-[#343C6A]">
-                      Sync Metrik Sukses
+                    <p className="text-xs font-bold text-[#1E293B]">
+                      Database Tersinkronisasi
                     </p>
-                    <p className="text-[11px] text-[#718EBF]">
-                      Akun Threads berhasil sinkronisasi 1,680 postingan.
-                    </p>
-                  </div>
-                </div>
-                <div className="p-2.5 rounded-xl bg-[#F4F7FE] flex gap-3 items-start">
-                  <span className="w-2 h-2 rounded-full bg-[#1814F3] mt-1.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-[#343C6A]">
-                      Hermes Agent Siap
-                    </p>
-                    <p className="text-[11px] text-[#718EBF]">
-                      AI Engine siap memproses prompt dan analisis performa.
+                    <p className="text-[11px] text-[#64748B] mt-0.5">
+                      32 akun Threads dan 1.680 postingan sukses tersambung.
                     </p>
                   </div>
                 </div>
@@ -111,14 +89,16 @@ export function Header() {
           )}
         </div>
 
-        {/* User Profile Avatar */}
-        <div className="flex items-center gap-3 pl-1">
-          <div className="w-11 h-11 rounded-full bg-[#1814F3]/10 border-2 border-white shadow-sm flex items-center justify-center overflow-hidden">
-            <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
-              alt="Admin Profile"
-              className="w-full h-full object-cover"
-            />
+        {/* User Info / Profile */}
+        <div className="flex items-center gap-2.5 pl-1 border-l border-[#E2E8F0]">
+          <div className="w-9 h-9 rounded-xl bg-[#1814F3] text-white flex items-center justify-center font-bold text-xs shadow-xs">
+            SS
+          </div>
+          <div className="hidden xl:block">
+            <p className="text-xs font-bold text-[#1E293B] leading-tight">
+              Suka Shawarma
+            </p>
+            <p className="text-[10px] text-[#64748B]">Admin Dashboard</p>
           </div>
         </div>
       </div>

@@ -24,16 +24,16 @@ interface ChatMessage {
 }
 
 const quickPrompts = [
-  "Ringkas performa 32 akun saat ini",
+  "Ringkas performa 32 akun",
   "Akun mana yang paling banyak posting?",
-  "Bikinin 3 draf hook viral untuk Threads",
-  "Kenapa format video punya ER lebih tinggi?",
+  "Akun mana views-nya tertinggi?",
+  "Bikinin 3 draf hook postingan Threads",
 ];
 
 const personas = [
-  { id: "strategist", label: "Strategist", name: "Livia" },
+  { id: "strategist", label: "Strategi", name: "Livia" },
   { id: "copywriter", label: "Copywriter", name: "Randy" },
-  { id: "analyst", label: "Analyst", name: "Workman" },
+  { id: "analyst", label: "Analis", name: "Workman" },
 ];
 
 export function FloatingAiBubble() {
@@ -48,7 +48,7 @@ export function FloatingAiBubble() {
     {
       id: "welcome",
       sender: "bot",
-      text: "Halo! Saya Hermes Intelligence yang terhubung langsung dengan seluruh data dashboard (32 akun Threads, 193.7K views, dan 1.680 postingan).\n\nAda yang ingin Anda tanyakan atau analisis mengenai performa akun, perbandingan outlet, atau pembuatan draf postingan viral?",
+      text: "Halo! Saya Asisten AI Suka Shawarma yang terhubung langsung ke database 32 akun Threads (193.7K views & 1.680 postingan).\n\nAda yang ingin Anda tanyakan seputar ranking cabang, penayangan, atau draf ide konten baru?",
       timestamp: "Baru saja",
     },
   ]);
@@ -318,15 +318,15 @@ export function FloatingAiBubble() {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <h4 className="text-xs sm:text-sm font-bold text-[#343C6A] truncate">
-                    Hermes Dashboard Assistant
+                  <h4 className="text-xs sm:text-sm font-extrabold text-[#1E293B] truncate">
+                    Asisten AI Suka Shawarma
                   </h4>
-                  <span className="text-[9px] font-bold text-[#10B981] bg-[#10B981]/10 px-1.5 py-0.5 rounded-full shrink-0">
+                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full shrink-0">
                     Live
                   </span>
                 </div>
-                <p className="text-[10px] text-[#718EBF] truncate">
-                  Memahami 32 akun, 193.7K views & 1.680 post
+                <p className="text-[10px] text-[#64748B] truncate">
+                  Akses real-time 32 akun & 1.680 post
                 </p>
               </div>
             </div>

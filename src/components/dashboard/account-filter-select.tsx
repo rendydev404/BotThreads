@@ -69,14 +69,14 @@ export function AccountFilterSelect({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-white border border-[#EDF2F7] hover:border-[#1814F3]/30 shadow-xs hover:shadow-sm text-left transition-all cursor-pointer group"
+        className="flex items-center gap-3 px-3.5 py-2 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#1814F3]/40 shadow-xs hover:shadow-sm text-left transition-all cursor-pointer group"
       >
         {isAllSelected ? (
-          <div className="w-8 h-8 rounded-xl bg-[#1814F3]/10 text-[#1814F3] flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-[#1814F3]/10 text-[#1814F3] flex items-center justify-center shrink-0">
             <Globe className="w-4 h-4" />
           </div>
         ) : (
-          <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#EDF2F7] shrink-0 border border-[#EDF2F7]">
+          <div className="w-8 h-8 rounded-lg overflow-hidden bg-[#F1F5F9] shrink-0 border border-[#E2E8F0]">
             {currentSelectedObj?.avatarUrl ? (
               <img
                 src={currentSelectedObj.avatarUrl}
@@ -92,10 +92,10 @@ export function AccountFilterSelect({
         )}
 
         <div className="flex flex-col min-w-0 pr-2">
-          <span className="text-[10px] uppercase tracking-wider text-[#718EBF] font-semibold">
+          <span className="text-[10px] uppercase tracking-wider text-[#64748B] font-semibold">
             Filter Tampilan
           </span>
-          <span className="text-xs md:text-sm font-bold text-[#343C6A] truncate max-w-[170px] sm:max-w-[210px]">
+          <span className="text-xs font-bold text-[#1E293B] truncate max-w-[170px] sm:max-w-[210px]">
             {isAllSelected
               ? `Semua Akun (${totalAccounts})`
               : currentSelectedObj?.displayName || `@${selectedAccount}`}
@@ -104,7 +104,7 @@ export function AccountFilterSelect({
 
         <ChevronDown
           className={cn(
-            "w-4 h-4 text-[#718EBF] transition-transform duration-200 shrink-0",
+            "w-4 h-4 text-[#64748B] transition-transform duration-200 shrink-0",
             isOpen && "rotate-180 text-[#1814F3]"
           )}
         />
@@ -112,17 +112,17 @@ export function AccountFilterSelect({
 
       {/* Custom Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white border border-[#EDF2F7] shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white border border-[#E2E8F0] shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           {/* Custom Search Input */}
-          <div className="p-3 border-b border-[#EDF2F7] bg-[#F8FAFC]">
+          <div className="p-3 border-b border-[#F1F5F9] bg-[#F8FAFC]">
             <div className="relative flex items-center">
-              <Search className="absolute left-3 w-4 h-4 text-[#718EBF]" />
+              <Search className="absolute left-3 w-4 h-4 text-[#94A3B8]" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari akun atau username..."
-                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-white border border-[#EDF2F7] text-[#343C6A] placeholder-[#94A3B8] focus:outline-none focus:border-[#1814F3] transition-colors"
+                placeholder="Cari cabang atau username..."
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-white border border-[#E2E8F0] text-[#1E293B] placeholder-[#94A3B8] focus:outline-none focus:border-[#1814F3] transition-colors"
                 autoFocus
               />
             </div>

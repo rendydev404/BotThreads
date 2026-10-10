@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import { Send, RefreshCw, MessageSquare, CheckCircle2 } from "lucide-react";
-import { formatDateWIB } from "@/lib/utils";
+import { Send, RefreshCw, Bot, CheckCircle2 } from "lucide-react";
 
 interface ActivityItem {
   id: string;
@@ -16,7 +15,9 @@ interface RecentActivityCardProps {
   activities?: ActivityItem[];
 }
 
-export function RecentActivityCard({ activities = [] }: RecentActivityCardProps) {
+export function RecentActivityCard({
+  activities = [],
+}: RecentActivityCardProps) {
   const displayItems =
     activities && activities.length > 0
       ? activities.slice(0, 3)
@@ -24,72 +25,82 @@ export function RecentActivityCard({ activities = [] }: RecentActivityCardProps)
           {
             id: "1",
             title: "Laporan Harian Telegram",
-            desc: "Periode: 2026-10-10 terkirim sukses",
+            desc: "Ringkasan metrik harian terkirim ke tim",
             status: "SENT",
-            createdAt: "2026-10-10T01:09:55.798Z",
+            createdAt: "2026-10-10T08:00:00.000Z",
           },
           {
             id: "2",
-            title: "Sync Metrik Postingan",
-            desc: "1,680 postingan Threads tersinkronisasi",
+            title: "Sinkronisasi Metrik Database",
+            desc: "1.680 postingan Threads tersinkron otomatis",
             status: "SENT",
-            createdAt: "2026-10-09T22:10:03.617Z",
+            createdAt: "2026-10-10T07:30:00.000Z",
           },
           {
             id: "3",
-            title: "Auto-Komentar Threads",
-            desc: "Slot jadwal WIB & guardrail aktif",
+            title: "Status Bot & Orkestrasi",
+            desc: "Engine Gemini 3.8 Flash & Telegram aktif",
             status: "ACTIVE",
-            createdAt: "2026-10-09T18:30:00.000Z",
+            createdAt: "2026-10-10T07:00:00.000Z",
           },
         ];
 
   return (
-    <div className="neo-card p-6 flex flex-col justify-between h-full">
-      <div className="flex items-center justify-between mb-4">
-        <h4 className="text-base font-bold text-[#343C6A]">
-          Recent Bot Activity
-        </h4>
-        <span className="text-xs text-[#1814F3] font-semibold">
-          Live Log
+    <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+      <div className="flex items-center justify-between pb-3.5 border-b border-[#F1F5F9] mb-4">
+        <div>
+          <h4 className="text-xs font-bold text-[#1E293B]">
+            Aktivitas Bot & Sinkronisasi
+          </h4>
+          <p className="text-[10px] text-[#64748B]">
+            Log eksekusi dan laporan otomatis
+          </p>
+        </div>
+        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Real-time</span>
         </span>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3.5">
         {displayItems.map((item, index) => {
           const isFirst = index === 0;
           const isSecond = index === 1;
 
           return (
-            <div key={item.id} className="flex items-center justify-between">
-              <div className="flex items-center gap-3.5">
+            <div
+              key={item.id}
+              className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[#F8FAFC] border border-[#F1F5F9]"
+            >
+              <div className="flex items-center gap-3 min-w-0">
                 <div
-                  className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                     isFirst
-                      ? "bg-[#FFF5D9] text-[#FFBB38]"
+                      ? "bg-amber-50 text-amber-600"
                       : isSecond
-                      ? "bg-[#E7EDFF] text-[#1814F3]"
-                      : "bg-[#DCFAF8] text-[#16DBCC]"
+                      ? "bg-blue-50 text-[#1814F3]"
+                      : "bg-emerald-50 text-emerald-600"
                   }`}
                 >
                   {isFirst ? (
-                    <Send className="w-5 h-5" />
+                    <Send className="w-4 h-4" />
                   ) : isSecond ? (
-                    <RefreshCw className="w-5 h-5" />
+                    <RefreshCw className="w-4 h-4" />
                   ) : (
-                    <MessageSquare className="w-5 h-5" />
+                    <Bot className="w-4 h-4" />
                   )}
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-[#343C6A]">
-                    {item.title || "Laporan Telegram"}
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-[#1E293B] truncate">
+                    {item.title}
                   </p>
-                  <p className="text-xs text-[#718EBF]">
-                    {item.desc || "Log terkirim dari server produksi"}
+                  <p className="text-[11px] text-[#64748B] truncate">
+                    {item.desc}
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold text-[#16DBCC]">
+
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md shrink-0 border border-emerald-200">
                 {item.status === "ACTIVE" ? "Aktif" : "Sukses"}
               </span>
             </div>

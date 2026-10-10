@@ -12,17 +12,17 @@ import { cn } from "@/lib/utils";
 
 const mobileNavItems = [
   {
-    name: "Dashboard",
+    name: "Ringkasan",
     href: "/",
     icon: LayoutDashboard,
   },
   {
-    name: "Posts",
+    name: "Postingan",
     href: "/posts",
     icon: FileText,
   },
   {
-    name: "Studio",
+    name: "Studio AI",
     href: "/prompt-studio",
     icon: Bot,
     highlight: true,

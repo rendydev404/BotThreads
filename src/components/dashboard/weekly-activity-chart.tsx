@@ -76,9 +76,9 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#16DBCC]" />
-                        <span className="text-[#718EBF]">Interaksi:</span>
-                        <span className="font-bold text-[#343C6A]">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+                        <span className="text-[#64748B]">Interaksi:</span>
+                        <span className="font-bold text-[#1E293B]">
                           {formatNumber(Number(payload[1]?.value) || 0)}
                         </span>
                       </div>
@@ -89,20 +89,19 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
               return null;
             }}
           />
-          {/* Dual Bar Pills matching BankFlash Style */}
           <Bar
             dataKey="views"
             name="Views"
             fill="#1814F3"
-            radius={[20, 20, 20, 20]}
-            barSize={12}
+            radius={[6, 6, 0, 0]}
+            barSize={14}
           />
           <Bar
             dataKey="interactions"
             name="Interaksi"
-            fill="#16DBCC"
-            radius={[20, 20, 20, 20]}
-            barSize={12}
+            fill="#10B981"
+            radius={[6, 6, 0, 0]}
+            barSize={14}
           />
         </BarChart>
       </ResponsiveContainer>

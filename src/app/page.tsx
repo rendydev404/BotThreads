@@ -2,13 +2,13 @@
 
 import React, { useEffect, useState } from "react";
 import { AccountFilterSelect } from "@/components/dashboard/account-filter-select";
-import { AccountFleetHero } from "@/components/dashboard/account-fleet-hero";
+import { FleetSummaryCards } from "@/components/dashboard/fleet-summary-cards";
+import { FleetLeaderboardTable } from "@/components/dashboard/fleet-leaderboard-table";
+import { TopPerformingPostCard } from "@/components/dashboard/top-performing-post-card";
 import { AccountAnalysisModal } from "@/components/dashboard/account-analysis-modal";
 import { RecentActivityCard } from "@/components/dashboard/recent-activity-card";
 import { WeeklyActivityChart } from "@/components/dashboard/weekly-activity-chart";
-import { FormatPieChart } from "@/components/dashboard/format-pie-chart";
-import { EngagementSplineChart } from "@/components/dashboard/engagement-spline-chart";
-import { TrendingUp, Layers, RefreshCw, BarChart2 } from "lucide-react";
+import { BarChart2, RefreshCw } from "lucide-react";
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
@@ -49,6 +49,7 @@ export default function DashboardPage() {
   };
 
   const accounts = data?.accounts || [];
+  const leaderboard = data?.leaderboard || [];
   const currentAccount = data?.currentAccount || {
     isAll: true,
     username: "all",
@@ -80,30 +81,21 @@ export default function DashboardPage() {
 
   const contentFormats = data?.contentFormats || [
     { name: "Teks Singkat", value: 85, count: 1425, color: "#1814F3" },
-    { name: "Video / Reels", value: 12, count: 197, color: "#16DBCC" },
-    { name: "Foto / Promo", value: 2, count: 40, color: "#FF4B4A" },
-    { name: "Carousel Edukasi", value: 1, count: 18, color: "#FFBB38" },
-  ];
-
-  const engagementHistory = data?.engagementHistory || [
-    { month: "8 Sep", value: 2 },
-    { month: "16 Sep", value: 3 },
-    { month: "24 Sep", value: 1 },
-    { month: "2 Okt", value: 9 },
-    { month: "6 Okt", value: 21 },
-    { month: "9 Okt", value: 25 },
+    { name: "Video / Reels", value: 12, count: 197, color: "#10B981" },
+    { name: "Foto / Promo", value: 2, count: 40, color: "#F59E0B" },
+    { name: "Carousel Edukasi", value: 1, count: 18, color: "#6366F1" },
   ];
 
   return (
-    <div className="space-y-6 sm:space-y-7">
-      {/* Top Filter & Operations Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 sm:space-y-7 pb-12">
+      {/* Top Header & Account Selection Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-extrabold text-[#343C6A] tracking-tight">
-            Threads Bot Analytics
+          <h2 className="text-xl md:text-2xl font-extrabold text-[#1E293B] tracking-tight">
+            Performa Akun Threads
           </h2>
-          <p className="text-xs md:text-sm text-[#718EBF] mt-0.5">
-            Monitoring performa real-time dan orkestrasi bot Telegram & Hermes AI
+          <p className="text-xs md:text-sm text-[#64748B] mt-0.5">
+            Pantau penayangan, postingan, dan efektivitas 32 akun cabang Suka Shawarma secara real-time.
           </p>
         </div>
 
@@ -120,25 +112,24 @@ export default function DashboardPage() {
             type="button"
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-white border border-[#EDF2F7] hover:border-[#1814F3]/30 text-xs font-semibold text-[#343C6A] hover:bg-[#F4F7FE] shadow-xs cursor-pointer transition-all"
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#1814F3]/40 text-xs font-semibold text-[#1E293B] hover:bg-[#F8FAFC] shadow-xs cursor-pointer transition-all"
             title="Perbarui Data"
           >
             <RefreshCw
-              className={`w-4 h-4 text-[#1814F3] ${refreshing ? "animate-spin" : ""}`}
+              className={`w-3.5 h-3.5 text-[#1814F3] ${refreshing ? "animate-spin" : ""}`}
             />
-            <span className="hidden md:inline">
+            <span className="hidden sm:inline">
               {refreshing ? "Memperbarui..." : "Perbarui"}
             </span>
           </button>
         </div>
       </div>
 
-      {/* Row 1: Executive Fleet Hero Deck (No Fake Bank Cards) */}
-      <AccountFleetHero
+      {/* Row 1: Clean Executive Fleet Summary (4 KPI Cards + Scope Banner) */}
+      <FleetSummaryCards
         isAll={currentAccount.isAll}
-        accountName={currentAccount.username || "all"}
         displayName={currentAccount.displayName}
-        avatarUrl={currentAccount.avatarUrl}
+        accountName={currentAccount.username || "all"}
         totalViews={stats.totalViews}
         totalPosts={stats.totalPosts}
         totalInteractions={stats.totalInteractions}
@@ -146,82 +137,77 @@ export default function DashboardPage() {
         totalReplies={stats.totalReplies}
         totalReposts={stats.totalReposts}
         avgER={stats.avgER}
-        topPost={data?.topPost}
+        activeAccounts={stats.activeAccounts || 32}
         onOpenAnalysis={() => setIsAnalysisModalOpen(true)}
       />
 
-      {/* Row 2: Weekly Activity & Content Format Distribution */}
+      {/* Row 2: Analytics Grid (Chart + Top Post) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Weekly Activity Bar Chart */}
-        <div className="lg:col-span-8 neo-card p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+        {/* Left Column (8 cols): Weekly Activity Bar Chart */}
+        <div className="lg:col-span-8 bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-xs flex flex-col justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div>
               <div className="flex items-center gap-2">
-                <BarChart2 className="w-4 h-4 text-[#1814F3]" />
-                <h3 className="text-base font-bold text-[#343C6A]">
-                  Weekly Activity
-                </h3>
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#1814F3] flex items-center justify-center">
+                  <BarChart2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#1E293B]">
+                    Aktivitas Penayangan 7 Hari Terakhir
+                  </h3>
+                  <p className="text-xs text-[#64748B]">
+                    {currentAccount.isAll
+                      ? "Akumulasi impresi dan interaksi seluruh 32 akun cabang"
+                      : `Statistik 7 hari akun @${currentAccount.username}`}
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-[#718EBF] mt-0.5">
-                {currentAccount.isAll
-                  ? "Akumulasi impresi dan interaksi seluruh jaringan akun 7 hari terakhir"
-                  : `Impresi dan interaksi @${currentAccount.username} 7 hari terakhir`}
-              </p>
             </div>
 
-            {/* Chart Legend */}
-            <div className="flex items-center gap-4 text-xs font-medium">
+            {/* Legend */}
+            <div className="flex items-center gap-4 text-xs font-semibold">
               <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#1814F3]" />
-                <span className="text-[#718EBF]">Views</span>
+                <span className="text-[#64748B]">Views</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#16DBCC]" />
-                <span className="text-[#718EBF]">Interaksi</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+                <span className="text-[#64748B]">Interaksi</span>
               </div>
             </div>
           </div>
+
           <WeeklyActivityChart data={weeklyActivity} />
         </div>
 
-        {/* Content Format Stats Donut Chart */}
-        <div className="lg:col-span-4 neo-card p-6 flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-base font-bold text-[#343C6A]">
-              Content Format Stats
-            </h3>
-            <Layers className="w-4 h-4 text-[#718EBF]" />
-          </div>
-          <FormatPieChart data={contentFormats} />
+        {/* Right Column (4 cols): Top Performing Post & Content Format Progress */}
+        <div className="lg:col-span-4">
+          <TopPerformingPostCard
+            topPost={data?.topPost}
+            contentFormats={contentFormats}
+          />
         </div>
       </div>
 
-      {/* Row 3: Engagement History & Recent Bot Activity */}
+      {/* Row 3: Fleet Leaderboard Table & Recent Sync Logs */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-8 neo-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-base font-bold text-[#343C6A]">
-                Engagement History
-              </h3>
-              <p className="text-xs text-[#718EBF]">
-                Tren pertumbuhan penayangan (views) dari database berkala
-              </p>
-            </div>
-            <div className="flex items-center gap-1 text-xs text-[#10B981] font-bold bg-[#10B981]/10 px-2.5 py-1 rounded-full">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>Real DB Curve</span>
-            </div>
-          </div>
-          <EngagementSplineChart data={engagementHistory} />
+        {/* 32-Account Leaderboard Table (8 cols) */}
+        <div className="lg:col-span-8">
+          <FleetLeaderboardTable
+            accounts={leaderboard}
+            selectedAccount={selectedAccount}
+            onSelectAccount={handleSelectAccount}
+            onOpenAnalysis={() => setIsAnalysisModalOpen(true)}
+          />
         </div>
 
+        {/* Telegram & System Sync Logs (4 cols) */}
         <div className="lg:col-span-4">
           <RecentActivityCard activities={data?.recentBotActions} />
         </div>
       </div>
 
-      {/* Interactive Hermes AI Account Analysis Modal */}
+      {/* Interactive AI Account Analysis Modal */}
       <AccountAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
