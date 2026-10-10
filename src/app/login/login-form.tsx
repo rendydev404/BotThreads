@@ -14,7 +14,6 @@ import {
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { safeNextPath } from "@/lib/safe-next";
 import { cn } from "@/lib/utils";
-import { NetworkCanvas } from "./network-canvas";
 
 function Field({
   id,
@@ -85,161 +84,121 @@ export function LoginForm() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col lg:flex-row bg-canvas">
-      {/* Panel jaringan: satu titik = satu akun cabang */}
-      <aside className="relative lg:w-[46%] h-52 lg:h-auto lg:min-h-screen overflow-hidden bg-[#0b0d16] text-white">
-        <NetworkCanvas className="absolute inset-0 w-full h-full" />
-        <div
-          aria-hidden
-          className="absolute inset-0 pointer-events-none opacity-[0.07]"
-          style={{
-            backgroundImage:
-              "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
-            backgroundSize: "44px 44px",
-          }}
-        />
+    <main className="relative min-h-screen flex items-center justify-center px-5 py-10 bg-canvas">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
 
-        <div className="relative z-10 h-full p-6 lg:p-10 flex flex-col justify-between pointer-events-none">
-          <div className="flex items-center gap-3">
-            <Image
-              src="/logo.webp"
-              alt=""
-              width={36}
-              height={36}
-              priority
-              className="w-9 h-9 rounded-lg"
-            />
-            <span className="text-sm font-semibold tracking-wide text-white/90">
-              Dashboard Analytics Threads
-            </span>
-          </div>
-
-          <div className="hidden lg:block max-w-md">
-            <p className="text-[2.1rem] leading-[1.15] font-semibold tracking-tight">
-              Semua akun cabang,
-              <br />
-              terbaca dalam satu layar.
-            </p>
-            <p className="mt-4 text-sm leading-relaxed text-white/60">
-              Penayangan, interaksi, dan peringkat tiap cabang dari hari ke
-              hari, lengkap dengan saran langkah berikutnya.
-            </p>
-            <p className="mt-8 text-xs text-white/40">
-              Gerakkan kursor di atas jaringan ini.
-            </p>
-          </div>
-        </div>
-      </aside>
-
-      {/* Form */}
-      <section className="relative flex-1 flex items-center justify-center px-5 py-10">
-        <div className="absolute top-4 right-4">
-          <ThemeToggle />
-        </div>
-
-        <div className="w-full max-w-[380px]">
-          <h1 className="text-[1.75rem] font-semibold tracking-tight text-fg">
-            Masuk
+      <div className="w-full max-w-[400px]">
+        <div className="flex flex-col items-center text-center">
+          <Image
+            src="/logo.webp"
+            alt="Dashboard Analytics Threads"
+            width={88}
+            height={88}
+            priority
+            className="w-[88px] h-[88px] rounded-[1.4rem] shadow-pop"
+          />
+          <h1 className="mt-6 text-[1.7rem] font-semibold tracking-tight text-fg">
+            Dashboard Analytics Threads
           </h1>
-          <p className="mt-1.5 text-sm text-muted">
-            Gunakan email atau username admin.
-          </p>
-
-          <form
-            key={shake}
-            onSubmit={onSubmit}
-            noValidate
-            className={cn("mt-8 space-y-3.5", shake > 0 && "animate-[shake_380ms_ease-in-out]")}
-          >
-            <Field id="username" label="Email atau username">
-              <input
-                id="username"
-                name="username"
-                type="text"
-                placeholder=" "
-                autoComplete="username"
-                autoCapitalize="none"
-                spellCheck={false}
-                required
-                autoFocus
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={loading}
-                className={inputCls}
-              />
-            </Field>
-
-            <Field id="password" label="Password">
-              <input
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                placeholder=" "
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyUp={(e) => setCapsLock(e.getModifierState("CapsLock"))}
-                onKeyDown={(e) => setCapsLock(e.getModifierState("CapsLock"))}
-                onBlur={() => setCapsLock(false)}
-                disabled={loading}
-                className={cn(inputCls, "pr-12")}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
-                aria-pressed={showPassword}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-lg text-muted hover:text-fg hover:bg-line/60 flex items-center justify-center transition-colors cursor-pointer"
-              >
-                {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
-              </button>
-            </Field>
-
-            <div className="min-h-5" aria-live="polite">
-              {capsLock && (
-                <p className="flex items-center gap-1.5 text-xs text-warning">
-                  <TriangleAlert className="w-3.5 h-3.5" />
-                  Caps Lock sedang aktif
-                </p>
-              )}
-            </div>
-
-            {error && (
-              <div
-                role="alert"
-                className="flex items-start gap-2.5 p-3 rounded-xl bg-danger-soft text-danger text-sm"
-              >
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading || !username.trim() || !password}
-              className="group relative w-full h-14 rounded-xl bg-accent hover:bg-accent-hover text-on-accent text-[15px] font-semibold overflow-hidden flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-[18px] h-[18px] animate-spin" />
-                  Memeriksa…
-                </>
-              ) : (
-                <>
-                  Masuk
-                  <ArrowRight className="w-[18px] h-[18px] transition-transform group-hover:translate-x-1" />
-                </>
-              )}
-            </button>
-          </form>
-
-          <p className="mt-8 text-xs text-faint leading-relaxed">
-            Akses terbatas untuk administrator. Percobaan masuk yang gagal
-            berulang akan dikunci sementara.
-          </p>
+          <p className="mt-1.5 text-sm text-muted">Masuk untuk melihat performa akun</p>
         </div>
-      </section>
+
+        <form
+          key={shake}
+          onSubmit={onSubmit}
+          noValidate
+          className={cn(
+            "card mt-8 p-6 space-y-3.5 shadow-[0_8px_30px_-12px_rgba(20,23,43,0.18)]",
+            shake > 0 && "animate-[shake_380ms_ease-in-out]"
+          )}
+        >
+          <Field id="username" label="Email atau username">
+            <input
+              id="username"
+              name="username"
+              type="text"
+              placeholder=" "
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              required
+              autoFocus
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={loading}
+              className={inputCls}
+            />
+          </Field>
+
+          <Field id="password" label="Password">
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              placeholder=" "
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyUp={(e) => setCapsLock(e.getModifierState("CapsLock"))}
+              onKeyDown={(e) => setCapsLock(e.getModifierState("CapsLock"))}
+              onBlur={() => setCapsLock(false)}
+              disabled={loading}
+              className={cn(inputCls, "pr-12")}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+              aria-pressed={showPassword}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-lg text-muted hover:text-fg hover:bg-line/60 flex items-center justify-center transition-colors cursor-pointer"
+            >
+              {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+            </button>
+          </Field>
+
+          {capsLock && (
+            <p className="flex items-center gap-1.5 text-xs text-warning" aria-live="polite">
+              <TriangleAlert className="w-3.5 h-3.5" />
+              Caps Lock sedang aktif
+            </p>
+          )}
+
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2.5 p-3 rounded-xl bg-danger-soft text-danger text-sm"
+            >
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || !username.trim() || !password}
+            className="group w-full h-14 mt-1 rounded-xl bg-accent hover:bg-accent-hover text-on-accent text-[15px] font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-[18px] h-[18px] animate-spin" />
+                Memeriksa…
+              </>
+            ) : (
+              <>
+                Masuk
+                <ArrowRight className="w-[18px] h-[18px] transition-transform group-hover:translate-x-1" />
+              </>
+            )}
+          </button>
+        </form>
+
+        <p className="mt-6 text-center text-xs text-faint">
+          Akses terbatas untuk administrator.
+        </p>
+      </div>
     </main>
   );
 }
