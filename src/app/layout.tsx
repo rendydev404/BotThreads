@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { FloatingAiBubble } from "@/components/chat/floating-ai-bubble";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta",
@@ -27,24 +28,34 @@ export default function RootLayout({
     <html
       lang="id"
       className={`${plusJakarta.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex bg-[#F4F7FE] text-[#343C6A] font-sans">
-        {/* Desktop Sidebar */}
-        <Sidebar />
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('botdash_theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();`,
+          }}
+        />
+      </head>
+      <body className="min-h-full flex bg-[#F4F7FE] dark:bg-[#0B0F19] text-[#343C6A] dark:text-[#F8FAFC] font-sans transition-colors duration-150">
+        <ThemeProvider>
+          {/* Desktop Sidebar */}
+          <Sidebar />
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-          <Header />
-          <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto pb-28 md:pb-12">
-            {children}
-          </main>
-        </div>
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+            <Header />
+            <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto pb-28 md:pb-12">
+              {children}
+            </main>
+          </div>
 
-        {/* Mobile-First Bottom Navigation Bar */}
-        <BottomNav />
+          {/* Mobile-First Bottom Navigation Bar */}
+          <BottomNav />
 
-        {/* Floating Context-Aware AI Chat Bubble (Draggable & Fullscreen) */}
-        <FloatingAiBubble />
+          {/* Floating Context-Aware AI Chat Bubble (Draggable & Fullscreen) */}
+          <FloatingAiBubble />
+        </ThemeProvider>
       </body>
     </html>
   );

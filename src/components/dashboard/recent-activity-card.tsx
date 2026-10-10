@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Send, RefreshCw, Bot, CheckCircle2 } from "lucide-react";
+import { Send, RefreshCw, Bot } from "lucide-react";
 
 interface ActivityItem {
   id: string;
@@ -46,17 +46,17 @@ export function RecentActivityCard({
         ];
 
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-      <div className="flex items-center justify-between pb-3.5 border-b border-[#F1F5F9] mb-4">
+    <div className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1F2937] rounded-2xl p-5 shadow-xs flex flex-col justify-between transition-colors">
+      <div className="flex items-center justify-between pb-3.5 border-b border-[#F1F5F9] dark:border-[#1F2937] mb-4">
         <div>
-          <h4 className="text-xs font-bold text-[#1E293B]">
+          <h4 className="text-xs font-bold text-[#1E293B] dark:text-[#F8FAFC]">
             Aktivitas Bot & Sinkronisasi
           </h4>
-          <p className="text-[10px] text-[#64748B]">
+          <p className="text-[10px] text-[#64748B] dark:text-[#94A3B8]">
             Log eksekusi dan laporan otomatis
           </p>
         </div>
-        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           <span>Real-time</span>
         </span>
@@ -70,16 +70,16 @@ export function RecentActivityCard({
           return (
             <div
               key={item.id}
-              className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[#F8FAFC] border border-[#F1F5F9]"
+              className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[#F8FAFC] dark:bg-[#1E293B]/60 border border-[#F1F5F9] dark:border-[#1F2937]"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div
                   className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                     isFirst
-                      ? "bg-amber-50 text-amber-600"
+                      ? "bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400"
                       : isSecond
-                      ? "bg-blue-50 text-[#1814F3]"
-                      : "bg-emerald-50 text-emerald-600"
+                      ? "bg-blue-50 dark:bg-blue-950/50 text-[#1814F3] dark:text-blue-400"
+                      : "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400"
                   }`}
                 >
                   {isFirst ? (
@@ -91,16 +91,16 @@ export function RecentActivityCard({
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-[#1E293B] truncate">
+                  <p className="text-xs font-bold text-[#1E293B] dark:text-[#F8FAFC] truncate">
                     {item.title}
                   </p>
-                  <p className="text-[11px] text-[#64748B] truncate">
+                  <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] truncate">
                     {item.desc}
                   </p>
                 </div>
               </div>
 
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md shrink-0 border border-emerald-200">
+              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md shrink-0 border border-emerald-200 dark:border-emerald-800">
                 {item.status === "ACTIVE" ? "Aktif" : "Sukses"}
               </span>
             </div>

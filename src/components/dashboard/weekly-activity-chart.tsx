@@ -11,6 +11,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { formatNumber } from "@/lib/utils";
+import { useTheme } from "@/components/theme/theme-provider";
 
 interface WeeklyActivityProps {
   data: Array<{
@@ -22,6 +23,7 @@ interface WeeklyActivityProps {
 
 export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
   const [mounted, setMounted] = useState(false);
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     setMounted(true);
@@ -29,11 +31,13 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
 
   if (!mounted) {
     return (
-      <div className="h-64 w-full flex items-center justify-center bg-[#F4F7FE]/50 rounded-2xl animate-pulse">
-        <div className="h-4 w-32 bg-slate-200 rounded" />
+      <div className="h-64 w-full flex items-center justify-center bg-[#F4F7FE]/50 dark:bg-[#1E293B]/30 rounded-2xl animate-pulse">
+        <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded" />
       </div>
     );
   }
+
+  const isDark = resolvedTheme === "dark";
 
   return (
     <div className="w-full h-64 sm:h-72">
@@ -46,39 +50,39 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
           <CartesianGrid
             strokeDasharray="3 3"
             vertical={false}
-            stroke="#EDF2F7"
+            stroke={isDark ? "#1F2937" : "#EDF2F7"}
           />
           <XAxis
             dataKey="day"
             axisLine={false}
             tickLine={false}
-            tick={{ fill: "#718EBF", fontSize: 12, fontWeight: 500 }}
+            tick={{ fill: isDark ? "#94A3B8" : "#718EBF", fontSize: 12, fontWeight: 500 }}
           />
           <YAxis
             axisLine={false}
             tickLine={false}
-            tick={{ fill: "#718EBF", fontSize: 12 }}
+            tick={{ fill: isDark ? "#94A3B8" : "#718EBF", fontSize: 12 }}
             tickFormatter={(val) => (val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val)}
           />
           <Tooltip
-            cursor={{ fill: "#F4F7FE" }}
+            cursor={{ fill: isDark ? "#1E293B" : "#F4F7FE" }}
             content={({ active, payload, label }) => {
               if (active && payload && payload.length) {
                 return (
-                  <div className="bg-white p-3 rounded-2xl shadow-xl border border-[#EDF2F7] text-xs">
-                    <p className="font-bold text-[#343C6A] mb-1.5">{label}</p>
+                  <div className="bg-white dark:bg-[#111827] p-3 rounded-2xl shadow-xl border border-[#EDF2F7] dark:border-[#1F2937] text-xs">
+                    <p className="font-bold text-[#343C6A] dark:text-[#F8FAFC] mb-1.5">{label}</p>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#1814F3]" />
-                        <span className="text-[#718EBF]">Views:</span>
-                        <span className="font-bold text-[#343C6A]">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#1814F3] dark:bg-blue-500" />
+                        <span className="text-[#718EBF] dark:text-[#94A3B8]">Views:</span>
+                        <span className="font-bold text-[#343C6A] dark:text-[#F8FAFC]">
                           {formatNumber(Number(payload[0]?.value) || 0)}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
-                        <span className="text-[#64748B]">Interaksi:</span>
-                        <span className="font-bold text-[#1E293B]">
+                        <span className="text-[#64748B] dark:text-[#94A3B8]">Interaksi:</span>
+                        <span className="font-bold text-[#1E293B] dark:text-[#F8FAFC]">
                           {formatNumber(Number(payload[1]?.value) || 0)}
                         </span>
                       </div>
@@ -92,7 +96,7 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
           <Bar
             dataKey="views"
             name="Views"
-            fill="#1814F3"
+            fill={isDark ? "#3B82F6" : "#1814F3"}
             radius={[6, 6, 0, 0]}
             barSize={14}
           />

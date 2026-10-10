@@ -87,14 +87,14 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-6 sm:space-y-7 pb-12">
+    <div className="space-y-6 sm:space-y-7 pb-12 transition-colors">
       {/* Top Header & Account Selection Toolbar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-extrabold text-[#1E293B] tracking-tight">
+          <h2 className="text-xl md:text-2xl font-extrabold text-[#1E293B] dark:text-[#F8FAFC] tracking-tight">
             Performa Akun Threads
           </h2>
-          <p className="text-xs md:text-sm text-[#64748B] mt-0.5">
+          <p className="text-xs md:text-sm text-[#64748B] dark:text-[#94A3B8] mt-0.5">
             Pantau penayangan, postingan, dan efektivitas 32 akun cabang Suka Shawarma secara real-time.
           </p>
         </div>
@@ -112,11 +112,11 @@ export default function DashboardPage() {
             type="button"
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#1814F3]/40 text-xs font-semibold text-[#1E293B] hover:bg-[#F8FAFC] shadow-xs cursor-pointer transition-all"
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1F2937] hover:border-[#1814F3]/40 dark:hover:border-blue-400/40 text-xs font-semibold text-[#1E293B] dark:text-[#F8FAFC] hover:bg-[#F8FAFC] dark:hover:bg-[#1E293B] shadow-xs cursor-pointer transition-all"
             title="Perbarui Data"
           >
             <RefreshCw
-              className={`w-3.5 h-3.5 text-[#1814F3] ${refreshing ? "animate-spin" : ""}`}
+              className={`w-3.5 h-3.5 text-[#1814F3] dark:text-blue-400 ${refreshing ? "animate-spin" : ""}`}
             />
             <span className="hidden sm:inline">
               {refreshing ? "Memperbarui..." : "Perbarui"}
@@ -144,18 +144,18 @@ export default function DashboardPage() {
       {/* Row 2: Analytics Grid (Chart + Top Post) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column (8 cols): Weekly Activity Bar Chart */}
-        <div className="lg:col-span-8 bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-xs flex flex-col justify-between">
+        <div className="lg:col-span-8 bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1F2937] rounded-2xl p-6 shadow-xs flex flex-col justify-between transition-colors">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div>
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#1814F3] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-[#1814F3] dark:text-blue-400 flex items-center justify-center">
                   <BarChart2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-[#1E293B]">
+                  <h3 className="text-sm font-bold text-[#1E293B] dark:text-[#F8FAFC]">
                     Aktivitas Penayangan 7 Hari Terakhir
                   </h3>
-                  <p className="text-xs text-[#64748B]">
+                  <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
                     {currentAccount.isAll
                       ? "Akumulasi impresi dan interaksi seluruh 32 akun cabang"
                       : `Statistik 7 hari akun @${currentAccount.username}`}
@@ -167,12 +167,12 @@ export default function DashboardPage() {
             {/* Legend */}
             <div className="flex items-center gap-4 text-xs font-semibold">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#1814F3]" />
-                <span className="text-[#64748B]">Views</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#1814F3] dark:bg-blue-500" />
+                <span className="text-[#64748B] dark:text-[#94A3B8]">Views</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
-                <span className="text-[#64748B]">Interaksi</span>
+                <span className="text-[#64748B] dark:text-[#94A3B8]">Interaksi</span>
               </div>
             </div>
           </div>

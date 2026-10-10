@@ -8,9 +8,6 @@ import {
   Copy,
   Check,
   ArrowRight,
-  TrendingUp,
-  BarChart2,
-  FileText,
   RotateCw,
 } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
@@ -81,24 +78,24 @@ export function AccountAnalysisModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#343C6A]/40 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl border border-[#EDF2F7] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="relative w-full max-w-2xl bg-white dark:bg-[#111827] rounded-3xl border border-[#EDF2F7] dark:border-[#1F2937] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-colors">
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-6 border-b border-[#EDF2F7] bg-[#F8FAFC]">
+        <div className="flex items-center justify-between p-6 border-b border-[#EDF2F7] dark:border-[#1F2937] bg-[#F8FAFC] dark:bg-[#1E293B]/70">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#1814F3]/10 text-[#1814F3] flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-[#1814F3]/10 dark:bg-blue-500/10 text-[#1814F3] dark:text-blue-400 flex items-center justify-center shrink-0">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-bold text-[#343C6A]">
+                <h3 className="text-base sm:text-lg font-bold text-[#1E293B] dark:text-[#F8FAFC]">
                   Audit Performa Hermes AI
                 </h3>
-                <span className="text-[10px] font-bold text-[#1814F3] bg-[#1814F3]/10 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] font-bold text-[#1814F3] dark:text-blue-400 bg-[#1814F3]/10 dark:bg-blue-500/10 px-2 py-0.5 rounded-full">
                   Live DB
                 </span>
               </div>
-              <p className="text-xs text-[#718EBF] truncate max-w-sm sm:max-w-md">
+              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] truncate max-w-sm sm:max-w-md">
                 {accountLabel}
               </p>
             </div>
@@ -107,7 +104,7 @@ export function AccountAnalysisModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white border border-[#EDF2F7] hover:bg-[#F4F7FE] text-[#718EBF] hover:text-[#343C6A] flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-white dark:bg-[#1E293B] border border-[#EDF2F7] dark:border-[#334155] hover:bg-[#F4F7FE] dark:hover:bg-[#334155] text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -118,35 +115,35 @@ export function AccountAnalysisModal({
           {/* Quick Metrics Pills */}
           {metrics && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 rounded-2xl bg-[#F8FAFC] border border-[#EDF2F7] text-center">
-                <span className="text-[10px] uppercase font-semibold text-[#718EBF] block">
+              <div className="p-3 rounded-2xl bg-[#F8FAFC] dark:bg-[#1E293B]/60 border border-[#EDF2F7] dark:border-[#1F2937] text-center">
+                <span className="text-[10px] uppercase font-semibold text-[#64748B] dark:text-[#94A3B8] block">
                   Total Views
                 </span>
-                <span className="text-sm font-bold text-[#343C6A]">
+                <span className="text-sm font-bold text-[#1E293B] dark:text-[#F8FAFC]">
                   {formatNumber(metrics.totalViews)}
                 </span>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#F8FAFC] border border-[#EDF2F7] text-center">
-                <span className="text-[10px] uppercase font-semibold text-[#718EBF] block">
+              <div className="p-3 rounded-2xl bg-[#F8FAFC] dark:bg-[#1E293B]/60 border border-[#EDF2F7] dark:border-[#1F2937] text-center">
+                <span className="text-[10px] uppercase font-semibold text-[#64748B] dark:text-[#94A3B8] block">
                   Postingan
                 </span>
-                <span className="text-sm font-bold text-[#343C6A]">
+                <span className="text-sm font-bold text-[#1E293B] dark:text-[#F8FAFC]">
                   {metrics.totalPosts}
                 </span>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#F8FAFC] border border-[#EDF2F7] text-center">
-                <span className="text-[10px] uppercase font-semibold text-[#718EBF] block">
+              <div className="p-3 rounded-2xl bg-[#F8FAFC] dark:bg-[#1E293B]/60 border border-[#EDF2F7] dark:border-[#1F2937] text-center">
+                <span className="text-[10px] uppercase font-semibold text-[#64748B] dark:text-[#94A3B8] block">
                   Interaksi
                 </span>
-                <span className="text-sm font-bold text-[#343C6A]">
+                <span className="text-sm font-bold text-[#1E293B] dark:text-[#F8FAFC]">
                   {formatNumber(metrics.totalInteractions)}
                 </span>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#F8FAFC] border border-[#EDF2F7] text-center">
-                <span className="text-[10px] uppercase font-semibold text-[#718EBF] block">
+              <div className="p-3 rounded-2xl bg-[#F8FAFC] dark:bg-[#1E293B]/60 border border-[#EDF2F7] dark:border-[#1F2937] text-center">
+                <span className="text-[10px] uppercase font-semibold text-[#64748B] dark:text-[#94A3B8] block">
                   Engagement Rate
                 </span>
                 <span className="text-sm font-bold text-[#10B981]">
@@ -159,17 +156,17 @@ export function AccountAnalysisModal({
           {/* Analysis Content or Loading */}
           {loading ? (
             <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
-              <RotateCw className="w-8 h-8 text-[#1814F3] animate-spin" />
-              <p className="text-sm font-bold text-[#343C6A]">
+              <RotateCw className="w-8 h-8 text-[#1814F3] dark:text-blue-400 animate-spin" />
+              <p className="text-sm font-bold text-[#1E293B] dark:text-[#F8FAFC]">
                 Hermes AI sedang mengolah performa akun...
               </p>
-              <p className="text-xs text-[#718EBF] max-w-sm">
+              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] max-w-sm">
                 Menganalisis rasio impresi, tren engagement, dan formula konten dari database Supabase.
               </p>
             </div>
           ) : report ? (
-            <div className="p-5 rounded-2xl bg-[#F8FAFC] border border-[#EDF2F7]">
-              <div className="whitespace-pre-line text-xs sm:text-sm text-[#343C6A] leading-relaxed font-normal space-y-2">
+            <div className="p-5 rounded-2xl bg-[#F8FAFC] dark:bg-[#1E293B]/40 border border-[#EDF2F7] dark:border-[#1F2937]">
+              <div className="whitespace-pre-line text-xs sm:text-sm text-[#343C6A] dark:text-[#CBD5E1] leading-relaxed font-normal space-y-2">
                 {report}
               </div>
             </div>
@@ -177,12 +174,12 @@ export function AccountAnalysisModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-5 border-t border-[#EDF2F7] bg-white flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="p-5 border-t border-[#EDF2F7] dark:border-[#1F2937] bg-white dark:bg-[#111827] flex flex-col sm:flex-row items-center justify-between gap-3">
           <button
             type="button"
             onClick={fetchAnalysis}
             disabled={loading}
-            className="text-xs font-semibold text-[#718EBF] hover:text-[#1814F3] inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="text-xs font-semibold text-[#64748B] dark:text-[#94A3B8] hover:text-[#1814F3] dark:hover:text-blue-400 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <RotateCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             Perbarui Audit
@@ -193,7 +190,7 @@ export function AccountAnalysisModal({
               type="button"
               onClick={handleCopy}
               disabled={!report || loading}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full border border-[#EDF2F7] text-xs font-semibold text-[#343C6A] hover:bg-[#F4F7FE] cursor-pointer transition-colors"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full border border-[#EDF2F7] dark:border-[#334155] text-xs font-semibold text-[#1E293B] dark:text-[#F8FAFC] hover:bg-[#F4F7FE] dark:hover:bg-[#1E293B] cursor-pointer transition-colors"
             >
               {copied ? (
                 <>
@@ -202,7 +199,7 @@ export function AccountAnalysisModal({
                 </>
               ) : (
                 <>
-                  <Copy className="w-3.5 h-3.5 text-[#718EBF]" />
+                  <Copy className="w-3.5 h-3.5 text-[#64748B] dark:text-[#94A3B8]" />
                   <span>Salin Hasil</span>
                 </>
               )}
@@ -212,7 +209,7 @@ export function AccountAnalysisModal({
               type="button"
               onClick={handleOpenStudio}
               disabled={!report || loading}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-full bg-[#1814F3] hover:bg-[#120ec0] text-white text-xs font-bold shadow-sm cursor-pointer transition-colors"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-full bg-[#1814F3] hover:bg-[#120ec0] text-white text-xs font-bold shadow-xs cursor-pointer transition-colors"
             >
               <span>Buka di Studio</span>
               <ArrowRight className="w-3.5 h-3.5" />

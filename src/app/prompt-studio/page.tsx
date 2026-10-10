@@ -8,10 +8,8 @@ import {
   Bot,
   Copy,
   Check,
-  RotateCw,
   SendHorizontal,
   Cpu,
-  Layers,
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -145,18 +143,18 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 transition-colors">
       {/* Top Engine & Target Account Status Card */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Gateway Box */}
         <div className="neo-card p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#1814F3]/10 text-[#1814F3] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[#1814F3]/10 dark:bg-blue-500/10 text-[#1814F3] dark:text-blue-400 flex items-center justify-center">
               <Bot className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-[#343C6A]">Hermes AI</p>
-              <p className="text-[11px] text-[#718EBF]">Analisis Threads Aktif</p>
+              <p className="text-xs font-bold text-[#343C6A] dark:text-[#F8FAFC]">Hermes AI</p>
+              <p className="text-[11px] text-[#718EBF] dark:text-[#94A3B8]">Analisis Threads Aktif</p>
             </div>
           </div>
           <span className="w-2.5 h-2.5 rounded-full bg-[#16DBCC] animate-pulse" />
@@ -165,15 +163,15 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
         {/* Model Box */}
         <div className="neo-card p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#16DBCC]/10 text-[#16DBCC] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[#16DBCC]/10 dark:bg-teal-950/40 text-[#16DBCC] flex items-center justify-center">
               <Cpu className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-[#343C6A]">Model Sosmed AI</p>
-              <p className="text-[11px] text-[#718EBF]">Respon Cepat Real-time</p>
+              <p className="text-xs font-bold text-[#343C6A] dark:text-[#F8FAFC]">Model Sosmed AI</p>
+              <p className="text-[11px] text-[#718EBF] dark:text-[#94A3B8]">Respon Cepat Real-time</p>
             </div>
           </div>
-          <span className="text-[10px] font-bold text-[#1814F3] bg-[#1814F3]/10 px-2.5 py-0.5 rounded-full">
+          <span className="text-[10px] font-bold text-[#1814F3] dark:text-blue-400 bg-[#1814F3]/10 dark:bg-blue-500/10 px-2.5 py-0.5 rounded-full">
             Ready
           </span>
         </div>
@@ -181,12 +179,12 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
         {/* Target Account Box */}
         <div className="neo-card p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FFBB38]/10 text-[#FFBB38] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[#FFBB38]/10 dark:bg-amber-950/40 text-[#FFBB38] flex items-center justify-center">
               <Zap className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-[#343C6A]">Target Live Akun</p>
-              <p className="text-[11px] text-[#718EBF]">@sukashawarma (184.2K views)</p>
+              <p className="text-xs font-bold text-[#343C6A] dark:text-[#F8FAFC]">Target Live Akun</p>
+              <p className="text-[11px] text-[#718EBF] dark:text-[#94A3B8]">@sukashawarma (184.2K views)</p>
             </div>
           </div>
           <span className="text-xs text-[#16DBCC] font-bold">Live Synced</span>
@@ -196,23 +194,23 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
       {/* Main Chat & Prompting Container */}
       <div className="neo-card p-5 md:p-7 flex flex-col h-[650px] relative">
         {/* Header inside Studio: Persona Switcher */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EDF2F7]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EDF2F7] dark:border-[#1F2937]">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[#1814F3]" />
-            <h3 className="text-base font-bold text-[#343C6A]">
+            <Sparkles className="w-5 h-5 text-[#1814F3] dark:text-blue-400" />
+            <h3 className="text-base font-bold text-[#343C6A] dark:text-[#F8FAFC]">
               Hermes AI Prompt Studio
             </h3>
           </div>
 
           {/* Persona Switcher Tabs */}
-          <div className="flex items-center p-1 bg-[#F5F7FA] rounded-full text-xs font-medium">
+          <div className="flex items-center p-1 bg-[#F5F7FA] dark:bg-[#1E293B] rounded-full text-xs font-medium">
             <button
               onClick={() => setSelectedPersona("strategist")}
               className={cn(
                 "px-3.5 py-1.5 rounded-full transition-all cursor-pointer",
                 selectedPersona === "strategist"
                   ? "bg-[#1814F3] text-white font-semibold shadow-xs"
-                  : "text-[#718EBF] hover:text-[#343C6A]"
+                  : "text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-white"
               )}
             >
               Strategist (Livia)
@@ -223,7 +221,7 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
                 "px-3.5 py-1.5 rounded-full transition-all cursor-pointer",
                 selectedPersona === "copywriter"
                   ? "bg-[#1814F3] text-white font-semibold shadow-xs"
-                  : "text-[#718EBF] hover:text-[#343C6A]"
+                  : "text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-white"
               )}
             >
               Copywriter (Randy)
@@ -234,7 +232,7 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
                 "px-3.5 py-1.5 rounded-full transition-all cursor-pointer",
                 selectedPersona === "analyst"
                   ? "bg-[#1814F3] text-white font-semibold shadow-xs"
-                  : "text-[#718EBF] hover:text-[#343C6A]"
+                  : "text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-white"
               )}
             >
               Analyst (Workman)
@@ -249,7 +247,7 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
               key={chip}
               onClick={() => handleSendPrompt(chip)}
               disabled={isSending}
-              className="shrink-0 px-3.5 py-1.5 rounded-full bg-[#F4F7FE] hover:bg-[#EAEFF8] text-[#1814F3] text-xs font-semibold border border-[#EDF2F7] transition-all cursor-pointer disabled:opacity-50"
+              className="shrink-0 px-3.5 py-1.5 rounded-full bg-[#F4F7FE] dark:bg-[#1E293B] hover:bg-[#EAEFF8] dark:hover:bg-[#334155] text-[#1814F3] dark:text-blue-400 text-xs font-semibold border border-[#EDF2F7] dark:border-[#334155] transition-all cursor-pointer disabled:opacity-50"
             >
               + {chip}
             </button>
@@ -272,7 +270,7 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
                 {/* Meta details if bot */}
                 {!isUser && msg.toolUsed && (
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-[10px] font-mono bg-[#16DBCC]/15 text-[#10958a] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="text-[10px] font-mono bg-[#16DBCC]/15 text-[#10958a] dark:text-teal-300 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#16DBCC]" />
                       mcp: {msg.toolUsed} ({msg.latencyMs}ms)
                     </span>
@@ -285,21 +283,21 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
                     "p-4 rounded-3xl text-sm leading-relaxed",
                     isUser
                       ? "bg-[#1814F3] text-white rounded-br-xs shadow-md shadow-[#1814F3]/20"
-                      : "bg-[#F4F7FE] text-[#343C6A] rounded-bl-xs border border-[#EDF2F7]"
+                      : "bg-[#F4F7FE] dark:bg-[#1E293B] text-[#343C6A] dark:text-[#F8FAFC] rounded-bl-xs border border-[#EDF2F7] dark:border-[#334155]"
                   )}
                 >
                   <p className="whitespace-pre-line">{msg.content}</p>
                 </div>
 
                 {/* Message Footer Actions */}
-                <div className="flex items-center gap-3 mt-1.5 px-1 text-[11px] text-[#718EBF]">
+                <div className="flex items-center gap-3 mt-1.5 px-1 text-[11px] text-[#718EBF] dark:text-[#94A3B8]">
                   <span>{msg.timestamp}</span>
 
                   {!isUser && (
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleCopy(msg.content, msg.id)}
-                        className="hover:text-[#1814F3] inline-flex items-center gap-1 cursor-pointer transition-colors"
+                        className="hover:text-[#1814F3] dark:hover:text-blue-400 inline-flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         {copiedId === msg.id ? (
                           <>
@@ -314,11 +312,11 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
                         )}
                       </button>
 
-                      <span className="text-[#EDF2F7]">|</span>
+                      <span className="text-[#EDF2F7] dark:text-[#334155]">|</span>
 
                       <button
                         onClick={() => handleSendToTelegram(msg.id)}
-                        className="hover:text-[#1814F3] inline-flex items-center gap-1 cursor-pointer transition-colors"
+                        className="hover:text-[#1814F3] dark:hover:text-blue-400 inline-flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         {telegramSentId === msg.id ? (
                           <>
@@ -340,7 +338,7 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
           })}
 
           {isSending && (
-            <div className="flex items-center gap-2 text-xs text-[#718EBF] bg-[#F4F7FE] px-4 py-3 rounded-2xl w-fit border border-[#EDF2F7]">
+            <div className="flex items-center gap-2 text-xs text-[#718EBF] dark:text-[#94A3B8] bg-[#F4F7FE] dark:bg-[#1E293B] px-4 py-3 rounded-2xl w-fit border border-[#EDF2F7] dark:border-[#334155]">
               <div className="w-4 h-4 border-2 border-[#1814F3] border-t-transparent rounded-full animate-spin" />
               <span>Hermes AI sedang mengolah metrik akun...</span>
             </div>
@@ -349,7 +347,7 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
         </div>
 
         {/* Bottom Floating Pill Input */}
-        <div className="pt-3 border-t border-[#EDF2F7]">
+        <div className="pt-3 border-t border-[#EDF2F7] dark:border-[#1F2937]">
           <div className="relative flex items-center">
             <input
               type="text"
@@ -358,7 +356,7 @@ Silakan pilih persona di atas atau gunakan salah satu rekomendasi prompt di bawa
               onKeyDown={(e) => e.key === "Enter" && handleSendPrompt()}
               placeholder="Tulis instruksi untuk Hermes AI (contoh: Analisis jam posting terbaik minggu ini)..."
               disabled={isSending}
-              className="w-full h-13 pl-6 pr-32 bg-[#F5F7FA] text-[#343C6A] placeholder-[#8BA3CB] text-sm rounded-full border border-transparent focus:border-[#1814F3]/30 focus:bg-white focus:outline-none transition-all"
+              className="w-full h-13 pl-6 pr-32 bg-[#F5F7FA] dark:bg-[#1E293B] text-[#343C6A] dark:text-[#F8FAFC] placeholder-[#8BA3CB] dark:placeholder-[#64748B] text-sm rounded-full border border-transparent dark:border-[#334155] focus:border-[#1814F3]/30 dark:focus:border-blue-400/40 focus:bg-white dark:focus:bg-[#0F172A] focus:outline-none transition-all"
             />
             <button
               onClick={() => handleSendPrompt()}
@@ -379,7 +377,7 @@ export default function PromptStudioPage() {
   return (
     <Suspense
       fallback={
-        <div className="p-8 text-center text-[#718EBF]">
+        <div className="p-8 text-center text-[#718EBF] dark:text-[#94A3B8]">
           Memuat Hermes AI Prompt Studio...
         </div>
       }

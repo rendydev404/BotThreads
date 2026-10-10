@@ -282,7 +282,7 @@ export function FloatingAiBubble() {
                 }
           }
           className={cn(
-            "bg-white border border-[#EDF2F7] flex flex-col overflow-hidden",
+            "bg-white dark:bg-[#111827] border border-[#EDF2F7] dark:border-[#1F2937] flex flex-col overflow-hidden transition-colors",
             isDragging && "select-none pointer-events-auto",
             isFullScreen
               ? "fixed inset-2 sm:inset-6 z-50 rounded-3xl max-w-5xl mx-auto shadow-2xl transition-all duration-300 ease-out"
@@ -298,18 +298,18 @@ export function FloatingAiBubble() {
           <div
             onPointerDown={handlePointerDown}
             className={cn(
-              "px-5 py-3.5 bg-[#F8FAFC] border-b border-[#EDF2F7] flex items-center justify-between select-none touch-none",
+              "px-5 py-3.5 bg-[#F8FAFC] dark:bg-[#1E293B]/70 border-b border-[#EDF2F7] dark:border-[#1F2937] flex items-center justify-between select-none touch-none",
               isFullScreen
                 ? "cursor-default"
                 : isDragging
-                ? "cursor-grabbing bg-[#F1F5F9]"
-                : "cursor-grab hover:bg-[#F1F5F9]/80 transition-colors"
+                ? "cursor-grabbing bg-[#F1F5F9] dark:bg-[#1E293B]"
+                : "cursor-grab hover:bg-[#F1F5F9]/80 dark:hover:bg-[#1E293B] transition-colors"
             )}
             title={isFullScreen ? undefined : "Klik dan tahan untuk menggeser jendela"}
           >
             <div className="flex items-center gap-2.5 min-w-0 pointer-events-none">
               {!isFullScreen && (
-                <div className="flex items-center justify-center p-1 rounded-md text-[#718EBF]">
+                <div className="flex items-center justify-center p-1 rounded-md text-[#718EBF] dark:text-[#94A3B8]">
                   <GripHorizontal className="w-4 h-4" />
                 </div>
               )}
@@ -318,14 +318,14 @@ export function FloatingAiBubble() {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <h4 className="text-xs sm:text-sm font-extrabold text-[#1E293B] truncate">
+                  <h4 className="text-xs sm:text-sm font-extrabold text-[#1E293B] dark:text-[#F8FAFC] truncate">
                     Asisten AI Suka Shawarma
                   </h4>
-                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full shrink-0">
+                  <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded-full shrink-0">
                     Live
                   </span>
                 </div>
-                <p className="text-[10px] text-[#64748B] truncate">
+                <p className="text-[10px] text-[#64748B] dark:text-[#94A3B8] truncate">
                   Akses real-time 32 akun & 1.680 post
                 </p>
               </div>
@@ -336,7 +336,7 @@ export function FloatingAiBubble() {
               <button
                 type="button"
                 onClick={() => setIsFullScreen(!isFullScreen)}
-                className="w-7 h-7 rounded-lg text-[#718EBF] hover:text-[#343C6A] hover:bg-[#EDF2F7] flex items-center justify-center transition-colors cursor-pointer"
+                className="w-7 h-7 rounded-lg text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-[#F8FAFC] hover:bg-[#EDF2F7] dark:hover:bg-[#334155] flex items-center justify-center transition-colors cursor-pointer"
                 title={isFullScreen ? "Perkecil Jendela" : "Layar Penuh"}
               >
                 {isFullScreen ? (
@@ -349,7 +349,7 @@ export function FloatingAiBubble() {
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="w-7 h-7 rounded-lg text-[#718EBF] hover:text-[#FF4B4A] hover:bg-[#FEE2E2] flex items-center justify-center transition-colors cursor-pointer"
+                className="w-7 h-7 rounded-lg text-[#718EBF] dark:text-[#94A3B8] hover:text-[#FF4B4A] hover:bg-[#FEE2E2] dark:hover:bg-rose-950/40 flex items-center justify-center transition-colors cursor-pointer"
                 title="Tutup Chat"
               >
                 <X className="w-4 h-4" />
@@ -358,10 +358,10 @@ export function FloatingAiBubble() {
           </div>
 
           {/* Persona Strip & Quick Prompt Chips */}
-          <div className="p-3 bg-white border-b border-[#EDF2F7] space-y-2">
+          <div className="p-3 bg-white dark:bg-[#111827] border-b border-[#EDF2F7] dark:border-[#1F2937] space-y-2">
             {/* Persona Switcher */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-[#718EBF] uppercase tracking-wider pr-1">
+              <span className="text-[10px] font-bold text-[#718EBF] dark:text-[#94A3B8] uppercase tracking-wider pr-1">
                 Persona:
               </span>
               {personas.map((p) => (
@@ -373,7 +373,7 @@ export function FloatingAiBubble() {
                     "px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer",
                     activePersona === p.id
                       ? "bg-[#1814F3] text-white shadow-xs"
-                      : "bg-[#F4F7FE] text-[#718EBF] hover:text-[#343C6A]"
+                      : "bg-[#F4F7FE] dark:bg-[#1E293B] text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-white"
                   )}
                 >
                   {p.name} ({p.label})
@@ -389,7 +389,7 @@ export function FloatingAiBubble() {
                   type="button"
                   onClick={() => handleSendMessage(q)}
                   disabled={isLoading}
-                  className="px-2.5 py-1 rounded-lg bg-[#F8FAFC] border border-[#EDF2F7] text-[10px] text-[#343C6A] hover:border-[#1814F3] hover:text-[#1814F3] font-medium whitespace-nowrap transition-colors cursor-pointer shrink-0"
+                  className="px-2.5 py-1 rounded-lg bg-[#F8FAFC] dark:bg-[#1E293B] border border-[#EDF2F7] dark:border-[#334155] text-[10px] text-[#343C6A] dark:text-[#CBD5E1] hover:border-[#1814F3] dark:hover:border-blue-400 hover:text-[#1814F3] dark:hover:text-blue-400 font-medium whitespace-nowrap transition-colors cursor-pointer shrink-0"
                 >
                   {q}
                 </button>
@@ -398,7 +398,7 @@ export function FloatingAiBubble() {
           </div>
 
           {/* Message Thread History */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-[#FAFCFF]">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-[#FAFCFF] dark:bg-[#0B0F19]">
             {messages.map((msg) => {
               const isUser = msg.sender === "user";
               return (
@@ -413,7 +413,7 @@ export function FloatingAiBubble() {
                   <div
                     className={cn(
                       "w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white text-[11px] font-bold shadow-xs",
-                      isUser ? "bg-[#343C6A]" : "bg-[#1814F3]"
+                      isUser ? "bg-[#343C6A] dark:bg-slate-700" : "bg-[#1814F3]"
                     )}
                   >
                     {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
@@ -426,7 +426,7 @@ export function FloatingAiBubble() {
                         "p-3.5 rounded-2xl text-xs sm:text-[13px] leading-relaxed",
                         isUser
                           ? "bg-[#1814F3] text-white rounded-tr-xs shadow-xs"
-                          : "bg-white text-[#343C6A] border border-[#EDF2F7] rounded-tl-xs shadow-xs"
+                          : "bg-white dark:bg-[#1E293B] text-[#343C6A] dark:text-[#F8FAFC] border border-[#EDF2F7] dark:border-[#334155] rounded-tl-xs shadow-xs"
                       )}
                     >
                       <p className="whitespace-pre-line">{msg.text}</p>
@@ -435,7 +435,7 @@ export function FloatingAiBubble() {
                     {/* Footer: Timestamp & Action */}
                     <div
                       className={cn(
-                        "flex items-center gap-2 text-[10px] text-[#94A3B8] px-1",
+                        "flex items-center gap-2 text-[10px] text-[#94A3B8] dark:text-[#64748B] px-1",
                         isUser ? "justify-end" : "justify-start"
                       )}
                     >
@@ -444,7 +444,7 @@ export function FloatingAiBubble() {
                         <button
                           type="button"
                           onClick={() => handleCopy(msg.id, msg.text)}
-                          className="hover:text-[#1814F3] inline-flex items-center gap-1 cursor-pointer"
+                          className="hover:text-[#1814F3] dark:hover:text-blue-400 inline-flex items-center gap-1 cursor-pointer"
                         >
                           {copiedId === msg.id ? (
                             <>
@@ -471,8 +471,8 @@ export function FloatingAiBubble() {
                 <div className="w-7 h-7 rounded-full bg-[#1814F3] text-white flex items-center justify-center shrink-0">
                   <Bot className="w-3.5 h-3.5" />
                 </div>
-                <div className="p-3.5 rounded-2xl bg-white border border-[#EDF2F7] rounded-tl-xs shadow-xs flex items-center gap-2 text-xs text-[#718EBF]">
-                  <RotateCw className="w-3.5 h-3.5 text-[#1814F3] animate-spin" />
+                <div className="p-3.5 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#EDF2F7] dark:border-[#334155] rounded-tl-xs shadow-xs flex items-center gap-2 text-xs text-[#718EBF] dark:text-[#94A3B8]">
+                  <RotateCw className="w-3.5 h-3.5 text-[#1814F3] dark:text-blue-400 animate-spin" />
                   <span>Hermes AI menganalisis data database...</span>
                 </div>
               </div>
@@ -482,7 +482,7 @@ export function FloatingAiBubble() {
           </div>
 
           {/* Input & Send Footer */}
-          <div className="p-3 bg-white border-t border-[#EDF2F7]">
+          <div className="p-3 bg-white dark:bg-[#111827] border-t border-[#EDF2F7] dark:border-[#1F2937]">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -495,13 +495,13 @@ export function FloatingAiBubble() {
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 placeholder="Tanyakan analisis akun, impresi, atau minta draf konten..."
-                className="w-full h-11 pl-4 pr-12 text-xs rounded-full bg-[#F5F7FA] text-[#343C6A] placeholder-[#94A3B8] border border-transparent focus:border-[#1814F3]/30 focus:bg-white focus:outline-none transition-all"
+                className="w-full h-11 pl-4 pr-12 text-xs rounded-full bg-[#F5F7FA] dark:bg-[#1E293B] text-[#343C6A] dark:text-[#F8FAFC] placeholder-[#94A3B8] dark:placeholder-[#64748B] border border-transparent dark:border-[#334155] focus:border-[#1814F3]/30 dark:focus:border-blue-400/40 focus:bg-white dark:focus:bg-[#0F172A] focus:outline-none transition-all"
                 disabled={isLoading}
               />
               <button
                 type="submit"
                 disabled={isLoading || !inputMessage.trim()}
-                className="absolute right-1.5 w-8 h-8 rounded-full bg-[#1814F3] hover:bg-[#120ec0] disabled:bg-[#CBD5E1] text-white flex items-center justify-center shadow-xs cursor-pointer transition-all"
+                className="absolute right-1.5 w-8 h-8 rounded-full bg-[#1814F3] hover:bg-[#120ec0] disabled:bg-[#CBD5E1] dark:disabled:bg-slate-700 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all"
                 title="Kirim pesan"
               >
                 <Send className="w-3.5 h-3.5" />

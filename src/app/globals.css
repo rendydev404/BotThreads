@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #F4F7FE;
   --foreground: #343C6A;
@@ -16,9 +18,18 @@
   --text-muted: #718EBF;
 }
 
+.dark {
+  --background: #0B0F19;
+  --foreground: #F8FAFC;
+  --card-bg: #111827;
+  --card-border: #1F2937;
+  --text-primary: #F8FAFC;
+  --text-muted: #94A3B8;
+}
+
 body {
-  background-color: #F4F7FE;
-  color: #343C6A;
+  background-color: var(--background);
+  color: var(--foreground);
   font-family: var(--font-plus-jakarta), "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
@@ -35,12 +46,20 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #E2E8F0;
+  background: #CBD5E1;
   border-radius: 9999px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #CBD5E1;
+  background: #94A3B8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
 }
 
 /* Custom Card & Elevation Tokens */
@@ -52,9 +71,19 @@ body {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.dark .neo-card {
+  background-color: #111827;
+  border-color: #1F2937;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+}
+
 .neo-card-hover:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 30px -4px rgba(52, 60, 106, 0.08);
+}
+
+.dark .neo-card-hover:hover {
+  box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.5);
 }
 
 /* Custom interactive pill button */

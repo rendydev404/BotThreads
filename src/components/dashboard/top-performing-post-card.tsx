@@ -53,23 +53,23 @@ export function TopPerformingPostCard({
   return (
     <div className="space-y-6">
       {/* 1. Top Post Card */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-xs">
-        <div className="flex items-center justify-between pb-3.5 border-b border-[#F1F5F9]">
+      <div className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1F2937] rounded-2xl p-5 shadow-xs transition-colors">
+        <div className="flex items-center justify-between pb-3.5 border-b border-[#F1F5F9] dark:border-[#1F2937]">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
               <Award className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-[#1E293B]">
+              <h4 className="text-xs font-bold text-[#1E293B] dark:text-[#F8FAFC]">
                 Postingan Terpopuler
               </h4>
-              <p className="text-[10px] text-[#64748B]">
+              <p className="text-[10px] text-[#64748B] dark:text-[#94A3B8]">
                 Penayangan tertinggi di jaringan
               </p>
             </div>
           </div>
 
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-[#1814F3] text-[11px] font-bold">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-[#1814F3] dark:text-blue-400 text-[11px] font-bold">
             <Eye className="w-3 h-3" />
             {topPost ? formatNumber(topPost.views) : "3.0K"} Views
           </span>
@@ -78,7 +78,7 @@ export function TopPerformingPostCard({
         {/* Post Text & Author */}
         <div className="mt-4">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-6 h-6 rounded-full bg-[#E2E8F0] overflow-hidden flex items-center justify-center text-[10px] font-bold text-[#475569]">
+            <div className="w-6 h-6 rounded-full bg-[#E2E8F0] dark:bg-[#1E293B] overflow-hidden flex items-center justify-center text-[10px] font-bold text-[#475569] dark:text-[#94A3B8]">
               {topPost?.threadsAccount?.avatarUrl ? (
                 <img
                   src={topPost.threadsAccount.avatarUrl}
@@ -89,23 +89,23 @@ export function TopPerformingPostCard({
                 "@"
               )}
             </div>
-            <span className="text-xs font-bold text-[#1E293B]">
+            <span className="text-xs font-bold text-[#1E293B] dark:text-[#F8FAFC]">
               @{topPost?.threadsAccount?.username || "theakbaralatas"}
             </span>
           </div>
 
-          <p className="text-xs leading-relaxed text-[#334155] bg-[#F8FAFC] border border-[#F1F5F9] rounded-xl p-3 italic line-clamp-3">
+          <p className="text-xs leading-relaxed text-[#334155] dark:text-[#CBD5E1] bg-[#F8FAFC] dark:bg-[#1E293B]/60 border border-[#F1F5F9] dark:border-[#1F2937] rounded-xl p-3 italic line-clamp-3">
             "{topPost?.text || "Kebakaran di sebelah outlet Suka Shawarma..."}"
           </p>
 
-          <div className="mt-3.5 flex items-center justify-between text-xs text-[#64748B]">
+          <div className="mt-3.5 flex items-center justify-between text-xs text-[#64748B] dark:text-[#94A3B8]">
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-1 font-semibold text-[#1E293B]">
+              <span className="inline-flex items-center gap-1 font-semibold text-[#1E293B] dark:text-[#F8FAFC]">
                 <Heart className="w-3.5 h-3.5 text-rose-500" />
                 {topPost?.likes || 18}
               </span>
-              <span className="inline-flex items-center gap-1 font-semibold text-[#1E293B]">
-                <MessageSquare className="w-3.5 h-3.5 text-[#1814F3]" />
+              <span className="inline-flex items-center gap-1 font-semibold text-[#1E293B] dark:text-[#F8FAFC]">
+                <MessageSquare className="w-3.5 h-3.5 text-[#1814F3] dark:text-blue-400" />
                 {topPost?.replies || 24}
               </span>
             </div>
@@ -115,7 +115,7 @@ export function TopPerformingPostCard({
                 href={topPost.permalink}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1814F3] hover:underline"
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1814F3] dark:text-blue-400 hover:underline"
               >
                 <span>Buka Threads</span>
                 <ExternalLink className="w-3 h-3" />
@@ -126,17 +126,17 @@ export function TopPerformingPostCard({
       </div>
 
       {/* 2. Content Formats Breakdown */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-xs">
-        <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
+      <div className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1F2937] rounded-2xl p-5 shadow-xs transition-colors">
+        <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9] dark:border-[#1F2937]">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
               <Layers className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-[#1E293B]">
+              <h4 className="text-xs font-bold text-[#1E293B] dark:text-[#F8FAFC]">
                 Distribusi Format Konten
               </h4>
-              <p className="text-[10px] text-[#64748B]">
+              <p className="text-[10px] text-[#64748B] dark:text-[#94A3B8]">
                 Komposisi tipe media dari seluruh post
               </p>
             </div>
@@ -149,18 +149,18 @@ export function TopPerformingPostCard({
             return (
               <div key={idx} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 font-medium text-[#1E293B]">
-                    <Icon className="w-3.5 h-3.5 text-[#64748B]" />
+                  <div className="flex items-center gap-2 font-medium text-[#1E293B] dark:text-[#F8FAFC]">
+                    <Icon className="w-3.5 h-3.5 text-[#64748B] dark:text-[#94A3B8]" />
                     <span>{format.name}</span>
                   </div>
-                  <span className="font-bold text-[#1E293B]">
+                  <span className="font-bold text-[#1E293B] dark:text-[#F8FAFC]">
                     {format.value}%{" "}
-                    <span className="text-[11px] font-normal text-[#64748B]">
+                    <span className="text-[11px] font-normal text-[#64748B] dark:text-[#94A3B8]">
                       ({format.count} post)
                     </span>
                   </span>
                 </div>
-                <div className="w-full h-2 bg-[#F1F5F9] rounded-full overflow-hidden">
+                <div className="w-full h-2 bg-[#F1F5F9] dark:bg-[#1E293B] rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
