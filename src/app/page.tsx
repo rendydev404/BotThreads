@@ -5,7 +5,7 @@ import { AccountFilterSelect } from "@/components/dashboard/account-filter-selec
 import { FleetSummaryCards } from "@/components/dashboard/fleet-summary-cards";
 import { FleetLeaderboardTable } from "@/components/dashboard/fleet-leaderboard-table";
 import { TopPerformingPostCard } from "@/components/dashboard/top-performing-post-card";
-import { AccountAnalysisModal } from "@/components/dashboard/account-analysis-modal";
+import { AiInsightPanel, type AiInsightPanelHandle } from "@/components/dashboard/ai-insight-panel";
 import { RecentActivityCard } from "@/components/dashboard/recent-activity-card";
 import { WeeklyActivityChart } from "@/components/dashboard/weekly-activity-chart";
 import { PeriodFilter, type PeriodValue } from "@/components/dashboard/period-filter";
@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState("all");
   const [period, setPeriod] = useState<PeriodValue>({ key: "7d" });
-  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+  const insightRef = useRef<AiInsightPanelHandle>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchOverviewData = useCallback(
@@ -131,7 +131,7 @@ export default function DashboardPage() {
 
           <button
             type="button"
-            onClick={() => setIsAnalysisModalOpen(true)}
+            onClick={() => insightRef.current?.run()}
             className="h-10 px-4 inline-flex items-center gap-2 rounded-lg bg-accent hover:bg-accent-hover text-on-accent text-sm font-semibold cursor-pointer transition-colors"
           >
             <Sparkles className="w-4 h-4" />
@@ -171,7 +171,7 @@ export default function DashboardPage() {
 
       {/* Grafik + postingan terpopuler */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <section className="card p-5 xl:col-span-2">
+        <section className="card p-5 xl:col-span-2 flex flex-col">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-5">
             <div>
               <h3 className="text-base font-semibold text-fg">{chartTitle}</h3>
@@ -198,6 +198,19 @@ export default function DashboardPage() {
           ) : (
             <div className="h-64 sm:h-72 rounded-xl bg-subtle animate-pulse" />
           )}
+
+          {/* Tombol analitik + saran AI di bawah grafik; mengisi ruang kosong kartu */}
+          <div className="mt-auto">
+            <AiInsightPanel
+              ref={insightRef}
+              account={selectedAccount}
+              period={period}
+              periodLabel={info?.label.toLowerCase()}
+              scopeLabel={
+                isAll ? `Semua akun (${accountCount})` : `@${currentAccount.username}`
+              }
+            />
+          </div>
         </section>
 
         <TopPerformingPostCard
@@ -222,13 +235,6 @@ export default function DashboardPage() {
           activities={data?.recentBotActions}
         />
       </div>
-
-      <AccountAnalysisModal
-        isOpen={isAnalysisModalOpen}
-        onClose={() => setIsAnalysisModalOpen(false)}
-        account={selectedAccount}
-        accountLabel={currentAccount.displayName}
-      />
     </div>
   );
 }
