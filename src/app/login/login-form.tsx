@@ -84,7 +84,7 @@ export function LoginForm() {
   };
 
   return (
-    <main className="relative min-h-screen flex items-center justify-center px-5 py-10 bg-canvas">
+    <main className="relative flex-1 w-full min-h-screen flex items-center justify-center px-5 py-10 bg-canvas">
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
