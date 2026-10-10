@@ -47,6 +47,42 @@ jobs:
             type=raw,value=latest
             type=sha,format=short
 
+      - name: Build image for smoke test (not pushed)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          load: true
+          push: false
+          tags: bot-dashboard:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test image
+        run: |
+          set -euo pipefail
+          docker run -d --name smoke -p 3000:3000             -e AUTH_SECRET=ci-smoke-secret-ci-smoke-secret-ci-smoke-secret             -e DATABASE_URL=postgresql://user:pass@127.0.0.1:5432/db             -e DIRECT_URL=postgresql://user:pass@127.0.0.1:5432/db             bot-dashboard:ci
+          for i in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/login || true)
+            echo "login -> HTTP $CODE"
+            [ "$CODE" = "200" ] && break
+            sleep 2
+          done
+          [ "$CODE" = "200" ] || { docker logs smoke; exit 1; }
+
+          # Halaman terproteksi harus mengarahkan ke /login tanpa sesi
+          REDIR=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/)
+          echo "/ -> HTTP $REDIR"
+          [ "$REDIR" = "307" ] || { docker logs smoke; exit 1; }
+
+          # Mesin Prisma Linux harus termuat: gagal koneksi DB itu wajar,
+          # tetapi "Query Engine ... not found" berarti image rusak.
+          curl -s -o /dev/null -X POST http://127.0.0.1:3000/api/auth/login             -H 'Content-Type: application/json'             -d '{"username":"x","password":"y"}' || true
+          if docker logs smoke 2>&1 | grep -qiE "Query Engine|could not locate|PrismaClientInitializationError: Unable to require"; then
+            docker logs smoke; echo "Prisma engine bermasalah"; exit 1
+          fi
+          docker rm -f smoke
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
