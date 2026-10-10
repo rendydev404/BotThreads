@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, Search, Check, Globe } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Globe, Search, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface AccountItem {
@@ -11,15 +11,37 @@ export interface AccountItem {
   avatarUrl: string | null;
   _count?: {
     postStats: number;
-    dailyStats: number;
+    dailyStats?: number;
   };
 }
 
 interface AccountFilterSelectProps {
   accounts: AccountItem[];
-  selectedAccount: string; // 'all' or username
+  selectedAccount: string; // 'all' atau username
   onSelectAccount: (username: string) => void;
   totalAccounts?: number;
+  className?: string;
+}
+
+const isMobile = () =>
+  typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
+
+function Avatar({ acc, size = "w-9 h-9" }: { acc: AccountItem; size?: string }) {
+  return (
+    <div
+      className={cn(
+        "rounded-full overflow-hidden bg-subtle shrink-0 flex items-center justify-center text-xs font-semibold text-muted",
+        size
+      )}
+    >
+      {acc.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={acc.avatarUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+      ) : (
+        acc.displayName.slice(0, 2).toUpperCase()
+      )}
+    </div>
+  );
 }
 
 export function AccountFilterSelect({
@@ -27,212 +49,223 @@ export function AccountFilterSelect({
   selectedAccount,
   onSelectAccount,
   totalAccounts = 32,
+  className,
 }: AccountFilterSelectProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  // Close when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Filter accounts by search query
-  const filteredAccounts = accounts.filter((acc) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      acc.username?.toLowerCase().includes(q) ||
-      acc.displayName.toLowerCase().includes(q)
-    );
-  });
-
-  const isAllSelected = selectedAccount === "all" || !selectedAccount;
-  const currentSelectedObj = isAllSelected
+  const isAll = selectedAccount === "all" || !selectedAccount;
+  const current = isAll
     ? null
-    : accounts.find(
-        (a) => a.username?.toLowerCase() === selectedAccount.toLowerCase()
-      );
+    : accounts.find((a) => a.username?.toLowerCase() === selectedAccount.toLowerCase());
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return accounts;
+    return accounts.filter(
+      (a) =>
+        a.username?.toLowerCase().includes(q) || a.displayName.toLowerCase().includes(q)
+    );
+  }, [accounts, query]);
+
+  // Esc menutup; di mobile halaman di belakang sheet dikunci agar tidak ikut scroll
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+
+    const lock = isMobile();
+    const prev = document.body.style.overflow;
+    if (lock) document.body.style.overflow = "hidden";
+    // Fokus otomatis hanya di desktop; di mobile keyboard akan menutupi daftar
+    if (!lock) searchRef.current?.focus();
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  const close = () => {
+    setOpen(false);
+    setQuery("");
+  };
+
+  const pick = (username: string) => {
+    onSelectAccount(username);
+    close();
+  };
 
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
-      {/* Custom Trigger Button (No native select) */}
+    <div className={cn("relative w-full sm:w-auto", className)}>
+      {/* Tombol pemicu: sengaja mencolok agar jelas ini filter per akun */}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 px-3.5 py-2 rounded-xl bg-surface border border-line hover:border-accent hover: text-left transition-all cursor-pointer group"
-      >
-        {isAllSelected ? (
-          <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center shrink-0">
-            <Globe className="w-4 h-4" />
-          </div>
-        ) : (
-          <div className="w-8 h-8 rounded-lg overflow-hidden bg-subtle shrink-0 border border-line">
-            {currentSelectedObj?.avatarUrl ? (
-              <img
-                src={currentSelectedObj.avatarUrl}
-                alt={currentSelectedObj.displayName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-xs font-bold text-accent">
-                {currentSelectedObj?.displayName.slice(0, 2).toUpperCase() || "SS"}
-              </div>
-            )}
-          </div>
+        onClick={() => (open ? close() : setOpen(true))}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={cn(
+          "w-full sm:min-w-[270px] h-14 pl-2.5 pr-3 flex items-center gap-3 rounded-xl border-2 text-left transition-all cursor-pointer",
+          isAll
+            ? "bg-surface border-accent/40 hover:border-accent"
+            : "bg-accent-soft border-accent",
+          open && "border-accent ring-4 ring-accent/15"
         )}
+      >
+        <span className="w-9 h-9 rounded-lg bg-accent text-on-accent flex items-center justify-center shrink-0">
+          {isAll ? <Users className="w-[18px] h-[18px]" /> : <Globe className="w-[18px] h-[18px]" />}
+        </span>
 
-        <div className="flex flex-col min-w-0 pr-2">
-          <span className="text-[10px] uppercase tracking-wider text-muted font-semibold">
-            Filter Tampilan
+        <span className="flex-1 min-w-0 leading-tight">
+          <span className="block text-[11px] font-bold uppercase tracking-wide text-accent">
+            {isAll ? "Filter per akun" : "Akun terpilih"}
           </span>
-          <span className="text-xs font-bold text-fg truncate max-w-[170px] sm:max-w-[210px]">
-            {isAllSelected
-              ? `Semua Akun (${totalAccounts})`
-              : currentSelectedObj?.displayName || `@${selectedAccount}`}
+          <span className="block text-sm font-semibold text-fg truncate">
+            {isAll
+              ? `Semua akun (${totalAccounts})`
+              : current?.displayName || `@${selectedAccount}`}
           </span>
-        </div>
+        </span>
 
-        <ChevronDown
+        <span
           className={cn(
-            "w-4 h-4 text-muted transition-transform duration-200 shrink-0",
-            isOpen && "rotate-180 text-accent"
+            "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
+            open ? "bg-accent text-on-accent" : "bg-accent-soft text-accent"
           )}
-        />
+        >
+          <ChevronDown className={cn("w-4 h-4 transition-transform", open && "rotate-180")} />
+        </span>
       </button>
 
-      {/* Custom Dropdown Menu */}
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-surface border border-line z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-          {/* Custom Search Input */}
-          <div className="p-3 border-b border-line bg-subtle">
-            <div className="relative flex items-center">
-              <Search className="absolute left-3 w-4 h-4 text-faint" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari cabang atau username..."
-                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-surface border border-line text-fg placeholder-faint focus:outline-none focus:border-accent transition-colors"
-                autoFocus
-              />
-            </div>
-          </div>
+      {open && (
+        <>
+          {/* Latar: gelap di mobile, transparan di desktop (penangkap klik di luar) */}
+          <div
+            className="fixed inset-0 z-50 bg-black/45 sm:bg-transparent animate-[fade-in_150ms_ease-out]"
+            onClick={close}
+            aria-hidden
+          />
 
-          {/* Account Items List */}
-          <div className="max-h-72 overflow-y-auto p-2 space-y-1">
-            {/* Option 1: Semua Akun */}
-            <button
-              type="button"
-              onClick={() => {
-                onSelectAccount("all");
-                setIsOpen(false);
-              }}
-              className={cn(
-                "w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors cursor-pointer",
-                isAllSelected
-                  ? "bg-accent-soft text-accent"
-                  : "hover:bg-subtle text-fg"
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                    isAllSelected ? "bg-accent text-on-accent" : "bg-subtle text-muted"
-                  )}
-                >
-                  <Globe className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold leading-tight">
-                    Semua Akun ({totalAccounts})
-                  </p>
-                  <p className="text-[11px] text-muted">
-                    Agregasi performa jaringan Threads
-                  </p>
-                </div>
-              </div>
-              {isAllSelected && <Check className="w-4 h-4 text-accent" />}
-            </button>
-
-            <div className="h-px bg-subtle my-1" />
-
-            {/* Individual Accounts */}
-            {filteredAccounts.map((acc) => {
-              const isSelected =
-                !isAllSelected &&
-                acc.username?.toLowerCase() === selectedAccount.toLowerCase();
-
-              return (
-                <button
-                  key={acc.id}
-                  type="button"
-                  onClick={() => {
-                    if (acc.username) {
-                      onSelectAccount(acc.username);
-                    }
-                    setIsOpen(false);
-                  }}
-                  className={cn(
-                    "w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors cursor-pointer",
-                    isSelected
-                      ? "bg-accent-soft text-accent"
-                      : "hover:bg-subtle text-fg"
-                  )}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg overflow-hidden bg-subtle shrink-0 border border-line">
-                      {acc.avatarUrl ? (
-                        <img
-                          src={acc.avatarUrl}
-                          alt={acc.displayName}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs font-bold text-accent">
-                          {acc.displayName.slice(0, 2).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold leading-tight truncate">
-                        {acc.displayName}
-                      </p>
-                      <p className="text-[11px] text-muted truncate">
-                        @{acc.username}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0 ml-2">
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-subtle text-muted">
-                      {acc._count?.postStats || 0} posts
-                    </span>
-                    {isSelected && (
-                      <Check className="w-4 h-4 text-accent" />
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-
-            {filteredAccounts.length === 0 && (
-              <div className="py-6 text-center text-xs text-muted">
-                Tidak ada akun yang cocok dengan "{searchQuery}"
-              </div>
+          <div
+            role="dialog"
+            aria-label="Pilih akun cabang"
+            className={cn(
+              "z-50 bg-surface border border-line flex flex-col shadow-pop overflow-hidden",
+              // Mobile: bottom sheet penuh lebar
+              "fixed inset-x-0 bottom-0 max-h-[85dvh] rounded-t-3xl animate-[sheet-up_220ms_ease-out]",
+              // Desktop: popover di bawah tombol
+              "sm:absolute sm:inset-x-auto sm:bottom-auto sm:top-full sm:mt-2 sm:left-0 lg:left-auto lg:right-0",
+              "sm:w-[26rem] sm:max-h-[28rem] sm:rounded-2xl sm:animate-[pop-in_150ms_ease-out]"
             )}
+          >
+            {/* Pegangan + judul (mobile) */}
+            <div className="sm:hidden pt-2.5 flex justify-center">
+              <span className="w-10 h-1.5 rounded-full bg-line-strong" />
+            </div>
+            <div className="flex items-center justify-between px-4 pt-3 pb-2 sm:pt-4">
+              <div>
+                <h3 className="text-base font-bold text-fg">Pilih akun cabang</h3>
+                <p className="text-xs text-muted">
+                  Lihat data satu akun saja, atau gabungan semuanya
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={close}
+                aria-label="Tutup"
+                className="w-9 h-9 rounded-full text-muted hover:text-fg hover:bg-subtle flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-4 pb-3">
+              <div className="relative">
+                <Search className="w-4 h-4 text-faint absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  ref={searchRef}
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Cari nama cabang atau @username"
+                  aria-label="Cari akun"
+                  className="w-full h-11 pl-10 pr-3 rounded-xl bg-subtle border border-transparent text-sm text-fg placeholder-faint outline-none focus:bg-surface focus:border-accent transition-colors"
+                />
+              </div>
+            </div>
+
+            <ul
+              role="listbox"
+              aria-label="Daftar akun"
+              className="flex-1 overflow-y-auto overscroll-contain px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-line pt-2"
+            >
+              {!query.trim() && (
+                <li role="option" aria-selected={isAll}>
+                  <button
+                    type="button"
+                    onClick={() => pick("all")}
+                    className={cn(
+                      "w-full min-h-14 px-3 py-2 rounded-xl flex items-center gap-3 text-left transition-colors cursor-pointer",
+                      isAll ? "bg-accent-soft" : "hover:bg-subtle"
+                    )}
+                  >
+                    <span className="w-9 h-9 rounded-full bg-accent text-on-accent flex items-center justify-center shrink-0">
+                      <Users className="w-[18px] h-[18px]" />
+                    </span>
+                    <span className="flex-1 min-w-0 leading-tight">
+                      <span className="block text-sm font-semibold text-fg">
+                        Semua akun ({totalAccounts})
+                      </span>
+                      <span className="block text-xs text-muted">
+                        Gabungan performa seluruh jaringan
+                      </span>
+                    </span>
+                    {isAll && <Check className="w-5 h-5 text-accent shrink-0" />}
+                  </button>
+                </li>
+              )}
+
+              {filtered.map((acc) => {
+                const selected =
+                  !isAll && acc.username?.toLowerCase() === selectedAccount.toLowerCase();
+                return (
+                  <li key={acc.id} role="option" aria-selected={selected}>
+                    <button
+                      type="button"
+                      disabled={!acc.username}
+                      onClick={() => acc.username && pick(acc.username)}
+                      className={cn(
+                        "w-full min-h-14 px-3 py-2 rounded-xl flex items-center gap-3 text-left transition-colors cursor-pointer disabled:opacity-50",
+                        selected ? "bg-accent-soft" : "hover:bg-subtle"
+                      )}
+                    >
+                      <Avatar acc={acc} />
+                      <span className="flex-1 min-w-0 leading-tight">
+                        <span className="block text-sm font-semibold text-fg truncate">
+                          {acc.displayName}
+                        </span>
+                        <span className="block text-xs text-muted truncate">
+                          @{acc.username}
+                        </span>
+                      </span>
+                      <span className="text-xs font-medium text-muted bg-subtle rounded-full px-2 py-0.5 shrink-0">
+                        {acc._count?.postStats ?? 0} post
+                      </span>
+                      {selected && <Check className="w-5 h-5 text-accent shrink-0" />}
+                    </button>
+                  </li>
+                );
+              })}
+
+              {filtered.length === 0 && (
+                <li className="py-10 text-center text-sm text-muted">
+                  Tidak ada akun yang cocok dengan “{query}”.
+                </li>
+              )}
+            </ul>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
