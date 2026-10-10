@@ -1,0 +1,93 @@
+name: Build & Deploy Bot_Dashboard (GHCR to Coolify)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-bot-dashboard-production
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/rendydev404/bot_dashboard
+  COOLIFY_URL: https://coolify.sukashawarma.tech
+  COOLIFY_APP_UUID: 0rrjnshh4h4gravrer3pgbpz
+  APP_URL: https://wargi.sukashawarma.com
+
+jobs:
+  build-and-push:
+    name: Build Docker Image & Push to GHCR
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata (tags & labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trigger Coolify Deploy (Pull & Restart on VPS)
+        id: deploy
+        continue-on-error: true
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+        run: |
+          if [ -z "$COOLIFY_TOKEN" ]; then
+            echo "COOLIFY_API_TOKEN belum diatur, lewati pemicu Coolify (tarik image manual di Coolify)."
+            echo "triggered=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          curl --fail --show-error --silent --location \
+            --request POST "$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_APP_UUID" \
+            --header "Authorization: Bearer $COOLIFY_TOKEN"
+          echo -e "\nCoolify deployment berhasil dipicu."
+          echo "triggered=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Live Service Health (Smoke Test)
+        if: steps.deploy.outputs.triggered == 'true'
+        run: |
+          echo "Menunggu Coolify menarik image & restart container..."
+          sleep 40
+          for i in {1..18}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$APP_URL/login" || true)
+            echo "Percobaan $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "Dashboard LIVE dan sehat."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Layanan belum sehat dalam batas waktu."
+          exit 1

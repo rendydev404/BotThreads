@@ -1,113 +1,140 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @variant dark (&:where(.dark, .dark *));
 
+/*
+ * Design tokens — satu sumber kebenaran untuk warna.
+ * Komponen cukup memakai `bg-surface`, `text-fg`, `border-line`, dst.
+ * (tanpa pasangan `dark:`); mode gelap hanya mengganti nilai variabel.
+ */
 :root {
-  --background: #F4F7FE;
-  --foreground: #343C6A;
-  --card-bg: #FFFFFF;
-  --card-border: #EDF2F7;
-  --primary-blue: #1814F3;
-  --primary-hover: #120ec0;
-  --accent-blue: #2D60FF;
-  --accent-teal: #16DBCC;
-  --accent-red: #FF4B4A;
-  --accent-yellow: #FFBB38;
-  --text-primary: #343C6A;
-  --text-muted: #718EBF;
+  --c-canvas: #f6f7fb;
+  --c-surface: #ffffff;
+  --c-subtle: #f3f4f8;
+  --c-line: #e8eaf1;
+  --c-line-strong: #d6d9e4;
+
+  --c-fg: #14172b;
+  --c-muted: #5b6179;
+  --c-faint: #8b91a7;
+
+  --c-accent: #3a4cf0;
+  --c-accent-hover: #2d3dd6;
+  --c-accent-soft: #eceefe;
+  --c-on-accent: #ffffff;
+
+  --c-success: #0f9d6c;
+  --c-success-soft: #e5f6ef;
+  --c-warning: #b7791f;
+  --c-warning-soft: #fdf3dc;
+  --c-danger: #d6334a;
+  --c-danger-soft: #fdebee;
+
+  --shadow-pop: 0 12px 32px -8px rgba(20, 23, 43, 0.18);
 }
 
 .dark {
-  --background: #0B0F19;
-  --foreground: #F8FAFC;
-  --card-bg: #111827;
-  --card-border: #1F2937;
-  --text-primary: #F8FAFC;
-  --text-muted: #94A3B8;
+  --c-canvas: #0c0e16;
+  --c-surface: #141722;
+  --c-subtle: #1b1f2d;
+  --c-line: #252a3a;
+  --c-line-strong: #343a4f;
+
+  --c-fg: #eef0f8;
+  --c-muted: #a0a6bd;
+  --c-faint: #6f7690;
+
+  --c-accent: #7b8aff;
+  --c-accent-hover: #95a1ff;
+  --c-accent-soft: #1f2447;
+  --c-on-accent: #0c0e16;
+
+  --c-success: #3dd6a0;
+  --c-success-soft: #12302a;
+  --c-warning: #f0b955;
+  --c-warning-soft: #33290f;
+  --c-danger: #ff7a8c;
+  --c-danger-soft: #3a1820;
+
+  --shadow-pop: 0 12px 32px -8px rgba(0, 0, 0, 0.6);
+}
+
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-subtle: var(--c-subtle);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-fg: var(--c-fg);
+  --color-muted: var(--c-muted);
+  --color-faint: var(--c-faint);
+  --color-accent: var(--c-accent);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-on-accent: var(--c-on-accent);
+  --color-success: var(--c-success);
+  --color-success-soft: var(--c-success-soft);
+  --color-warning: var(--c-warning);
+  --color-warning-soft: var(--c-warning-soft);
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --shadow-pop: var(--shadow-pop);
+  --font-sans: var(--font-plus-jakarta), "Plus Jakarta Sans", system-ui,
+    -apple-system, sans-serif;
+}
+
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-plus-jakarta), "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
-  letter-spacing: -0.011em;
+  background-color: var(--c-canvas);
+  color: var(--c-fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Custom modern scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* Di layer base agar utilitas Tailwind (mis. outline-none) bisa menimpanya */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
+  }
 }
 
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: var(--c-line-strong);
   border-radius: 9999px;
 }
-
-.dark ::-webkit-scrollbar-thumb {
-  background: #334155;
-}
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background: var(--c-faint);
 }
 
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-/* Custom Card & Elevation Tokens */
-.neo-card {
-  background-color: #FFFFFF;
-  border-radius: 1.5rem; /* 24px */
-  border: 1px solid #EDF2F7;
-  box-shadow: 0 4px 20px -2px rgba(52, 60, 106, 0.04);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.dark .neo-card {
-  background-color: #111827;
-  border-color: #1F2937;
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
-}
-
-.neo-card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px -4px rgba(52, 60, 106, 0.08);
-}
-
-.dark .neo-card-hover:hover {
-  box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.5);
-}
-
-/* Custom interactive pill button */
-.btn-primary {
-  background-color: #1814F3;
-  color: #FFFFFF;
-  font-weight: 600;
-  border-radius: 9999px;
-  padding: 0.625rem 1.5rem;
-  transition: all 0.15s ease-in-out;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  border: none;
-  outline: none;
-}
-
-.btn-primary:hover {
-  background-color: #120ec0;
-  box-shadow: 0 4px 12px rgba(24, 20, 243, 0.3);
-}
-
-.btn-primary:active {
-  transform: scale(0.98);
+/* Kartu standar: datar, border tipis, tanpa bayangan berat */
+.card {
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: 1rem;
 }

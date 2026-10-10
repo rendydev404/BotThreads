@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AccountFilterSelect } from "@/components/dashboard/account-filter-select";
 import { FleetSummaryCards } from "@/components/dashboard/fleet-summary-cards";
 import { FleetLeaderboardTable } from "@/components/dashboard/fleet-leaderboard-table";
@@ -8,39 +8,61 @@ import { TopPerformingPostCard } from "@/components/dashboard/top-performing-pos
 import { AccountAnalysisModal } from "@/components/dashboard/account-analysis-modal";
 import { RecentActivityCard } from "@/components/dashboard/recent-activity-card";
 import { WeeklyActivityChart } from "@/components/dashboard/weekly-activity-chart";
-import { BarChart2, RefreshCw } from "lucide-react";
+import { PeriodFilter, type PeriodValue } from "@/components/dashboard/period-filter";
+import { RefreshCw, Sparkles } from "lucide-react";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const fmtIso = (iso: string) => {
+  const [, m, d] = iso.split("-").map(Number);
+  return `${d} ${MONTHS[m - 1]}`;
+};
 
 export default function DashboardPage() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState("all");
+  const [period, setPeriod] = useState<PeriodValue>({ key: "7d" });
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const fetchOverviewData = async (accountName = selectedAccount) => {
-    try {
-      const res = await fetch(
-        `/api/analytics/overview?account=${encodeURIComponent(accountName)}`
-      );
-      const json = await res.json();
-      if (json.success) {
-        setData(json);
+  const fetchOverviewData = useCallback(
+    async (accountName: string, p: PeriodValue) => {
+      abortRef.current?.abort();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+
+      const qs = new URLSearchParams({ account: accountName, period: p.key });
+      if (p.key === "custom" && p.from && p.to) {
+        qs.set("from", p.from);
+        qs.set("to", p.to);
       }
-    } catch (err) {
-      console.error("Failed to load dashboard data:", err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+
+      try {
+        const res = await fetch(`/api/analytics/overview?${qs}`, { signal: ctrl.signal });
+        const json = await res.json();
+        if (json.success) setData(json);
+        setLoading(false);
+        setRefreshing(false);
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return; // diganti permintaan yang lebih baru
+        console.error("Failed to load dashboard data:", err);
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    fetchOverviewData(selectedAccount);
-  }, [selectedAccount]);
+    fetchOverviewData(selectedAccount, period);
+    return () => abortRef.current?.abort();
+  }, [selectedAccount, period, fetchOverviewData]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchOverviewData(selectedAccount);
+    fetchOverviewData(selectedAccount, period);
   };
 
   const handleSelectAccount = (acc: string) => {
@@ -48,166 +70,159 @@ export default function DashboardPage() {
     setLoading(true);
   };
 
-  const accounts = data?.accounts || [];
-  const leaderboard = data?.leaderboard || [];
-  const currentAccount = data?.currentAccount || {
+  const handlePeriod = (p: PeriodValue) => {
+    setPeriod(p);
+    setLoading(true);
+  };
+
+  const accounts = data?.accounts ?? [];
+  const leaderboard = data?.leaderboard ?? [];
+  const currentAccount = data?.currentAccount ?? {
     isAll: true,
     username: "all",
-    displayName: "Semua Akun (32 Terhubung)",
-    avatarUrl: null,
-    totalPosts: 1680,
+    displayName: "Seluruh jaringan",
   };
-
-  const stats = data?.stats || {
-    totalViews: 193720,
-    totalPosts: 1680,
-    totalInteractions: 917,
-    totalLikes: 407,
-    totalReplies: 497,
-    totalReposts: 13,
-    avgER: 0.5,
-    activeAccounts: 32,
-  };
-
-  const weeklyActivity = data?.weeklyActivity || [
-    { day: "Sab", views: 6851, interactions: 80 },
-    { day: "Min", views: 7815, interactions: 34 },
-    { day: "Sen", views: 9570, interactions: 61 },
-    { day: "Sel", views: 20846, interactions: 96 },
-    { day: "Rab", views: 29265, interactions: 137 },
-    { day: "Kam", views: 24156, interactions: 168 },
-    { day: "Jum", views: 24963, interactions: 84 },
-  ];
-
-  const contentFormats = data?.contentFormats || [
-    { name: "Teks Singkat", value: 85, count: 1425, color: "#1814F3" },
-    { name: "Video / Reels", value: 12, count: 197, color: "#10B981" },
-    { name: "Foto / Promo", value: 2, count: 40, color: "#F59E0B" },
-    { name: "Carousel Edukasi", value: 1, count: 18, color: "#6366F1" },
-  ];
+  const stats = data?.stats ?? {};
+  const isAll = currentAccount.isAll;
+  const accountCount = accounts.length || stats.activeAccounts || 32;
+  const info = data?.period as
+    | { label: string; from: string; to: string; days: number; hasPrev: boolean }
+    | undefined;
+  const initialLoad = loading && !data;
+  const chartTitle = info
+    ? info.days === 1
+      ? "Aktivitas kemarin"
+      : `Aktivitas ${info.label.charAt(0).toLowerCase()}${info.label.slice(1)}`
+    : "Aktivitas";
 
   return (
-    <div className="space-y-6 sm:space-y-7 pb-12 transition-colors">
-      {/* Top Header & Account Selection Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* Toolbar */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-extrabold text-[#1E293B] dark:text-[#F8FAFC] tracking-tight">
-            Performa Akun Threads
-          </h2>
-          <p className="text-xs md:text-sm text-[#64748B] dark:text-[#94A3B8] mt-0.5">
-            Pantau penayangan, postingan, dan efektivitas 32 akun cabang Suka Shawarma secara real-time.
+          <h2 className="text-2xl font-bold text-fg">Performa Threads</h2>
+          <p className="text-sm text-muted mt-1">
+            {isAll
+              ? `Gabungan dari ${accountCount} akun cabang Suka Shawarma.`
+              : `Menampilkan satu akun: @${currentAccount.username}.`}
           </p>
         </div>
 
-        {/* Custom Account Dropdown Filter & Refresh Button */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <AccountFilterSelect
             accounts={accounts}
             selectedAccount={selectedAccount}
             onSelectAccount={handleSelectAccount}
-            totalAccounts={accounts.length || 32}
+            totalAccounts={accountCount}
           />
 
           <button
             type="button"
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1F2937] hover:border-[#1814F3]/40 dark:hover:border-blue-400/40 text-xs font-semibold text-[#1E293B] dark:text-[#F8FAFC] hover:bg-[#F8FAFC] dark:hover:bg-[#1E293B] shadow-xs cursor-pointer transition-all"
-            title="Perbarui Data"
+            aria-label="Perbarui data"
+            className="h-10 px-3.5 inline-flex items-center gap-2 rounded-lg bg-surface border border-line hover:border-line-strong text-sm font-medium text-fg cursor-pointer transition-colors disabled:opacity-60"
           >
             <RefreshCw
-              className={`w-3.5 h-3.5 text-[#1814F3] dark:text-blue-400 ${refreshing ? "animate-spin" : ""}`}
+              className={`w-4 h-4 text-muted ${refreshing ? "animate-spin" : ""}`}
             />
-            <span className="hidden sm:inline">
-              {refreshing ? "Memperbarui..." : "Perbarui"}
-            </span>
+            <span className="hidden sm:inline">Perbarui</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsAnalysisModalOpen(true)}
+            className="h-10 px-4 inline-flex items-center gap-2 rounded-lg bg-accent hover:bg-accent-hover text-on-accent text-sm font-semibold cursor-pointer transition-colors"
+          >
+            <Sparkles className="w-4 h-4" />
+            Analisis AI
           </button>
         </div>
       </div>
 
-      {/* Row 1: Clean Executive Fleet Summary (4 KPI Cards + Scope Banner) */}
+      {/* Filter periode */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <PeriodFilter value={period} onChange={handlePeriod} />
+        {info && (
+          <p className="text-[13px] text-muted">
+            {info.from === info.to ? fmtIso(info.from) : `${fmtIso(info.from)} – ${fmtIso(info.to)}`}
+            {info.hasPrev
+              ? ` · dibanding ${info.days === 1 ? "sehari" : `${info.days} hari`} sebelumnya`
+              : " · belum ada data pembanding"}
+          </p>
+        )}
+      </div>
+
+      {/* Ringkasan angka */}
       <FleetSummaryCards
-        isAll={currentAccount.isAll}
+        loading={initialLoad}
+        isAll={isAll}
         displayName={currentAccount.displayName}
         accountName={currentAccount.username || "all"}
-        totalViews={stats.totalViews}
-        totalPosts={stats.totalPosts}
-        totalInteractions={stats.totalInteractions}
-        totalLikes={stats.totalLikes}
-        totalReplies={stats.totalReplies}
-        totalReposts={stats.totalReposts}
-        avgER={stats.avgER}
-        activeAccounts={stats.activeAccounts || 32}
-        onOpenAnalysis={() => setIsAnalysisModalOpen(true)}
+        totalViews={stats.totalViews ?? 0}
+        totalPosts={stats.totalPosts ?? 0}
+        totalInteractions={stats.totalInteractions ?? 0}
+        totalLikes={stats.totalLikes ?? 0}
+        totalReplies={stats.totalReplies ?? 0}
+        avgER={stats.avgER ?? 0}
+        activeAccounts={stats.activeAccounts ?? accountCount}
+        deltas={data?.deltas}
       />
 
-      {/* Row 2: Analytics Grid (Chart + Top Post) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column (8 cols): Weekly Activity Bar Chart */}
-        <div className="lg:col-span-8 bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1F2937] rounded-2xl p-6 shadow-xs flex flex-col justify-between transition-colors">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      {/* Grafik + postingan terpopuler */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <section className="card p-5 xl:col-span-2">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-5">
             <div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-[#1814F3] dark:text-blue-400 flex items-center justify-center">
-                  <BarChart2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-[#1E293B] dark:text-[#F8FAFC]">
-                    Aktivitas Penayangan 7 Hari Terakhir
-                  </h3>
-                  <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
-                    {currentAccount.isAll
-                      ? "Akumulasi impresi dan interaksi seluruh 32 akun cabang"
-                      : `Statistik 7 hari akun @${currentAccount.username}`}
-                  </p>
-                </div>
-              </div>
+              <h3 className="text-base font-semibold text-fg">{chartTitle}</h3>
+              <p className="text-[13px] text-muted mt-0.5">
+                Penayangan dan interaksi per hari
+              </p>
             </div>
-
-            {/* Legend */}
-            <div className="flex items-center gap-4 text-xs font-semibold">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#1814F3] dark:bg-blue-500" />
-                <span className="text-[#64748B] dark:text-[#94A3B8]">Views</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
-                <span className="text-[#64748B] dark:text-[#94A3B8]">Interaksi</span>
-              </div>
+            <div className="flex items-center gap-4 text-[13px] text-muted">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-accent" />
+                Penayangan
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-success" />
+                Interaksi
+              </span>
             </div>
           </div>
 
-          <WeeklyActivityChart data={weeklyActivity} />
-        </div>
+          {data ? (
+            <div className={loading ? "opacity-50 transition-opacity" : "transition-opacity"}>
+              <WeeklyActivityChart data={data.activity ?? []} />
+            </div>
+          ) : (
+            <div className="h-64 sm:h-72 rounded-xl bg-subtle animate-pulse" />
+          )}
+        </section>
 
-        {/* Right Column (4 cols): Top Performing Post & Content Format Progress */}
-        <div className="lg:col-span-4">
-          <TopPerformingPostCard
-            topPost={data?.topPost}
-            contentFormats={contentFormats}
-          />
-        </div>
+        <TopPerformingPostCard
+          loading={initialLoad}
+          topPost={data?.topPost}
+          contentFormats={data?.contentFormats ?? []}
+        />
       </div>
 
-      {/* Row 3: Fleet Leaderboard Table & Recent Sync Logs */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* 32-Account Leaderboard Table (8 cols) */}
-        <div className="lg:col-span-8">
+      {/* Peringkat + aktivitas bot */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="xl:col-span-2">
           <FleetLeaderboardTable
             accounts={leaderboard}
+            loading={initialLoad}
             selectedAccount={selectedAccount}
             onSelectAccount={handleSelectAccount}
-            onOpenAnalysis={() => setIsAnalysisModalOpen(true)}
           />
         </div>
-
-        {/* Telegram & System Sync Logs (4 cols) */}
-        <div className="lg:col-span-4">
-          <RecentActivityCard activities={data?.recentBotActions} />
-        </div>
+        <RecentActivityCard
+          loading={initialLoad}
+          activities={data?.recentBotActions}
+        />
       </div>
 
-      {/* Interactive AI Account Analysis Modal */}
       <AccountAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}

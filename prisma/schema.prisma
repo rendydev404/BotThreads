@@ -201,3 +201,17 @@ model AnalyticsReportLog {
   @@unique([kind, periodKey])
   @@map("AnalyticsReportLog")
 }
+
+model DashboardUser {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  email        String?   @unique
+  name         String?
+  passwordHash String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("DashboardUser")
+}

@@ -1,274 +1,114 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import {
-  Sparkles,
-  X,
-  Maximize2,
-  Minimize2,
-  Send,
-  Copy,
-  Check,
-  RotateCw,
-  GripHorizontal,
-  Bot,
-  User,
-} from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { Sparkles, X, Maximize2, Minimize2, GripHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ChatPanel } from "./chat-panel";
+import { useChat } from "./use-chat";
 
-interface ChatMessage {
-  id: string;
-  sender: "user" | "bot";
-  text: string;
-  timestamp: string;
-}
-
-const quickPrompts = [
-  "Ringkas performa 32 akun",
-  "Akun mana yang paling banyak posting?",
-  "Akun mana views-nya tertinggi?",
-  "Bikinin 3 draf hook postingan Threads",
-];
-
-const personas = [
-  { id: "strategist", label: "Strategi", name: "Livia" },
-  { id: "copywriter", label: "Copywriter", name: "Randy" },
-  { id: "analyst", label: "Analis", name: "Workman" },
-];
+const WIN_W = 400;
+const WIN_H = 600;
 
 export function FloatingAiBubble() {
+  const pathname = usePathname();
+  const chat = useChat();
   const [isOpen, setIsOpen] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [activePersona, setActivePersona] = useState("strategist");
-  const [inputMessage, setInputMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      sender: "bot",
-      text: "Halo! Saya Asisten AI Suka Shawarma yang terhubung langsung ke database 32 akun Threads (193.7K views & 1.680 postingan).\n\nAda yang ingin Anda tanyakan seputar ranking cabang, penayangan, atau draf ide konten baru?",
-      timestamp: "Baru saja",
-    },
-  ]);
-
-  // Ultra-smooth GPU Drag State
+  // Posisi jendela: diseret lewat transform (GPU) dan diperbarui via rAF
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const posRef = useRef({ x: 0, y: 0 });
-  const dragStartRef = useRef({ mouseX: 0, mouseY: 0, initialX: 0, initialY: 0 });
+  const initialized = useRef(false);
   const rafIdRef = useRef<number | null>(null);
   const windowRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize position to bottom-right corner safely
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const initialX = Math.max(16, window.innerWidth - 440);
-      const initialY = Math.max(20, window.innerHeight - 640);
-      posRef.current = { x: initialX, y: initialY };
-      setPosition({ x: initialX, y: initialY });
-    }
-  }, []);
-
-  // Sync window transform whenever position state updates (non-dragging)
   useEffect(() => {
     if (windowRef.current && !isDragging && !isFullScreen) {
       windowRef.current.style.transform = `translate3d(${position.x}px, ${position.y}px, 0)`;
     }
-  }, [position, isDragging, isFullScreen]);
+  }, [position, isDragging, isFullScreen, isOpen]);
 
-  // Auto-scroll chat to bottom
-  useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const openWindow = () => {
+    if (!initialized.current) {
+      initialized.current = true;
+      const x = Math.max(16, window.innerWidth - WIN_W - 24);
+      const y = Math.max(16, window.innerHeight - WIN_H - 24);
+      posRef.current = { x, y };
+      setPosition({ x, y });
     }
-  }, [messages, isOpen]);
-
-  // Mouse / Pointer Move listener (Runs on window, decoupled via RAF for 120Hz smoothness)
-  const onPointerMove = useCallback(
-    (e: PointerEvent) => {
-      if (isFullScreen) return;
-
-      const deltaX = e.clientX - dragStartRef.current.mouseX;
-      const deltaY = e.clientY - dragStartRef.current.mouseY;
-
-      let nextX = dragStartRef.current.initialX + deltaX;
-      let nextY = dragStartRef.current.initialY + deltaY;
-
-      // Viewport bounds clamp
-      const winWidth = windowRef.current?.offsetWidth || 420;
-      const winHeight = windowRef.current?.offsetHeight || 580;
-      const maxX = Math.max(10, window.innerWidth - winWidth - 10);
-      const maxY = Math.max(10, window.innerHeight - winHeight - 10);
-
-      nextX = Math.min(Math.max(10, nextX), maxX);
-      nextY = Math.min(Math.max(10, nextY), maxY);
-
-      posRef.current = { x: nextX, y: nextY };
-
-      // Update DOM style directly using requestAnimationFrame (Zero React re-render lag)
-      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-      rafIdRef.current = requestAnimationFrame(() => {
-        if (windowRef.current) {
-          windowRef.current.style.transform = `translate3d(${nextX}px, ${nextY}px, 0)`;
-        }
-      });
-    },
-    [isFullScreen]
-  );
-
-  const onPointerUp = useCallback(() => {
-    setIsDragging(false);
-    document.body.style.userSelect = "";
-    document.body.style.cursor = "";
-
-    window.removeEventListener("pointermove", onPointerMove);
-    window.removeEventListener("pointerup", onPointerUp);
-
-    // Save final position to React state
-    setPosition(posRef.current);
-  }, [onPointerMove]);
+    setIsOpen(true);
+  };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isFullScreen) return;
-
-    // Ignore if clicked on buttons or input
-    const target = e.target as HTMLElement;
-    if (target.closest("button") || target.closest("input") || target.closest("textarea")) {
-      return;
-    }
-
-    setIsDragging(true);
-    document.body.style.userSelect = "none";
-    document.body.style.cursor = "grabbing";
-
-    dragStartRef.current = {
+    if (isFullScreen || (e.target as HTMLElement).closest("button")) return;
+    const start = {
       mouseX: e.clientX,
       mouseY: e.clientY,
       initialX: posRef.current.x,
       initialY: posRef.current.y,
     };
+    setIsDragging(true);
+    document.body.style.userSelect = "none";
 
-    window.addEventListener("pointermove", onPointerMove, { passive: true });
-    window.addEventListener("pointerup", onPointerUp);
+    const move = (ev: PointerEvent) => {
+      const w = windowRef.current?.offsetWidth || WIN_W;
+      const h = windowRef.current?.offsetHeight || WIN_H;
+      const x = Math.min(
+        Math.max(10, start.initialX + ev.clientX - start.mouseX),
+        Math.max(10, window.innerWidth - w - 10)
+      );
+      const y = Math.min(
+        Math.max(10, start.initialY + ev.clientY - start.mouseY),
+        Math.max(10, window.innerHeight - h - 10)
+      );
+      posRef.current = { x, y };
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (windowRef.current) {
+          windowRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        }
+      });
+    };
+    const up = () => {
+      setIsDragging(false);
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setPosition(posRef.current);
+    };
+    window.addEventListener("pointermove", move, { passive: true });
+    window.addEventListener("pointerup", up);
   };
 
-  // Clean up RAF on unmount
   useEffect(() => {
     return () => {
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [onPointerMove, onPointerUp]);
+  }, []);
 
-  // Send message to backend
-  const handleSendMessage = async (textToSend = inputMessage) => {
-    const text = textToSend.trim();
-    if (!text || isLoading) return;
-
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      sender: "user",
-      text,
-      timestamp: new Date().toLocaleTimeString("id-ID", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    setInputMessage("");
-    setIsLoading(true);
-
-    try {
-      const res = await fetch("/api/bot/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          persona: activePersona,
-          account: "all",
-          history: messages.slice(-6).map((m) => ({
-            sender: m.sender,
-            text: m.text,
-          })),
-        }),
-      });
-
-      const data = await res.json();
-      if (data.success && data.message) {
-        const botMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          sender: "bot",
-          text: data.message,
-          timestamp: new Date().toLocaleTimeString("id-ID", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-        };
-        setMessages((prev) => [...prev, botMsg]);
-      } else {
-        const errorMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          sender: "bot",
-          text: "Maaf, terjadi kendala koneksi ke Hermes AI. Silakan coba kembali.",
-          timestamp: "Sekarang",
-        };
-        setMessages((prev) => [...prev, errorMsg]);
-      }
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          sender: "bot",
-          text: "Gagal menghubungkan ke Hermes AI server.",
-          timestamp: "Sekarang",
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCopy = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
+  // Halaman Studio AI sudah berisi chat penuh, bubble tidak diperlukan di sana
+  if (pathname.startsWith("/prompt-studio")) return null;
 
   return (
     <>
-      {/* 1. Floating Collapsed Bubble Trigger */}
       {!isOpen && (
-        <div className="fixed bottom-20 md:bottom-7 right-5 z-40">
-          <button
-            type="button"
-            onClick={() => setIsOpen(true)}
-            className="group relative flex items-center gap-2.5 px-4 py-3 rounded-full bg-[#1814F3] text-white shadow-xl hover:shadow-2xl hover:bg-[#120ec0] active:scale-95 transition-all cursor-pointer border border-white/20"
-            title="Buka Hermes AI Assistant"
-          >
-            <div className="relative flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white animate-pulse" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#10B981] ring-2 ring-[#1814F3]" />
-            </div>
-            <span className="text-xs font-bold tracking-tight pr-1">
-              Tanya Hermes AI
-            </span>
-            <span className="hidden group-hover:inline-block text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-semibold">
-              Live DB
-            </span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={openWindow}
+          className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 h-12 pl-4 pr-5 inline-flex items-center gap-2 rounded-full bg-accent hover:bg-accent-hover text-on-accent text-sm font-semibold shadow-pop transition-colors cursor-pointer"
+        >
+          <Sparkles className="w-[18px] h-[18px]" />
+          Tanya AI
+        </button>
       )}
 
-      {/* 2. Draggable & Fullscreen Chat Window */}
       {isOpen && (
         <div
           ref={windowRef}
+          role="dialog"
+          aria-label="Asisten AI"
           style={
             isFullScreen
               ? undefined
@@ -282,232 +122,67 @@ export function FloatingAiBubble() {
                 }
           }
           className={cn(
-            "bg-white dark:bg-[#111827] border border-[#EDF2F7] dark:border-[#1F2937] flex flex-col overflow-hidden transition-colors",
-            isDragging && "select-none pointer-events-auto",
+            "bg-surface border border-line flex flex-col overflow-hidden shadow-pop",
             isFullScreen
-              ? "fixed inset-2 sm:inset-6 z-50 rounded-3xl max-w-5xl mx-auto shadow-2xl transition-all duration-300 ease-out"
-              : cn(
-                  "w-[94vw] sm:w-[430px] h-[580px] max-h-[85vh] rounded-3xl",
-                  isDragging
-                    ? "transition-none shadow-[0_30px_70px_rgba(24,20,243,0.22)] scale-[1.008]"
-                    : "transition-shadow duration-200 shadow-2xl"
-                )
+              ? "fixed inset-2 sm:inset-6 z-50 rounded-2xl max-w-4xl mx-auto"
+              : "w-[calc(100vw-1.5rem)] sm:w-[400px] h-[600px] max-h-[calc(100vh-1.5rem)] rounded-2xl"
           )}
         >
-          {/* Header Bar - High Performance Drag Handle */}
           <div
             onPointerDown={handlePointerDown}
+            title={isFullScreen ? undefined : "Tahan dan geser untuk memindahkan"}
             className={cn(
-              "px-5 py-3.5 bg-[#F8FAFC] dark:bg-[#1E293B]/70 border-b border-[#EDF2F7] dark:border-[#1F2937] flex items-center justify-between select-none touch-none",
-              isFullScreen
-                ? "cursor-default"
-                : isDragging
-                ? "cursor-grabbing bg-[#F1F5F9] dark:bg-[#1E293B]"
-                : "cursor-grab hover:bg-[#F1F5F9]/80 dark:hover:bg-[#1E293B] transition-colors"
+              "h-14 px-4 flex items-center justify-between border-b border-line select-none touch-none shrink-0",
+              !isFullScreen && (isDragging ? "cursor-grabbing" : "cursor-grab")
             )}
-            title={isFullScreen ? undefined : "Klik dan tahan untuk menggeser jendela"}
           >
-            <div className="flex items-center gap-2.5 min-w-0 pointer-events-none">
+            <div className="flex items-center gap-2.5 min-w-0">
               {!isFullScreen && (
-                <div className="flex items-center justify-center p-1 rounded-md text-[#718EBF] dark:text-[#94A3B8]">
-                  <GripHorizontal className="w-4 h-4" />
-                </div>
+                <GripHorizontal className="w-4 h-4 text-faint shrink-0" />
               )}
-              <div className="w-8 h-8 rounded-xl bg-[#1814F3] text-white flex items-center justify-center shrink-0 shadow-xs">
+              <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center shrink-0">
                 <Sparkles className="w-4 h-4" />
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h4 className="text-xs sm:text-sm font-extrabold text-[#1E293B] dark:text-[#F8FAFC] truncate">
-                    Asisten AI Suka Shawarma
-                  </h4>
-                  <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded-full shrink-0">
-                    Live
-                  </span>
-                </div>
-                <p className="text-[10px] text-[#64748B] dark:text-[#94A3B8] truncate">
-                  Akses real-time 32 akun & 1.680 post
+              <div className="leading-tight min-w-0">
+                <h2 className="text-sm font-semibold text-fg truncate">
+                  Asisten AI
+                </h2>
+                <p className="text-xs text-muted truncate">
+                  Terhubung ke data 32 akun
                 </p>
               </div>
             </div>
 
-            {/* Window Controls (Not draggable) */}
-            <div className="flex items-center gap-1 shrink-0 ml-2">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
-                onClick={() => setIsFullScreen(!isFullScreen)}
-                className="w-7 h-7 rounded-lg text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-[#F8FAFC] hover:bg-[#EDF2F7] dark:hover:bg-[#334155] flex items-center justify-center transition-colors cursor-pointer"
-                title={isFullScreen ? "Perkecil Jendela" : "Layar Penuh"}
+                onClick={() => setIsFullScreen((v) => !v)}
+                className="w-8 h-8 rounded-lg text-muted hover:text-fg hover:bg-subtle flex items-center justify-center transition-colors cursor-pointer"
+                title={isFullScreen ? "Perkecil" : "Layar penuh"}
+                aria-label={isFullScreen ? "Perkecil" : "Layar penuh"}
               >
                 {isFullScreen ? (
-                  <Minimize2 className="w-3.5 h-3.5" />
+                  <Minimize2 className="w-4 h-4" />
                 ) : (
-                  <Maximize2 className="w-3.5 h-3.5" />
+                  <Maximize2 className="w-4 h-4" />
                 )}
               </button>
-
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
-                className="w-7 h-7 rounded-lg text-[#718EBF] dark:text-[#94A3B8] hover:text-[#FF4B4A] hover:bg-[#FEE2E2] dark:hover:bg-rose-950/40 flex items-center justify-center transition-colors cursor-pointer"
-                title="Tutup Chat"
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsFullScreen(false);
+                }}
+                className="w-8 h-8 rounded-lg text-muted hover:text-fg hover:bg-subtle flex items-center justify-center transition-colors cursor-pointer"
+                title="Tutup"
+                aria-label="Tutup"
               >
-                <X className="w-4 h-4" />
+                <X className="w-[18px] h-[18px]" />
               </button>
             </div>
           </div>
 
-          {/* Persona Strip & Quick Prompt Chips */}
-          <div className="p-3 bg-white dark:bg-[#111827] border-b border-[#EDF2F7] dark:border-[#1F2937] space-y-2">
-            {/* Persona Switcher */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-[#718EBF] dark:text-[#94A3B8] uppercase tracking-wider pr-1">
-                Persona:
-              </span>
-              {personas.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setActivePersona(p.id)}
-                  className={cn(
-                    "px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer",
-                    activePersona === p.id
-                      ? "bg-[#1814F3] text-white shadow-xs"
-                      : "bg-[#F4F7FE] dark:bg-[#1E293B] text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-white"
-                  )}
-                >
-                  {p.name} ({p.label})
-                </button>
-              ))}
-            </div>
-
-            {/* Quick Context Prompt Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-              {quickPrompts.map((q, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleSendMessage(q)}
-                  disabled={isLoading}
-                  className="px-2.5 py-1 rounded-lg bg-[#F8FAFC] dark:bg-[#1E293B] border border-[#EDF2F7] dark:border-[#334155] text-[10px] text-[#343C6A] dark:text-[#CBD5E1] hover:border-[#1814F3] dark:hover:border-blue-400 hover:text-[#1814F3] dark:hover:text-blue-400 font-medium whitespace-nowrap transition-colors cursor-pointer shrink-0"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Message Thread History */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-[#FAFCFF] dark:bg-[#0B0F19]">
-            {messages.map((msg) => {
-              const isUser = msg.sender === "user";
-              return (
-                <div
-                  key={msg.id}
-                  className={cn(
-                    "flex gap-2.5 max-w-[88%]",
-                    isUser ? "ml-auto flex-row-reverse" : "mr-auto"
-                  )}
-                >
-                  {/* Avatar */}
-                  <div
-                    className={cn(
-                      "w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white text-[11px] font-bold shadow-xs",
-                      isUser ? "bg-[#343C6A] dark:bg-slate-700" : "bg-[#1814F3]"
-                    )}
-                  >
-                    {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
-                  </div>
-
-                  {/* Message Bubble */}
-                  <div className="space-y-1">
-                    <div
-                      className={cn(
-                        "p-3.5 rounded-2xl text-xs sm:text-[13px] leading-relaxed",
-                        isUser
-                          ? "bg-[#1814F3] text-white rounded-tr-xs shadow-xs"
-                          : "bg-white dark:bg-[#1E293B] text-[#343C6A] dark:text-[#F8FAFC] border border-[#EDF2F7] dark:border-[#334155] rounded-tl-xs shadow-xs"
-                      )}
-                    >
-                      <p className="whitespace-pre-line">{msg.text}</p>
-                    </div>
-
-                    {/* Footer: Timestamp & Action */}
-                    <div
-                      className={cn(
-                        "flex items-center gap-2 text-[10px] text-[#94A3B8] dark:text-[#64748B] px-1",
-                        isUser ? "justify-end" : "justify-start"
-                      )}
-                    >
-                      <span>{msg.timestamp}</span>
-                      {!isUser && (
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(msg.id, msg.text)}
-                          className="hover:text-[#1814F3] dark:hover:text-blue-400 inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          {copiedId === msg.id ? (
-                            <>
-                              <Check className="w-3 h-3 text-[#10B981]" />
-                              <span>Tersalin</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              <span>Salin</span>
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Loading Indicator */}
-            {isLoading && (
-              <div className="flex gap-2.5 mr-auto max-w-[85%]">
-                <div className="w-7 h-7 rounded-full bg-[#1814F3] text-white flex items-center justify-center shrink-0">
-                  <Bot className="w-3.5 h-3.5" />
-                </div>
-                <div className="p-3.5 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#EDF2F7] dark:border-[#334155] rounded-tl-xs shadow-xs flex items-center gap-2 text-xs text-[#718EBF] dark:text-[#94A3B8]">
-                  <RotateCw className="w-3.5 h-3.5 text-[#1814F3] dark:text-blue-400 animate-spin" />
-                  <span>Hermes AI menganalisis data database...</span>
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input & Send Footer */}
-          <div className="p-3 bg-white dark:bg-[#111827] border-t border-[#EDF2F7] dark:border-[#1F2937]">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendMessage();
-              }}
-              className="relative flex items-center"
-            >
-              <input
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Tanyakan analisis akun, impresi, atau minta draf konten..."
-                className="w-full h-11 pl-4 pr-12 text-xs rounded-full bg-[#F5F7FA] dark:bg-[#1E293B] text-[#343C6A] dark:text-[#F8FAFC] placeholder-[#94A3B8] dark:placeholder-[#64748B] border border-transparent dark:border-[#334155] focus:border-[#1814F3]/30 dark:focus:border-blue-400/40 focus:bg-white dark:focus:bg-[#0F172A] focus:outline-none transition-all"
-                disabled={isLoading}
-              />
-              <button
-                type="submit"
-                disabled={isLoading || !inputMessage.trim()}
-                className="absolute right-1.5 w-8 h-8 rounded-full bg-[#1814F3] hover:bg-[#120ec0] disabled:bg-[#CBD5E1] dark:disabled:bg-slate-700 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all"
-                title="Kirim pesan"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
-          </div>
+          <ChatPanel chat={chat} compact={!isFullScreen} className="flex-1" />
         </div>
       )}
     </>

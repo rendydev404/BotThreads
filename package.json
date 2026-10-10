@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "auth:secret": "node scripts/gen-secret.mjs",
+    "user:create": "node scripts/create-user.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",

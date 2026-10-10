@@ -3,177 +3,178 @@
 import React from "react";
 import { formatNumber } from "@/lib/utils";
 import {
-  Award,
   Eye,
   Heart,
   MessageSquare,
   ExternalLink,
-  Layers,
   FileText,
   Video,
   Image as ImageIcon,
-  BookOpen,
+  LayoutGrid,
+  type LucideIcon,
 } from "lucide-react";
 
-interface TopPerformingPostCardProps {
-  topPost?: {
-    id?: string;
-    text: string;
-    mediaType?: string;
-    views: number;
-    likes: number;
-    replies: number;
-    permalink?: string | null;
-    postedAt?: string;
-    threadsAccount?: {
-      username?: string | null;
-      displayName?: string;
-      avatarUrl?: string | null;
-    } | null;
+interface TopPost {
+  id?: string;
+  text: string;
+  mediaType?: string;
+  views: number;
+  likes: number;
+  replies: number;
+  permalink?: string | null;
+  postedAt?: string;
+  threadsAccount?: {
+    username?: string | null;
+    displayName?: string;
+    avatarUrl?: string | null;
   } | null;
-  contentFormats?: Array<{
-    name: string;
-    value: number;
-    count: number;
-    color: string;
-  }>;
+}
+
+interface ContentFormat {
+  name: string;
+  value: number;
+  count: number;
+  color: string;
+}
+
+interface TopPerformingPostCardProps {
+  topPost?: TopPost | null;
+  contentFormats?: ContentFormat[];
+  loading?: boolean;
+}
+
+function formatIcon(name: string): LucideIcon {
+  if (name.includes("Video")) return Video;
+  if (name.includes("Foto")) return ImageIcon;
+  if (name.includes("Carousel")) return LayoutGrid;
+  return FileText;
 }
 
 export function TopPerformingPostCard({
   topPost,
   contentFormats = [],
+  loading = false,
 }: TopPerformingPostCardProps) {
-  const getFormatIcon = (name: string) => {
-    if (name.includes("Video")) return Video;
-    if (name.includes("Foto")) return ImageIcon;
-    if (name.includes("Carousel")) return BookOpen;
-    return FileText;
-  };
-
   return (
-    <div className="space-y-6">
-      {/* 1. Top Post Card */}
-      <div className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1F2937] rounded-2xl p-5 shadow-xs transition-colors">
-        <div className="flex items-center justify-between pb-3.5 border-b border-[#F1F5F9] dark:border-[#1F2937]">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <Award className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-[#1E293B] dark:text-[#F8FAFC]">
-                Postingan Terpopuler
-              </h4>
-              <p className="text-[10px] text-[#64748B] dark:text-[#94A3B8]">
-                Penayangan tertinggi di jaringan
-              </p>
-            </div>
-          </div>
-
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-[#1814F3] dark:text-blue-400 text-[11px] font-bold">
-            <Eye className="w-3 h-3" />
-            {topPost ? formatNumber(topPost.views) : "3.0K"} Views
-          </span>
+    <div className="space-y-4">
+      {/* Postingan terpopuler */}
+      <section className="card p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-base font-semibold text-fg">Postingan terpopuler</h3>
+          {topPost && (
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent">
+              <Eye className="w-4 h-4" />
+              {formatNumber(topPost.views)}
+            </span>
+          )}
         </div>
 
-        {/* Post Text & Author */}
-        <div className="mt-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-6 h-6 rounded-full bg-[#E2E8F0] dark:bg-[#1E293B] overflow-hidden flex items-center justify-center text-[10px] font-bold text-[#475569] dark:text-[#94A3B8]">
-              {topPost?.threadsAccount?.avatarUrl ? (
-                <img
-                  src={topPost.threadsAccount.avatarUrl}
-                  alt={topPost.threadsAccount.displayName || "Account"}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                "@"
+        {loading ? (
+          <div className="mt-4 space-y-3 animate-pulse">
+            <div className="h-4 w-32 rounded bg-subtle" />
+            <div className="h-20 rounded-xl bg-subtle" />
+          </div>
+        ) : !topPost ? (
+          <p className="mt-4 text-sm text-muted">Belum ada postingan.</p>
+        ) : (
+          <>
+            <div className="mt-4 flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-full bg-subtle overflow-hidden flex items-center justify-center text-xs font-semibold text-muted shrink-0">
+                {topPost.threadsAccount?.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={topPost.threadsAccount.avatarUrl}
+                    alt=""
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  "@"
+                )}
+              </div>
+              <span className="text-sm font-medium text-fg truncate">
+                @{topPost.threadsAccount?.username || "akun"}
+              </span>
+            </div>
+
+            <p className="mt-3 text-sm leading-relaxed text-fg bg-subtle rounded-xl p-3.5 line-clamp-4">
+              {topPost.text}
+            </p>
+
+            <div className="mt-3 flex items-center justify-between text-sm text-muted">
+              <div className="flex items-center gap-4">
+                <span className="inline-flex items-center gap-1.5">
+                  <Heart className="w-4 h-4 text-danger" />
+                  {formatNumber(topPost.likes)}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <MessageSquare className="w-4 h-4" />
+                  {formatNumber(topPost.replies)}
+                </span>
+              </div>
+
+              {topPost.permalink && (
+                <a
+                  href={topPost.permalink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
+                >
+                  Buka di Threads
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               )}
             </div>
-            <span className="text-xs font-bold text-[#1E293B] dark:text-[#F8FAFC]">
-              @{topPost?.threadsAccount?.username || "theakbaralatas"}
-            </span>
-          </div>
+          </>
+        )}
+      </section>
 
-          <p className="text-xs leading-relaxed text-[#334155] dark:text-[#CBD5E1] bg-[#F8FAFC] dark:bg-[#1E293B]/60 border border-[#F1F5F9] dark:border-[#1F2937] rounded-xl p-3 italic line-clamp-3">
-            "{topPost?.text || "Kebakaran di sebelah outlet Suka Shawarma..."}"
-          </p>
+      {/* Jenis konten */}
+      <section className="card p-5">
+        <h3 className="text-base font-semibold text-fg">Jenis konten</h3>
+        <p className="text-[13px] text-muted mt-0.5">
+          Proporsi tiap format dari seluruh postingan
+        </p>
 
-          <div className="mt-3.5 flex items-center justify-between text-xs text-[#64748B] dark:text-[#94A3B8]">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-1 font-semibold text-[#1E293B] dark:text-[#F8FAFC]">
-                <Heart className="w-3.5 h-3.5 text-rose-500" />
-                {topPost?.likes || 18}
-              </span>
-              <span className="inline-flex items-center gap-1 font-semibold text-[#1E293B] dark:text-[#F8FAFC]">
-                <MessageSquare className="w-3.5 h-3.5 text-[#1814F3] dark:text-blue-400" />
-                {topPost?.replies || 24}
-              </span>
-            </div>
-
-            {topPost?.permalink && (
-              <a
-                href={topPost.permalink}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1814F3] dark:text-blue-400 hover:underline"
-              >
-                <span>Buka Threads</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Content Formats Breakdown */}
-      <div className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1F2937] rounded-2xl p-5 shadow-xs transition-colors">
-        <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9] dark:border-[#1F2937]">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
-              <Layers className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-[#1E293B] dark:text-[#F8FAFC]">
-                Distribusi Format Konten
-              </h4>
-              <p className="text-[10px] text-[#64748B] dark:text-[#94A3B8]">
-                Komposisi tipe media dari seluruh post
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-3">
-          {contentFormats.map((format, idx) => {
-            const Icon = getFormatIcon(format.name);
-            return (
-              <div key={idx} className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 font-medium text-[#1E293B] dark:text-[#F8FAFC]">
-                    <Icon className="w-3.5 h-3.5 text-[#64748B] dark:text-[#94A3B8]" />
-                    <span>{format.name}</span>
-                  </div>
-                  <span className="font-bold text-[#1E293B] dark:text-[#F8FAFC]">
-                    {format.value}%{" "}
-                    <span className="text-[11px] font-normal text-[#64748B] dark:text-[#94A3B8]">
-                      ({format.count} post)
-                    </span>
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-[#F1F5F9] dark:bg-[#1E293B] rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${format.value}%`,
-                      backgroundColor: format.color || "#1814F3",
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+        <ul className="mt-4 space-y-4">
+          {loading
+            ? [0, 1, 2].map((i) => (
+                <li key={i} className="h-8 rounded-md bg-subtle animate-pulse" />
+              ))
+            : contentFormats.map((format) => {
+                const Icon = formatIcon(format.name);
+                return (
+                  <li key={format.name}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="inline-flex items-center gap-2 text-fg">
+                        <Icon className="w-4 h-4 text-muted" />
+                        {format.name}
+                      </span>
+                      <span className="text-muted">
+                        <span className="font-semibold text-fg">
+                          {format.value}%
+                        </span>{" "}
+                        · {formatNumber(format.count)}
+                      </span>
+                    </div>
+                    <div
+                      className="mt-2 h-1.5 bg-subtle rounded-full overflow-hidden"
+                      role="progressbar"
+                      aria-label={format.name}
+                      aria-valuenow={format.value}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        className="h-full rounded-full bg-accent"
+                        style={{ width: `${Math.max(format.value, 2)}%` }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+        </ul>
+      </section>
     </div>
   );
 }

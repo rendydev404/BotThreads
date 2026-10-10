@@ -3,8 +3,9 @@ import { prisma } from "@/lib/db";
 import { cleanPostText } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
+  // Dibaca di luar try/catch: sinyal "route dinamis" dari Next tidak boleh tertelan
+  const searchParams = request.nextUrl.searchParams;
   try {
-    const searchParams = request.nextUrl.searchParams;
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "10", 10)));
     const tab = searchParams.get("tab") || "all"; // "all" | "top" | "flop"

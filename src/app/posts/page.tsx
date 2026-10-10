@@ -165,31 +165,31 @@ export default function PostsPage() {
   const getFormatBadge = (formatLabel: string) => {
     if (formatLabel === "Video") {
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16DBCC]/10 dark:bg-teal-950/40 text-[#0f8b81] dark:text-teal-300 font-semibold text-[11px]">
-          <Video className="w-3.5 h-3.5 text-[#16DBCC]" />
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-success-soft text-success font-semibold text-[11px]">
+          <Video className="w-3.5 h-3.5 text-success" />
           Video
         </span>
       );
     }
     if (formatLabel === "Carousel") {
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FFBB38]/15 dark:bg-amber-950/40 text-[#a87405] dark:text-amber-300 font-semibold text-[11px]">
-          <Layers className="w-3.5 h-3.5 text-[#FFBB38]" />
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-warning-soft text-warning font-semibold text-[11px]">
+          <Layers className="w-3.5 h-3.5 text-warning" />
           Carousel
         </span>
       );
     }
     if (formatLabel === "Foto") {
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FF4B4A]/10 dark:bg-rose-950/40 text-[#c22e2e] dark:text-rose-300 font-semibold text-[11px]">
-          <ImageIcon className="w-3.5 h-3.5 text-[#FF4B4A]" />
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-danger-soft text-danger font-semibold text-[11px]">
+          <ImageIcon className="w-3.5 h-3.5 text-danger" />
           Foto
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1814F3]/10 dark:bg-blue-500/10 text-[#1814F3] dark:text-blue-400 font-semibold text-[11px]">
-        <FileText className="w-3.5 h-3.5 text-[#1814F3] dark:text-blue-400" />
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent-soft text-accent font-semibold text-[11px]">
+        <FileText className="w-3.5 h-3.5 text-accent" />
         Teks
       </span>
     );
@@ -205,67 +205,67 @@ export default function PostsPage() {
     <div className="space-y-6 transition-colors">
       {/* Page Title & Context */}
       <div>
-        <h2 className="text-xl md:text-2xl font-bold text-[#343C6A] dark:text-[#F8FAFC] tracking-tight">
+        <h2 className="text-xl md:text-2xl font-bold text-fg tracking-tight">
           Content & Posts Hub
         </h2>
-        <p className="text-xs md:text-sm text-[#718EBF] dark:text-[#94A3B8] mt-0.5">
+        <p className="text-xs md:text-sm text-muted mt-0.5">
           Eksplorasi seluruh postingan Threads terpublikasi, tinjau impresi audiens, dan analisis via AI
         </p>
       </div>
 
       {/* Top Metric Strip (Real Aggregates) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="neo-card p-4 flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-[#1814F3]/10 dark:bg-blue-500/10 text-[#1814F3] dark:text-blue-400 flex items-center justify-center shrink-0">
+        <div className="card p-4 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-accent-soft text-accent flex items-center justify-center shrink-0">
             <FileText className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[11px] font-semibold text-[#718EBF] dark:text-[#94A3B8] uppercase">
+            <span className="text-[11px] font-semibold text-muted uppercase">
               Total Postingan
             </span>
-            <h4 className="text-xl font-bold text-[#343C6A] dark:text-[#F8FAFC]">
+            <h4 className="text-xl font-bold text-fg">
               {formatNumber(stats.totalPosts)}
             </h4>
           </div>
         </div>
 
-        <div className="neo-card p-4 flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-[#16DBCC]/15 dark:bg-teal-950/40 text-[#16DBCC] flex items-center justify-center shrink-0">
+        <div className="card p-4 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-success-soft text-success flex items-center justify-center shrink-0">
             <Eye className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[11px] font-semibold text-[#718EBF] dark:text-[#94A3B8] uppercase">
+            <span className="text-[11px] font-semibold text-muted uppercase">
               Total Penayangan
             </span>
-            <h4 className="text-xl font-bold text-[#343C6A] dark:text-[#F8FAFC]">
+            <h4 className="text-xl font-bold text-fg">
               {formatNumber(stats.totalViews)}
             </h4>
           </div>
         </div>
 
-        <div className="neo-card p-4 flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-[#FF4B4A]/10 dark:bg-rose-950/40 text-[#FF4B4A] flex items-center justify-center shrink-0">
+        <div className="card p-4 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-danger-soft text-danger flex items-center justify-center shrink-0">
             <Heart className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[11px] font-semibold text-[#718EBF] dark:text-[#94A3B8] uppercase">
+            <span className="text-[11px] font-semibold text-muted uppercase">
               Total Likes
             </span>
-            <h4 className="text-xl font-bold text-[#343C6A] dark:text-[#F8FAFC]">
+            <h4 className="text-xl font-bold text-fg">
               {formatNumber(stats.totalLikes)}
             </h4>
           </div>
         </div>
 
-        <div className="neo-card p-4 flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-[#FFBB38]/15 dark:bg-amber-950/40 text-[#FFBB38] flex items-center justify-center shrink-0">
+        <div className="card p-4 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-warning-soft text-warning flex items-center justify-center shrink-0">
             <MessageCircle className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[11px] font-semibold text-[#718EBF] dark:text-[#94A3B8] uppercase">
+            <span className="text-[11px] font-semibold text-muted uppercase">
               Total Replies
             </span>
-            <h4 className="text-xl font-bold text-[#343C6A] dark:text-[#F8FAFC]">
+            <h4 className="text-xl font-bold text-fg">
               {formatNumber(stats.totalReplies)}
             </h4>
           </div>
@@ -273,9 +273,9 @@ export default function PostsPage() {
       </div>
 
       {/* Main Content Card */}
-      <div className="neo-card p-5 md:p-7 space-y-5">
+      <div className="card p-5 md:p-7 space-y-5">
         {/* Row 1: Tabs & Search Bar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#EDF2F7] dark:border-[#1F2937]">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-line">
           {/* Custom Tabs */}
           <div className="flex items-center gap-6">
             <button
@@ -286,13 +286,13 @@ export default function PostsPage() {
               className={cn(
                 "relative pb-3 text-sm font-semibold transition-colors cursor-pointer",
                 activeTab === "all"
-                  ? "text-[#1814F3] dark:text-blue-400"
-                  : "text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-[#F8FAFC]"
+                  ? "text-accent"
+                  : "text-muted hover:text-fg"
               )}
             >
               Semua Postingan
               {activeTab === "all" && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1814F3] dark:bg-blue-400 rounded-full" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />
               )}
             </button>
             <button
@@ -303,13 +303,13 @@ export default function PostsPage() {
               className={cn(
                 "relative pb-3 text-sm font-semibold transition-colors cursor-pointer",
                 activeTab === "top"
-                  ? "text-[#1814F3] dark:text-blue-400"
-                  : "text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-[#F8FAFC]"
+                  ? "text-accent"
+                  : "text-muted hover:text-fg"
               )}
             >
               Top Performer
               {activeTab === "top" && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1814F3] dark:bg-blue-400 rounded-full" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />
               )}
             </button>
             <button
@@ -320,31 +320,31 @@ export default function PostsPage() {
               className={cn(
                 "relative pb-3 text-sm font-semibold transition-colors cursor-pointer",
                 activeTab === "flop"
-                  ? "text-[#1814F3] dark:text-blue-400"
-                  : "text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-[#F8FAFC]"
+                  ? "text-accent"
+                  : "text-muted hover:text-fg"
               )}
             >
               Perlu Evaluasi
               {activeTab === "flop" && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1814F3] dark:bg-blue-400 rounded-full" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />
               )}
             </button>
           </div>
 
           {/* Search Box */}
           <div className="relative w-full md:w-72">
-            <Search className="w-4 h-4 text-[#718EBF] dark:text-[#94A3B8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cari caption postingan..."
-              className="w-full h-10 pl-10 pr-8 bg-[#F5F7FA] dark:bg-[#1E293B] text-xs text-[#343C6A] dark:text-[#F8FAFC] placeholder-[#8BA3CB] dark:placeholder-[#64748B] rounded-full border border-transparent dark:border-[#334155] focus:border-[#1814F3]/30 dark:focus:border-blue-400/40 focus:bg-white dark:focus:bg-[#0F172A] focus:outline-none transition-all"
+              className="w-full h-10 pl-10 pr-8 bg-subtle text-xs text-fg placeholder-faint rounded-full border border-transparent focus:border-accent focus:bg-surface focus:outline-none transition-all"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-[#F8FAFC] p-0.5 cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg p-0.5 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -359,9 +359,9 @@ export default function PostsPage() {
             <button
               type="button"
               onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
-              className="h-9 px-4 rounded-xl bg-[#F5F7FA] dark:bg-[#1E293B] hover:bg-[#EDF2F7] dark:hover:bg-[#334155] text-xs font-semibold text-[#343C6A] dark:text-[#F8FAFC] border border-[#EDF2F7] dark:border-[#334155] flex items-center gap-2 transition-all cursor-pointer"
+              className="h-9 px-4 rounded-xl bg-subtle hover:bg-subtle text-xs font-semibold text-fg border border-line flex items-center gap-2 transition-all cursor-pointer"
             >
-              <Users className="w-3.5 h-3.5 text-[#1814F3] dark:text-blue-400" />
+              <Users className="w-3.5 h-3.5 text-accent" />
               <span>
                 {selectedAccount === "all"
                   ? "Semua Akun Threads"
@@ -369,7 +369,7 @@ export default function PostsPage() {
               </span>
               <ChevronDown
                 className={cn(
-                  "w-3.5 h-3.5 text-[#718EBF] dark:text-[#94A3B8] transition-transform",
+                  "w-3.5 h-3.5 text-muted transition-transform",
                   isAccountDropdownOpen && "rotate-180"
                 )}
               />
@@ -377,14 +377,14 @@ export default function PostsPage() {
 
             {/* Custom Dropdown Menu */}
             {isAccountDropdownOpen && (
-              <div className="absolute left-0 mt-2 w-72 bg-white dark:bg-[#111827] rounded-2xl shadow-xl border border-[#EDF2F7] dark:border-[#1F2937] p-2 z-40 animate-in fade-in zoom-in-95 duration-150">
-                <div className="p-2 border-b border-[#EDF2F7] dark:border-[#1F2937]">
+              <div className="absolute left-0 mt-2 w-72 bg-surface rounded-2xl border border-line p-2 z-40 animate-in fade-in zoom-in-95 duration-150">
+                <div className="p-2 border-b border-line">
                   <input
                     type="text"
                     value={accountSearchText}
                     onChange={(e) => setAccountSearchText(e.target.value)}
                     placeholder="Cari akun..."
-                    className="w-full h-8 px-3 text-xs bg-[#F5F7FA] dark:bg-[#1E293B] rounded-lg border-none focus:outline-none text-[#343C6A] dark:text-[#F8FAFC] placeholder-[#8BA3CB] dark:placeholder-[#64748B]"
+                    className="w-full h-8 px-3 text-xs bg-subtle rounded-lg border-none focus:outline-none text-fg placeholder-faint"
                   />
                 </div>
                 <div className="max-h-56 overflow-y-auto py-1 space-y-0.5">
@@ -398,8 +398,8 @@ export default function PostsPage() {
                     className={cn(
                       "w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer",
                       selectedAccount === "all"
-                        ? "bg-[#1814F3]/10 dark:bg-blue-500/20 text-[#1814F3] dark:text-blue-400 font-bold"
-                        : "text-[#343C6A] dark:text-[#F8FAFC] hover:bg-[#F4F7FE] dark:hover:bg-[#1E293B]"
+                        ? "bg-accent-soft text-accent font-bold"
+                        : "text-fg hover:bg-subtle"
                     )}
                   >
                     <span>Semua Akun (32)</span>
@@ -417,19 +417,19 @@ export default function PostsPage() {
                       className={cn(
                         "w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer",
                         selectedAccount === acc.username
-                          ? "bg-[#1814F3]/10 dark:bg-blue-500/20 text-[#1814F3] dark:text-blue-400 font-bold"
-                          : "text-[#343C6A] dark:text-[#F8FAFC] hover:bg-[#F4F7FE] dark:hover:bg-[#1E293B]"
+                          ? "bg-accent-soft text-accent font-bold"
+                          : "text-fg hover:bg-subtle"
                       )}
                     >
                       <div className="truncate pr-2">
                         <span className="font-semibold block truncate">
                           @{acc.username}
                         </span>
-                        <span className="text-[10px] text-[#718EBF] dark:text-[#94A3B8] truncate">
+                        <span className="text-[10px] text-muted truncate">
                           {acc.displayName}
                         </span>
                       </div>
-                      <span className="text-[10px] text-[#718EBF] dark:text-[#94A3B8] font-mono bg-[#F5F7FA] dark:bg-[#1E293B] px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] text-muted font-mono bg-subtle px-1.5 py-0.5 rounded">
                         {acc.count}
                       </span>
                     </button>
@@ -457,8 +457,8 @@ export default function PostsPage() {
                 className={cn(
                   "px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap",
                   selectedFormat === f.id
-                    ? "bg-[#343C6A] dark:bg-blue-600 text-white shadow-xs"
-                    : "bg-[#F5F7FA] dark:bg-[#1E293B] text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-white hover:bg-[#EDF2F7] dark:hover:bg-[#334155]"
+                    ? "bg-fg text-surface"
+                    : "bg-subtle text-muted hover:text-fg hover:bg-subtle"
                 )}
               >
                 {f.label}
@@ -468,10 +468,10 @@ export default function PostsPage() {
         </div>
 
         {/* Clean Natural Data Table */}
-        <div className="overflow-x-auto rounded-2xl border border-[#EDF2F7] dark:border-[#1F2937]">
+        <div className="overflow-x-auto rounded-2xl border border-line">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-[#F8FAFC] dark:bg-[#1E293B]/70 border-b border-[#EDF2F7] dark:border-[#1F2937] text-[11px] uppercase tracking-wider text-[#718EBF] dark:text-[#94A3B8] font-bold">
+              <tr className="bg-subtle border-b border-line text-[11px] uppercase tracking-wider text-muted font-bold">
                 <th className="py-3.5 px-4 min-w-[340px]">Konten Threads</th>
                 <th className="py-3.5 px-3">Format</th>
                 <th className="py-3.5 px-4">Metrik Impresi</th>
@@ -479,12 +479,12 @@ export default function PostsPage() {
                 <th className="py-3.5 px-3 text-center">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#EDF2F7] dark:divide-[#1F2937] text-xs">
+            <tbody className="divide-y divide-line text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center text-[#718EBF] dark:text-[#94A3B8]">
+                  <td colSpan={5} className="py-16 text-center text-muted">
                     <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="w-6 h-6 border-2 border-[#1814F3] border-t-transparent rounded-full animate-spin" />
+                      <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
                       <span className="text-xs font-medium">
                         Memuat data postingan Threads...
                       </span>
@@ -493,11 +493,11 @@ export default function PostsPage() {
                 </tr>
               ) : posts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center text-[#718EBF] dark:text-[#94A3B8]">
-                    <p className="font-semibold text-sm text-[#343C6A] dark:text-[#F8FAFC]">
+                  <td colSpan={5} className="py-16 text-center text-muted">
+                    <p className="font-semibold text-sm text-fg">
                       Tidak ada postingan ditemukan
                     </p>
-                    <p className="text-xs text-[#718EBF] dark:text-[#94A3B8] mt-1">
+                    <p className="text-xs text-muted mt-1">
                       Coba ganti filter akun atau kata kunci pencarian Anda
                     </p>
                   </td>
@@ -506,27 +506,27 @@ export default function PostsPage() {
                 posts.map((post) => (
                   <tr
                     key={post.id}
-                    className="hover:bg-[#F9FBFE] dark:hover:bg-[#1E293B]/40 transition-colors group"
+                    className="hover:bg-subtle transition-colors group"
                   >
                     {/* Column 1: Content Caption & Account */}
                     <td className="py-4 px-4 align-top">
                       <div className="space-y-1.5 max-w-lg">
                         {/* Poster Header */}
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-[#1814F3]/10 dark:bg-blue-500/20 text-[#1814F3] dark:text-blue-400 font-bold text-[10px] flex items-center justify-center shrink-0">
+                          <div className="w-6 h-6 rounded-full bg-accent-soft text-accent font-bold text-[10px] flex items-center justify-center shrink-0">
                             {post.account.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-bold text-[#343C6A] dark:text-[#F8FAFC] hover:underline cursor-pointer">
+                          <span className="font-bold text-fg hover:underline cursor-pointer">
                             @{post.account}
                           </span>
-                          <span className="text-[#CBD5E1] dark:text-[#64748B]">&bull;</span>
-                          <span className="text-[11px] text-[#718EBF] dark:text-[#94A3B8]">
+                          <span className="text-muted">&bull;</span>
+                          <span className="text-[11px] text-muted">
                             {formatRelativeTime(post.postedAt)}
                           </span>
                         </div>
 
                         {/* Caption text */}
-                        <p className="text-xs text-[#343C6A] dark:text-[#CBD5E1] font-medium leading-relaxed line-clamp-3">
+                        <p className="text-xs text-fg font-medium leading-relaxed line-clamp-3">
                           {post.text}
                         </p>
 
@@ -537,7 +537,7 @@ export default function PostsPage() {
                               href={post.permalink}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-[11px] font-semibold text-[#1814F3] dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                              className="text-[11px] font-semibold text-accent hover:underline inline-flex items-center gap-1"
                             >
                               <span>Lihat di Threads</span>
                               <ExternalLink className="w-3 h-3" />
@@ -555,16 +555,16 @@ export default function PostsPage() {
                     {/* Column 3: Real Metrics (Views, Likes, Replies) */}
                     <td className="py-4 px-4 align-top whitespace-nowrap">
                       <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1.5 text-[#343C6A] dark:text-[#F8FAFC]" title="Views">
-                          <Eye className="w-3.5 h-3.5 text-[#718EBF] dark:text-[#94A3B8]" />
+                        <div className="flex items-center gap-1.5 text-fg" title="Views">
+                          <Eye className="w-3.5 h-3.5 text-muted" />
                           <span className="font-bold">{formatNumber(post.views)}</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[#343C6A] dark:text-[#F8FAFC]" title="Likes">
-                          <Heart className="w-3.5 h-3.5 text-[#FF4B4A]" />
+                        <div className="flex items-center gap-1.5 text-fg" title="Likes">
+                          <Heart className="w-3.5 h-3.5 text-danger" />
                           <span className="font-semibold">{formatNumber(post.likes)}</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[#343C6A] dark:text-[#F8FAFC]" title="Replies">
-                          <MessageCircle className="w-3.5 h-3.5 text-[#16DBCC]" />
+                        <div className="flex items-center gap-1.5 text-fg" title="Replies">
+                          <MessageCircle className="w-3.5 h-3.5 text-success" />
                           <span className="font-semibold">{formatNumber(post.replies)}</span>
                         </div>
                       </div>
@@ -577,13 +577,13 @@ export default function PostsPage() {
                           className={cn(
                             "font-bold text-xs px-2.5 py-0.5 rounded-full inline-block",
                             post.er >= 4.0
-                              ? "text-[#16DBCC] dark:text-teal-300 bg-[#16DBCC]/10 dark:bg-teal-950/40"
-                              : "text-[#343C6A] dark:text-[#F8FAFC] bg-[#EDF2F7] dark:bg-[#1E293B]"
+                              ? "text-success bg-success-soft"
+                              : "text-fg bg-subtle"
                           )}
                         >
                           {post.er}%
                         </span>
-                        <span className="text-[10px] text-[#718EBF] dark:text-[#94A3B8] mt-0.5">
+                        <span className="text-[10px] text-muted mt-0.5">
                           {post.er >= 4.0 ? "High ER" : "Standard"}
                         </span>
                       </div>
@@ -602,7 +602,7 @@ export default function PostsPage() {
                             )
                           }
                           title="Analisis postingan ini dengan Hermes AI"
-                          className="h-8 px-3 rounded-lg bg-[#1814F3]/10 dark:bg-blue-500/10 hover:bg-[#1814F3] dark:hover:bg-blue-600 text-[#1814F3] dark:text-blue-400 hover:text-white font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                          className="h-8 px-3 rounded-lg bg-accent-soft hover:bg-accent text-accent hover:text-on-accent font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
                           <span>Tanya AI</span>
@@ -613,7 +613,7 @@ export default function PostsPage() {
                           onClick={() => openDeleteModal(post)}
                           aria-label="Hapus post"
                           title="Hapus data post"
-                          className="w-8 h-8 rounded-lg text-[#718EBF] dark:text-[#94A3B8] hover:text-[#FF4B4A] hover:bg-[#FF4B4A]/10 flex items-center justify-center transition-colors cursor-pointer"
+                          className="w-8 h-8 rounded-lg text-muted hover:text-danger hover:bg-danger-soft flex items-center justify-center transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -629,13 +629,13 @@ export default function PostsPage() {
         {/* Footer: Pagination & Records Info */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
           {/* Records Counter */}
-          <div className="text-xs text-[#718EBF] dark:text-[#94A3B8]">
+          <div className="text-xs text-muted">
             Menampilkan{" "}
-            <strong className="text-[#343C6A] dark:text-[#F8FAFC]">
+            <strong className="text-fg">
               {totalCount > 0 ? (currentPage - 1) * limitPerPage + 1 : 0}–
               {Math.min(currentPage * limitPerPage, totalCount)}
             </strong>{" "}
-            dari <strong className="text-[#343C6A] dark:text-[#F8FAFC]">{formatNumber(totalCount)}</strong> postingan
+            dari <strong className="text-fg">{formatNumber(totalCount)}</strong> postingan
           </div>
 
           {/* Pagination Controls */}
@@ -643,20 +643,20 @@ export default function PostsPage() {
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage <= 1}
-              className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-[#EDF2F7] dark:border-[#334155] text-xs font-semibold text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-[#F8FAFC] hover:bg-[#F4F7FE] dark:hover:bg-[#1E293B] disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-line text-xs font-semibold text-muted hover:text-fg hover:bg-subtle disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
               <span>Sebelumnya</span>
             </button>
 
-            <span className="text-xs font-bold text-[#343C6A] dark:text-[#F8FAFC] px-2">
+            <span className="text-xs font-bold text-fg px-2">
               Halaman {currentPage} dari {totalPages}
             </span>
 
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage >= totalPages}
-              className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-[#EDF2F7] dark:border-[#334155] text-xs font-semibold text-[#718EBF] dark:text-[#94A3B8] hover:text-[#343C6A] dark:hover:text-[#F8FAFC] hover:bg-[#F4F7FE] dark:hover:bg-[#1E293B] disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-line text-xs font-semibold text-muted hover:text-fg hover:bg-subtle disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
             >
               <span>Berikutnya</span>
               <ChevronRight className="w-4 h-4" />

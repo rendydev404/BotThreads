@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# kredensial awal login
+INITIAL-ADMIN-LOGIN.txt

@@ -69,14 +69,14 @@ export function AccountFilterSelect({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 px-3.5 py-2 rounded-xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1F2937] hover:border-[#1814F3]/40 dark:hover:border-blue-400/40 shadow-xs hover:shadow-sm text-left transition-all cursor-pointer group"
+        className="flex items-center gap-3 px-3.5 py-2 rounded-xl bg-surface border border-line hover:border-accent hover: text-left transition-all cursor-pointer group"
       >
         {isAllSelected ? (
-          <div className="w-8 h-8 rounded-lg bg-[#1814F3]/10 dark:bg-blue-500/10 text-[#1814F3] dark:text-blue-400 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center shrink-0">
             <Globe className="w-4 h-4" />
           </div>
         ) : (
-          <div className="w-8 h-8 rounded-lg overflow-hidden bg-[#F1F5F9] dark:bg-[#1E293B] shrink-0 border border-[#E2E8F0] dark:border-[#334155]">
+          <div className="w-8 h-8 rounded-lg overflow-hidden bg-subtle shrink-0 border border-line">
             {currentSelectedObj?.avatarUrl ? (
               <img
                 src={currentSelectedObj.avatarUrl}
@@ -84,7 +84,7 @@ export function AccountFilterSelect({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-xs font-bold text-[#1814F3] dark:text-blue-400">
+              <div className="w-full h-full flex items-center justify-center text-xs font-bold text-accent">
                 {currentSelectedObj?.displayName.slice(0, 2).toUpperCase() || "SS"}
               </div>
             )}
@@ -92,10 +92,10 @@ export function AccountFilterSelect({
         )}
 
         <div className="flex flex-col min-w-0 pr-2">
-          <span className="text-[10px] uppercase tracking-wider text-[#64748B] dark:text-[#94A3B8] font-semibold">
+          <span className="text-[10px] uppercase tracking-wider text-muted font-semibold">
             Filter Tampilan
           </span>
-          <span className="text-xs font-bold text-[#1E293B] dark:text-[#F8FAFC] truncate max-w-[170px] sm:max-w-[210px]">
+          <span className="text-xs font-bold text-fg truncate max-w-[170px] sm:max-w-[210px]">
             {isAllSelected
               ? `Semua Akun (${totalAccounts})`
               : currentSelectedObj?.displayName || `@${selectedAccount}`}
@@ -104,25 +104,25 @@ export function AccountFilterSelect({
 
         <ChevronDown
           className={cn(
-            "w-4 h-4 text-[#64748B] dark:text-[#94A3B8] transition-transform duration-200 shrink-0",
-            isOpen && "rotate-180 text-[#1814F3] dark:text-blue-400"
+            "w-4 h-4 text-muted transition-transform duration-200 shrink-0",
+            isOpen && "rotate-180 text-accent"
           )}
         />
       </button>
 
       {/* Custom Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1F2937] shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-surface border border-line z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           {/* Custom Search Input */}
-          <div className="p-3 border-b border-[#F1F5F9] dark:border-[#1F2937] bg-[#F8FAFC] dark:bg-[#1E293B]/70">
+          <div className="p-3 border-b border-line bg-subtle">
             <div className="relative flex items-center">
-              <Search className="absolute left-3 w-4 h-4 text-[#94A3B8]" />
+              <Search className="absolute left-3 w-4 h-4 text-faint" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari cabang atau username..."
-                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#334155] text-[#1E293B] dark:text-[#F8FAFC] placeholder-[#94A3B8] focus:outline-none focus:border-[#1814F3] dark:focus:border-blue-400 transition-colors"
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-surface border border-line text-fg placeholder-faint focus:outline-none focus:border-accent transition-colors"
                 autoFocus
               />
             </div>
@@ -140,15 +140,15 @@ export function AccountFilterSelect({
               className={cn(
                 "w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors cursor-pointer",
                 isAllSelected
-                  ? "bg-[#1814F3]/10 dark:bg-blue-500/20 text-[#1814F3] dark:text-blue-400"
-                  : "hover:bg-[#F4F7FE] dark:hover:bg-[#1E293B] text-[#343C6A] dark:text-[#F8FAFC]"
+                  ? "bg-accent-soft text-accent"
+                  : "hover:bg-subtle text-fg"
               )}
             >
               <div className="flex items-center gap-3">
                 <div
                   className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                    isAllSelected ? "bg-[#1814F3] text-white" : "bg-[#EDF2F7] dark:bg-[#1E293B] text-[#718EBF] dark:text-[#94A3B8]"
+                    isAllSelected ? "bg-accent text-on-accent" : "bg-subtle text-muted"
                   )}
                 >
                   <Globe className="w-4 h-4" />
@@ -157,15 +157,15 @@ export function AccountFilterSelect({
                   <p className="text-xs font-bold leading-tight">
                     Semua Akun ({totalAccounts})
                   </p>
-                  <p className="text-[11px] text-[#718EBF] dark:text-[#94A3B8]">
+                  <p className="text-[11px] text-muted">
                     Agregasi performa jaringan Threads
                   </p>
                 </div>
               </div>
-              {isAllSelected && <Check className="w-4 h-4 text-[#1814F3] dark:text-blue-400" />}
+              {isAllSelected && <Check className="w-4 h-4 text-accent" />}
             </button>
 
-            <div className="h-px bg-[#EDF2F7] dark:bg-[#1F2937] my-1" />
+            <div className="h-px bg-subtle my-1" />
 
             {/* Individual Accounts */}
             {filteredAccounts.map((acc) => {
@@ -186,12 +186,12 @@ export function AccountFilterSelect({
                   className={cn(
                     "w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors cursor-pointer",
                     isSelected
-                      ? "bg-[#1814F3]/10 dark:bg-blue-500/20 text-[#1814F3] dark:text-blue-400"
-                      : "hover:bg-[#F4F7FE] dark:hover:bg-[#1E293B] text-[#343C6A] dark:text-[#F8FAFC]"
+                      ? "bg-accent-soft text-accent"
+                      : "hover:bg-subtle text-fg"
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg overflow-hidden bg-[#EDF2F7] dark:bg-[#1E293B] shrink-0 border border-[#EDF2F7] dark:border-[#334155]">
+                    <div className="w-8 h-8 rounded-lg overflow-hidden bg-subtle shrink-0 border border-line">
                       {acc.avatarUrl ? (
                         <img
                           src={acc.avatarUrl}
@@ -199,7 +199,7 @@ export function AccountFilterSelect({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs font-bold text-[#1814F3] dark:text-blue-400">
+                        <div className="w-full h-full flex items-center justify-center text-xs font-bold text-accent">
                           {acc.displayName.slice(0, 2).toUpperCase()}
                         </div>
                       )}
@@ -208,18 +208,18 @@ export function AccountFilterSelect({
                       <p className="text-xs font-bold leading-tight truncate">
                         {acc.displayName}
                       </p>
-                      <p className="text-[11px] text-[#718EBF] dark:text-[#94A3B8] truncate">
+                      <p className="text-[11px] text-muted truncate">
                         @{acc.username}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 ml-2">
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#EDF2F7] dark:bg-[#1E293B] text-[#718EBF] dark:text-[#94A3B8]">
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-subtle text-muted">
                       {acc._count?.postStats || 0} posts
                     </span>
                     {isSelected && (
-                      <Check className="w-4 h-4 text-[#1814F3] dark:text-blue-400" />
+                      <Check className="w-4 h-4 text-accent" />
                     )}
                   </div>
                 </button>
@@ -227,7 +227,7 @@ export function AccountFilterSelect({
             })}
 
             {filteredAccounts.length === 0 && (
-              <div className="py-6 text-center text-xs text-[#718EBF] dark:text-[#94A3B8]">
+              <div className="py-6 text-center text-xs text-muted">
                 Tidak ada akun yang cocok dengan "{searchQuery}"
               </div>
             )}
