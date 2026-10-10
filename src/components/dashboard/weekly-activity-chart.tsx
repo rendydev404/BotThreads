@@ -10,6 +10,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import { formatNumber } from "@/lib/utils";
 
 interface WeeklyActivityProps {
   data: Array<{
@@ -71,14 +72,14 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
                         <span className="w-2.5 h-2.5 rounded-full bg-[#1814F3]" />
                         <span className="text-[#718EBF]">Views:</span>
                         <span className="font-bold text-[#343C6A]">
-                          {payload[0]?.value}
+                          {formatNumber(Number(payload[0]?.value) || 0)}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-[#16DBCC]" />
                         <span className="text-[#718EBF]">Interaksi:</span>
                         <span className="font-bold text-[#343C6A]">
-                          {payload[1]?.value}
+                          {formatNumber(Number(payload[1]?.value) || 0)}
                         </span>
                       </div>
                     </div>
