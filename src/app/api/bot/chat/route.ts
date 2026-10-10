@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { message, persona = "strategist" } = body;
+    const { message, persona = "strategist", account = "all" } = body;
 
     if (!message) {
       return NextResponse.json(
@@ -14,10 +14,23 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. Gather current live metrics for Context Injection
-    let liveMetricsSummary = "Akun: @sukashawarma\nTotal Views: 184,200\nAvg ER: 5.2%\nPostingan Teratas: 'Kelezatan shawarma rempah asli...' (ER 7.7%)\nPostingan Flop: 'Outlet buka jam 10 pagi...' (ER 2.4%)";
+    let liveMetricsSummary = "Akun: Semua Akun (32 Outlet Terhubung)\nTotal Views: 193,720\nAvg ER: 0.5%\nPostingan: 1,680";
 
     try {
+      const isAll = account === "all" || !account;
+      let targetAccount = null;
+
+      if (!isAll) {
+        targetAccount = await prisma.threadsAccount.findFirst({
+          where: { username: account },
+          select: { id: true, username: true, displayName: true },
+        });
+      }
+
+      const postWhere = targetAccount ? { threadsAccountId: targetAccount.id } : {};
+
       const topPosts = await prisma.threadsPostStat.findMany({
+        where: postWhere,
         take: 3,
         orderBy: { views: "desc" },
         select: {
@@ -25,14 +38,21 @@ export async function POST(request: NextRequest) {
           views: true,
           likes: true,
           replies: true,
+          threadsAccount: {
+            select: { username: true },
+          },
         },
       });
 
       if (topPosts.length > 0) {
-        liveMetricsSummary = `Data Live Database Threads:\n${topPosts
+        const targetTitle = isAll
+          ? "Seluruh Jaringan Suka Shawarma (32 Outlet)"
+          : `@${targetAccount?.username || account} (${targetAccount?.displayName || ""})`;
+
+        liveMetricsSummary = `Data Live Database Threads [Target: ${targetTitle}]:\n${topPosts
           .map(
             (p, idx) =>
-              `${idx + 1}. "${p.text?.slice(0, 60)}..." — ${p.views} Views, ${p.likes} Likes, ${p.replies} Replies`
+              `${idx + 1}. "${p.text?.slice(0, 60)}..." — ${p.views} Views, ${p.likes} Likes, ${p.replies} Replies (${p.threadsAccount?.username || "outlet"})`
           )
           .join("\n")}`;
       }

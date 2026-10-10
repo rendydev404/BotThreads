@@ -1,22 +1,28 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { HeroAccountCards } from "@/components/dashboard/hero-account-card";
+import { AccountFilterSelect } from "@/components/dashboard/account-filter-select";
+import { AccountFleetHero } from "@/components/dashboard/account-fleet-hero";
+import { AccountAnalysisModal } from "@/components/dashboard/account-analysis-modal";
 import { RecentActivityCard } from "@/components/dashboard/recent-activity-card";
 import { WeeklyActivityChart } from "@/components/dashboard/weekly-activity-chart";
 import { FormatPieChart } from "@/components/dashboard/format-pie-chart";
 import { QuickPromptCard } from "@/components/dashboard/quick-prompt-card";
 import { EngagementSplineChart } from "@/components/dashboard/engagement-spline-chart";
-import { Sparkles, BarChart3, TrendingUp, Layers, RefreshCw } from "lucide-react";
+import { TrendingUp, Layers, RefreshCw, BarChart2 } from "lucide-react";
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState("all");
+  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
 
-  const fetchOverviewData = async () => {
+  const fetchOverviewData = async (accountName = selectedAccount) => {
     try {
-      const res = await fetch("/api/analytics/overview");
+      const res = await fetch(
+        `/api/analytics/overview?account=${encodeURIComponent(accountName)}`
+      );
       const json = await res.json();
       if (json.success) {
         setData(json);
@@ -30,114 +36,140 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchOverviewData();
-  }, []);
+    fetchOverviewData(selectedAccount);
+  }, [selectedAccount]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchOverviewData();
+    fetchOverviewData(selectedAccount);
+  };
+
+  const handleSelectAccount = (acc: string) => {
+    setSelectedAccount(acc);
+    setLoading(true);
+  };
+
+  const accounts = data?.accounts || [];
+  const currentAccount = data?.currentAccount || {
+    isAll: true,
+    username: "all",
+    displayName: "Semua Akun (32 Terhubung)",
+    avatarUrl: null,
+    totalPosts: 1680,
   };
 
   const stats = data?.stats || {
-    totalViews: 184200,
-    avgER: 5.2,
-    primaryAccount: "sukashawarma",
-    maskedCardId: "7194 **** **** 8820",
-    secondaryCardId: "5542 **** **** 1234",
+    totalViews: 193720,
+    totalPosts: 1680,
+    totalInteractions: 917,
+    totalLikes: 407,
+    totalReplies: 497,
+    totalReposts: 13,
+    avgER: 0.5,
+    activeAccounts: 32,
   };
 
   const weeklyActivity = data?.weeklyActivity || [
-    { day: "Sab", views: 380, interactions: 220 },
-    { day: "Min", views: 420, interactions: 310 },
-    { day: "Sen", views: 290, interactions: 180 },
-    { day: "Sel", views: 480, interactions: 350 },
-    { day: "Rab", views: 360, interactions: 240 },
-    { day: "Kam", views: 410, interactions: 290 },
-    { day: "Jum", views: 490, interactions: 380 },
+    { day: "Sab", views: 6851, interactions: 80 },
+    { day: "Min", views: 7815, interactions: 34 },
+    { day: "Sen", views: 9570, interactions: 61 },
+    { day: "Sel", views: 20846, interactions: 96 },
+    { day: "Rab", views: 29265, interactions: 137 },
+    { day: "Kam", views: 24156, interactions: 168 },
+    { day: "Jum", views: 24963, interactions: 84 },
   ];
 
   const contentFormats = data?.contentFormats || [
-    { name: "Teks Singkat", value: 35, count: 18, color: "#1814F3" },
-    { name: "Video / Reels", value: 30, count: 15, color: "#16DBCC" },
-    { name: "Carousel Edukasi", value: 20, count: 10, color: "#FFBB38" },
-    { name: "Foto / Promo", value: 15, count: 8, color: "#FF4B4A" },
+    { name: "Teks Singkat", value: 85, count: 1425, color: "#1814F3" },
+    { name: "Video / Reels", value: 12, count: 197, color: "#16DBCC" },
+    { name: "Foto / Promo", value: 2, count: 40, color: "#FF4B4A" },
+    { name: "Carousel Edukasi", value: 1, count: 18, color: "#FFBB38" },
   ];
 
   const engagementHistory = data?.engagementHistory || [
-    { month: "Jul", value: 150 },
-    { month: "Agu", value: 280 },
-    { month: "Sep", value: 210 },
-    { month: "Okt", value: 490 },
-    { month: "Nov", value: 320 },
-    { month: "Des", value: 680 },
-    { month: "Jan", value: 590 },
+    { month: "8 Sep", value: 2 },
+    { month: "16 Sep", value: 3 },
+    { month: "24 Sep", value: 1 },
+    { month: "2 Okt", value: 9 },
+    { month: "6 Okt", value: 21 },
+    { month: "9 Okt", value: 25 },
   ];
 
   return (
-    <div className="space-y-7">
-      {/* Top Action Bar */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 sm:space-y-7">
+      {/* Top Filter & Operations Action Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold text-[#343C6A] tracking-tight">
+          <h2 className="text-xl md:text-2xl font-extrabold text-[#343C6A] tracking-tight">
             Threads Bot Analytics
           </h2>
           <p className="text-xs md:text-sm text-[#718EBF] mt-0.5">
             Monitoring performa real-time dan orkestrasi bot Telegram & Hermes AI
           </p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-[#EDF2F7] text-xs font-semibold text-[#343C6A] hover:bg-[#F4F7FE] shadow-xs cursor-pointer transition-colors"
-        >
-          <RefreshCw
-            className={`w-3.5 h-3.5 text-[#1814F3] ${refreshing ? "animate-spin" : ""}`}
-          />
-          <span className="hidden sm:inline">
-            {refreshing ? "Memperbarui..." : "Perbarui Data"}
-          </span>
-        </button>
-      </div>
 
-      {/* Row 1: My Accounts Hero Cards (Left) & Recent Bot Activity (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-8">
-          <div className="flex items-center justify-between mb-3.5">
-            <h3 className="text-lg font-bold text-[#343C6A]">My Accounts</h3>
-            <span className="text-xs text-[#1814F3] font-semibold hover:underline cursor-pointer">
-              + Tambah Akun
+        {/* Custom Account Dropdown Filter & Refresh Button */}
+        <div className="flex items-center gap-3">
+          <AccountFilterSelect
+            accounts={accounts}
+            selectedAccount={selectedAccount}
+            onSelectAccount={handleSelectAccount}
+            totalOutlets={accounts.length || 32}
+          />
+
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-white border border-[#EDF2F7] hover:border-[#1814F3]/30 text-xs font-semibold text-[#343C6A] hover:bg-[#F4F7FE] shadow-xs cursor-pointer transition-all"
+            title="Perbarui Data"
+          >
+            <RefreshCw
+              className={`w-4 h-4 text-[#1814F3] ${refreshing ? "animate-spin" : ""}`}
+            />
+            <span className="hidden md:inline">
+              {refreshing ? "Memperbarui..." : "Perbarui"}
             </span>
-          </div>
-          <HeroAccountCards
-            totalViews={stats.totalViews}
-            avgER={stats.avgER}
-            primaryAccount={stats.primaryAccount}
-            secondaryAccount={stats.secondaryAccount || "kemitraansukashawarma"}
-            maskedCardId={stats.maskedCardId}
-            secondaryCardId={stats.secondaryCardId}
-          />
-        </div>
-
-        <div className="lg:col-span-4 flex flex-col">
-          <div className="h-7 mb-3.5" />
-          <div className="flex-1">
-            <RecentActivityCard activities={data?.recentBotActions} />
-          </div>
+          </button>
         </div>
       </div>
 
-      {/* Row 2: Weekly Activity (Left) & Content Format Stats (Right) */}
+      {/* Row 1: Executive Fleet Hero Deck (No Fake Bank Cards) */}
+      <AccountFleetHero
+        isAll={currentAccount.isAll}
+        accountName={currentAccount.username || "all"}
+        displayName={currentAccount.displayName}
+        avatarUrl={currentAccount.avatarUrl}
+        totalViews={stats.totalViews}
+        totalPosts={stats.totalPosts}
+        totalInteractions={stats.totalInteractions}
+        totalLikes={stats.totalLikes}
+        totalReplies={stats.totalReplies}
+        totalReposts={stats.totalReposts}
+        avgER={stats.avgER}
+        topPost={data?.topPost}
+        onOpenAnalysis={() => setIsAnalysisModalOpen(true)}
+      />
+
+      {/* Row 2: Weekly Activity & Content Format Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Weekly Activity Bar Chart */}
         <div className="lg:col-span-8 neo-card p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
             <div>
-              <h3 className="text-base font-bold text-[#343C6A]">
-                Weekly Activity
-              </h3>
-              <p className="text-xs text-[#718EBF]">
-                Perbandingan impresi penayangan dan jumlah interaksi per hari
+              <div className="flex items-center gap-2">
+                <BarChart2 className="w-4 h-4 text-[#1814F3]" />
+                <h3 className="text-base font-bold text-[#343C6A]">
+                  Weekly Activity
+                </h3>
+              </div>
+              <p className="text-xs text-[#718EBF] mt-0.5">
+                {currentAccount.isAll
+                  ? "Akumulasi impresi dan interaksi seluruh jaringan outlet 7 hari terakhir"
+                  : `Impresi dan interaksi @${currentAccount.username} 7 hari terakhir`}
               </p>
             </div>
+
             {/* Chart Legend */}
             <div className="flex items-center gap-4 text-xs font-medium">
               <div className="flex items-center gap-1.5">
@@ -153,6 +185,7 @@ export default function DashboardPage() {
           <WeeklyActivityChart data={weeklyActivity} />
         </div>
 
+        {/* Content Format Stats Donut Chart */}
         <div className="lg:col-span-4 neo-card p-6 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-base font-bold text-[#343C6A]">
@@ -164,10 +197,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Row 3: Quick AI Prompt (Left) & Engagement History (Right) */}
+      {/* Row 3: Quick AI Prompt (Hermes) & Engagement History */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-5">
-          <QuickPromptCard />
+          <QuickPromptCard
+            activeAccount={selectedAccount}
+            accountLabel={currentAccount.displayName}
+          />
         </div>
 
         <div className="lg:col-span-7 neo-card p-6">
@@ -177,17 +213,30 @@ export default function DashboardPage() {
                 Engagement History
               </h3>
               <p className="text-xs text-[#718EBF]">
-                Tren pertumbuhan interaksi audiens 7 bulan terakhir
+                Tren pertumbuhan penayangan (views) dari database berkala
               </p>
             </div>
-            <div className="flex items-center gap-1 text-xs text-[#16DBCC] font-bold bg-[#16DBCC]/10 px-2.5 py-1 rounded-full">
+            <div className="flex items-center gap-1 text-xs text-[#10B981] font-bold bg-[#10B981]/10 px-2.5 py-1 rounded-full">
               <TrendingUp className="w-3.5 h-3.5" />
-              <span>+38.5% YTD</span>
+              <span>Real DB Curve</span>
             </div>
           </div>
           <EngagementSplineChart data={engagementHistory} />
         </div>
       </div>
+
+      {/* Row 4: Recent Bot Logs & Audit Trail */}
+      <div className="grid grid-cols-1 gap-6">
+        <RecentActivityCard activities={data?.recentBotActions} />
+      </div>
+
+      {/* Interactive Hermes AI Account Analysis Modal */}
+      <AccountAnalysisModal
+        isOpen={isAnalysisModalOpen}
+        onClose={() => setIsAnalysisModalOpen(false)}
+        account={selectedAccount}
+        accountLabel={currentAccount.displayName}
+      />
     </div>
   );
 }

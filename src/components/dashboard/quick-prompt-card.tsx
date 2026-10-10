@@ -29,7 +29,15 @@ const personas = [
   },
 ];
 
-export function QuickPromptCard() {
+interface QuickPromptCardProps {
+  activeAccount?: string;
+  accountLabel?: string;
+}
+
+export function QuickPromptCard({
+  activeAccount = "all",
+  accountLabel = "Semua Akun (32 Outlet)",
+}: QuickPromptCardProps) {
   const router = useRouter();
   const [selectedPersona, setSelectedPersona] = useState("strategist");
   const [promptText, setPromptText] = useState("");
@@ -48,6 +56,7 @@ export function QuickPromptCard() {
         body: JSON.stringify({
           message: promptText,
           persona: selectedPersona,
+          account: activeAccount,
         }),
       });
       const data = await res.json();
@@ -64,7 +73,7 @@ export function QuickPromptCard() {
   return (
     <div className="neo-card p-6 flex flex-col justify-between">
       <div>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-[#1814F3]" />
             <h4 className="text-base font-bold text-[#343C6A]">
@@ -73,6 +82,13 @@ export function QuickPromptCard() {
           </div>
           <span className="text-xs font-semibold text-[#16DBCC] bg-[#16DBCC]/10 px-2.5 py-0.5 rounded-full">
             AI Assistant
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 text-[11px] text-[#718EBF] mb-4">
+          <span>Konteks Akun:</span>
+          <span className="font-bold text-[#1814F3] bg-[#1814F3]/10 px-2 py-0.5 rounded-md truncate max-w-[200px]">
+            {accountLabel}
           </span>
         </div>
 
