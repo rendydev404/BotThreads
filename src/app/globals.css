@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F4F7FE;
+  --foreground: #343C6A;
+  --card-bg: #FFFFFF;
+  --card-border: #EDF2F7;
+  --primary-blue: #1814F3;
+  --primary-hover: #120ec0;
+  --accent-blue: #2D60FF;
+  --accent-teal: #16DBCC;
+  --accent-red: #FF4B4A;
+  --accent-yellow: #FFBB38;
+  --text-primary: #343C6A;
+  --text-muted: #718EBF;
+}
+
+body {
+  background-color: #F4F7FE;
+  color: #343C6A;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #E2E8F0;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #CBD5E1;
+}
+
+/* Custom Card & Elevation Tokens */
+.neo-card {
+  background-color: #FFFFFF;
+  border-radius: 1.5rem; /* 24px */
+  border: 1px solid #EDF2F7;
+  box-shadow: 0 4px 20px -2px rgba(52, 60, 106, 0.04);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.neo-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px -4px rgba(52, 60, 106, 0.08);
+}
+
+/* Custom interactive pill button */
+.btn-primary {
+  background-color: #1814F3;
+  color: #FFFFFF;
+  font-weight: 600;
+  border-radius: 9999px;
+  padding: 0.625rem 1.5rem;
+  transition: all 0.15s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+.btn-primary:hover {
+  background-color: #120ec0;
+  box-shadow: 0 4px 12px rgba(24, 20, 243, 0.3);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}

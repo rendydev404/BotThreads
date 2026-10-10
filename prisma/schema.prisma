@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Platform {
+  TIKTOK
+  INSTAGRAM
+  FACEBOOK
+  THREADS
+  YOUTUBE
+  X
+}
+
+enum AutoCommentStatus {
+  SENDING
+  SENT
+  SKIPPED
+  FAILED
+}
+
+model Workspace {
+  id                  String               @id @default(uuid())
+  nama                String
+  slug                String               @unique
+  postizEnabled       Boolean              @default(false)
+  tiktokDirect        Boolean              @default(true)
+  threadsAccounts     ThreadsAccount[]
+  autoCommentConfig   AutoCommentConfig?
+  autoCommentKeywords AutoCommentKeyword[]
+  autoCommentTargets  AutoCommentTarget[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@map("Workspace")
+}
+
+model ThreadsAccount {
+  id                  String               @id @default(uuid())
+  workspaceId         String
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  threadsUserId       String               @unique
+  username            String?
+  displayName         String
+  avatarUrl           String?
+  accessToken         String
+  accessExpiresAt     DateTime
+  scopes              String[]             @default([])
+  needsReconnect      Boolean              @default(false)
+  connectedAt         DateTime?
+  insightsSyncedAt    DateTime?
+  insightsError       String?
+  dailyStats          ThreadsAccountDaily[]
+  postStats           ThreadsPostStat[]
+  autoCommentSetting  AutoCommentSetting?
+  autoCommentKeywords AutoCommentKeyword[]
+  autoCommentTargets  AutoCommentTarget[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([workspaceId])
+  @@map("ThreadsAccount")
+}
+
+model ThreadsAccountDaily {
+  id               String         @id @default(uuid())
+  threadsAccountId String
+  threadsAccount   ThreadsAccount @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  date             DateTime       @db.Date
+  followers        Int?
+  views            Int            @default(0)
+  likes            Int            @default(0)
+  replies          Int            @default(0)
+  reposts          Int            @default(0)
+  quotes           Int            @default(0)
+  clicks           Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([threadsAccountId, date])
+  @@map("ThreadsAccountDaily")
+}
+
+model ThreadsPostStat {
+  id               String         @id @default(uuid())
+  threadsAccountId String
+  threadsAccount   ThreadsAccount @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  mediaId          String         @unique
+  mediaType        String
+  text             String         @default("")
+  permalink        String?
+  isQuote          Boolean        @default(false)
+  postedAt         DateTime
+  views            Int            @default(0)
+  likes            Int            @default(0)
+  replies          Int            @default(0)
+  reposts          Int            @default(0)
+  quotes           Int            @default(0)
+  shares           Int            @default(0)
+  metricsUpdatedAt DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([threadsAccountId, postedAt])
+  @@map("ThreadsPostStat")
+}
+
+model AutoCommentConfig {
+  id                 String    @id @default(uuid())
+  workspaceId        String    @unique
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  enabled            Boolean   @default(false)
+  authorCooldownDays Int       @default(30)
+  minGapMinutes      Int       @default(15)
+  maxPostAgeHours    Int       @default(24)
+  blockedAuthors     String[]  @default([])
+  instruksiTambahan  String    @default("")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("AutoCommentConfig")
+}
+
+model AutoCommentSetting {
+  id               String         @id @default(uuid())
+  workspaceId      String
+  threadsAccountId String         @unique
+  threadsAccount   ThreadsAccount @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  enabled          Boolean        @default(false)
+  slots            String[]       @default([])
+  keywordSource    String         @default("POOL")
+  personaName      String         @default("")
+  personaStyle     String         @default("")
+  lastSlotKey      String?
+  lastRunAt        DateTime?
+  lastRunNote      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([workspaceId])
+  @@map("AutoCommentSetting")
+}
+
+model AutoCommentKeyword {
+  id               String          @id @default(uuid())
+  workspaceId      String
+  workspace        Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  keyword          String
+  threadsAccountId String?
+  threadsAccount   ThreadsAccount? @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  active           Boolean         @default(true)
+  lastSearchedAt   DateTime?
+  lastError        String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([workspaceId, active])
+  @@map("AutoCommentKeyword")
+}
+
+model AutoCommentTarget {
+  id               String            @id @default(uuid())
+  workspaceId      String
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  threadsAccountId String?
+  threadsAccount   ThreadsAccount?   @relation(fields: [threadsAccountId], references: [id], onDelete: SetNull)
+  targetMediaId    String
+  targetAuthor     String
+  targetText       String
+  targetPermalink  String?
+  targetPostedAt   DateTime?
+  keyword          String
+  slotKey          String?
+  status           AutoCommentStatus @default(SENDING)
+  commentText      String?
+  replyId          String?
+  replyPermalink   String?
+  reason           String?
+  sentAt           DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([workspaceId, targetMediaId])
+  @@index([workspaceId, createdAt])
+  @@index([threadsAccountId, sentAt])
+  @@index([status, updatedAt])
+  @@map("AutoCommentTarget")
+}
+
+model AnalyticsReportLog {
+  id        String   @id @default(uuid())
+  kind      String
+  periodKey String
+  createdAt DateTime @default(now())
+
+  @@unique([kind, periodKey])
+  @@map("AnalyticsReportLog")
+}
