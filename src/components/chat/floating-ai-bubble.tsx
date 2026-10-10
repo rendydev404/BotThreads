@@ -125,7 +125,7 @@ export function FloatingAiBubble() {
             "bg-surface border border-line flex flex-col overflow-hidden shadow-pop",
             isFullScreen
               ? "fixed inset-2 sm:inset-6 z-50 rounded-2xl max-w-4xl mx-auto"
-              : "w-[calc(100vw-1.5rem)] sm:w-[400px] h-[600px] max-h-[calc(100vh-1.5rem)] rounded-2xl"
+              : "w-[calc(100vw-1.5rem)] sm:w-[400px] h-[600px] max-h-[calc(100dvh-1.5rem)] rounded-2xl"
           )}
         >
           <div

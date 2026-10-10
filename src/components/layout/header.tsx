@@ -40,6 +40,8 @@ export function Header() {
   const title =
     titleMap[pathname] ??
     (pathname.startsWith("/posts") ? titleMap["/posts"] : "Dashboard");
+  // Di layar kecil cukup kata pertama agar tidak terpotong ("Ringkasan Perfo…")
+  const shortTitle = title.split(" ")[0];
 
   return (
     <header className="h-16 bg-surface/90 backdrop-blur border-b border-line px-4 md:px-8 flex items-center justify-between sticky top-0 z-20">
@@ -51,7 +53,10 @@ export function Header() {
           height={32}
           className="md:hidden w-8 h-8 rounded-lg shrink-0"
         />
-        <h1 className="text-lg font-bold text-fg truncate">{title}</h1>
+        <h1 className="text-lg font-bold text-fg truncate">
+          <span className="sm:hidden">{shortTitle}</span>
+          <span className="hidden sm:inline">{title}</span>
+        </h1>
       </div>
 
       <div className="flex items-center gap-2">
@@ -71,7 +76,7 @@ export function Header() {
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-surface rounded-xl p-4 shadow-pop border border-line z-50">
+            <div className="fixed inset-x-4 top-[4.5rem] sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-80 bg-surface rounded-xl p-4 shadow-pop border border-line z-50">
               <div className="flex items-center justify-between pb-3 border-b border-line">
                 <h4 className="font-semibold text-sm text-fg">Notifikasi</h4>
                 <button

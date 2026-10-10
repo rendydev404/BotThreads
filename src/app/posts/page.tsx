@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -9,7 +9,6 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Video,
   FileText,
   Image as ImageIcon,
@@ -18,11 +17,10 @@ import {
   Heart,
   MessageCircle,
   X,
-  Users,
-  Check,
 } from "lucide-react";
 import { cn, formatNumber, formatRelativeTime } from "@/lib/utils";
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
+import { AccountFilterSelect } from "@/components/dashboard/account-filter-select";
 
 interface PostItem {
   id: string;
@@ -73,26 +71,10 @@ export default function PostsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Custom Account Dropdown state (No native select!)
-  const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
-  const [accountSearchText, setAccountSearchText] = useState("");
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
   // Destructive delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedPostToDelete, setSelectedPostToDelete] = useState<PostItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsAccountDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -103,7 +85,10 @@ export default function PostsPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  const reqId = useRef(0);
+
   const fetchPosts = async () => {
+    const id = ++reqId.current;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -117,6 +102,7 @@ export default function PostsPage() {
 
       const res = await fetch(`/api/posts?${params.toString()}`);
       const data = await res.json();
+      if (id !== reqId.current) return; // jawaban lama, sudah ada permintaan yang lebih baru
       if (data.success) {
         setPosts(data.posts || []);
         if (data.accounts) setAccounts(data.accounts);
@@ -127,7 +113,7 @@ export default function PostsPage() {
     } catch (err) {
       console.error("Failed to load posts:", err);
     } finally {
-      setLoading(false);
+      if (id === reqId.current) setLoading(false);
     }
   };
 
@@ -195,10 +181,17 @@ export default function PostsPage() {
     );
   };
 
-  const filteredAccounts = accounts.filter(
-    (a) =>
-      a.username.toLowerCase().includes(accountSearchText.toLowerCase()) ||
-      a.displayName.toLowerCase().includes(accountSearchText.toLowerCase())
+  // Bentuk data disamakan dengan filter akun di halaman Ringkasan
+  const accountItems = useMemo(
+    () =>
+      accounts.map((a) => ({
+        id: a.username,
+        username: a.username,
+        displayName: a.displayName,
+        avatarUrl: null,
+        _count: { postStats: a.count },
+      })),
+    [accounts]
   );
 
   return (
@@ -277,14 +270,14 @@ export default function PostsPage() {
         {/* Row 1: Tabs & Search Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-line">
           {/* Custom Tabs */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mb-px">
             <button
               onClick={() => {
                 setActiveTab("all");
                 setCurrentPage(1);
               }}
               className={cn(
-                "relative pb-3 text-sm font-semibold transition-colors cursor-pointer",
+                "relative pb-3 text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer",
                 activeTab === "all"
                   ? "text-accent"
                   : "text-muted hover:text-fg"
@@ -301,7 +294,7 @@ export default function PostsPage() {
                 setCurrentPage(1);
               }}
               className={cn(
-                "relative pb-3 text-sm font-semibold transition-colors cursor-pointer",
+                "relative pb-3 text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer",
                 activeTab === "top"
                   ? "text-accent"
                   : "text-muted hover:text-fg"
@@ -318,7 +311,7 @@ export default function PostsPage() {
                 setCurrentPage(1);
               }}
               className={cn(
-                "relative pb-3 text-sm font-semibold transition-colors cursor-pointer",
+                "relative pb-3 text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer",
                 activeTab === "flop"
                   ? "text-accent"
                   : "text-muted hover:text-fg"
@@ -354,99 +347,26 @@ export default function PostsPage() {
 
         {/* Row 2: Secondary Filters (Custom Account Dropdown & Format Filter Chips) */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          {/* Custom Account Selector (No Native Browser Control!) */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              type="button"
-              onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
-              className="h-9 px-4 rounded-xl bg-subtle hover:bg-subtle text-xs font-semibold text-fg border border-line flex items-center gap-2 transition-all cursor-pointer"
-            >
-              <Users className="w-3.5 h-3.5 text-accent" />
-              <span>
-                {selectedAccount === "all"
-                  ? "Semua Akun Threads"
-                  : `@${selectedAccount}`}
-              </span>
-              <ChevronDown
-                className={cn(
-                  "w-3.5 h-3.5 text-muted transition-transform",
-                  isAccountDropdownOpen && "rotate-180"
-                )}
-              />
-            </button>
-
-            {/* Custom Dropdown Menu */}
-            {isAccountDropdownOpen && (
-              <div className="absolute left-0 mt-2 w-72 bg-surface rounded-2xl border border-line p-2 z-40 animate-in fade-in zoom-in-95 duration-150">
-                <div className="p-2 border-b border-line">
-                  <input
-                    type="text"
-                    value={accountSearchText}
-                    onChange={(e) => setAccountSearchText(e.target.value)}
-                    placeholder="Cari akun..."
-                    className="w-full h-8 px-3 text-xs bg-subtle rounded-lg border-none focus:outline-none text-fg placeholder-faint"
-                  />
-                </div>
-                <div className="max-h-56 overflow-y-auto py-1 space-y-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedAccount("all");
-                      setCurrentPage(1);
-                      setIsAccountDropdownOpen(false);
-                    }}
-                    className={cn(
-                      "w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer",
-                      selectedAccount === "all"
-                        ? "bg-accent-soft text-accent font-bold"
-                        : "text-fg hover:bg-subtle"
-                    )}
-                  >
-                    <span>Semua Akun (32)</span>
-                    {selectedAccount === "all" && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                  {filteredAccounts.map((acc) => (
-                    <button
-                      key={acc.username}
-                      type="button"
-                      onClick={() => {
-                        setSelectedAccount(acc.username);
-                        setCurrentPage(1);
-                        setIsAccountDropdownOpen(false);
-                      }}
-                      className={cn(
-                        "w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer",
-                        selectedAccount === acc.username
-                          ? "bg-accent-soft text-accent font-bold"
-                          : "text-fg hover:bg-subtle"
-                      )}
-                    >
-                      <div className="truncate pr-2">
-                        <span className="font-semibold block truncate">
-                          @{acc.username}
-                        </span>
-                        <span className="text-[10px] text-muted truncate">
-                          {acc.displayName}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-muted font-mono bg-subtle px-1.5 py-0.5 rounded">
-                        {acc.count}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Filter akun: bottom sheet di mobile, popover di desktop */}
+          <AccountFilterSelect
+            accounts={accountItems}
+            selectedAccount={selectedAccount}
+            totalAccounts={accounts.length || 32}
+            className="sm:w-auto"
+            onSelectAccount={(u) => {
+              setSelectedAccount(u);
+              setCurrentPage(1);
+            }}
+          />
 
           {/* Format Filter Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[
               { id: "all", label: "Semua Format" },
-              { id: "TEXT", label: "Teks (1.4K)" },
-              { id: "VIDEO", label: "Video (197)" },
-              { id: "CAROUSEL", label: "Carousel (18)" },
-              { id: "IMAGE", label: "Foto (40)" },
+              { id: "TEXT", label: "Teks" },
+              { id: "VIDEO", label: "Video" },
+              { id: "CAROUSEL", label: "Carousel" },
+              { id: "IMAGE", label: "Foto" },
             ].map((f) => (
               <button
                 key={f.id}

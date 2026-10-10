@@ -69,14 +69,14 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
   };
 
   const btn =
-    "h-9 px-3.5 rounded-lg text-sm font-medium transition-colors cursor-pointer whitespace-nowrap";
+    "h-9 flex-1 sm:flex-none px-1.5 sm:px-3.5 rounded-lg text-[13px] sm:text-sm font-medium transition-colors cursor-pointer whitespace-nowrap";
 
   return (
     <div className="relative" ref={boxRef}>
       <div
         role="radiogroup"
         aria-label="Pilih periode"
-        className="inline-flex items-center gap-0.5 p-1 rounded-xl bg-subtle overflow-x-auto max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex sm:inline-flex w-full sm:w-auto items-center gap-0.5 p-1 rounded-xl bg-subtle"
       >
         {PERIOD_OPTIONS.map((p) => (
           <button
@@ -112,7 +112,7 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
               : "text-muted hover:text-fg"
           )}
         >
-          <CalendarRange className="w-4 h-4" />
+          <CalendarRange className="hidden sm:block w-4 h-4" />
           Kustom
         </button>
       </div>

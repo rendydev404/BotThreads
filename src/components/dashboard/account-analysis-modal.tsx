@@ -78,8 +78,8 @@ export function AccountAnalysisModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-surface rounded-3xl border border-line shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-colors">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-[fade-in_200ms_ease-out]">
+      <div className="relative w-full max-w-2xl bg-surface rounded-3xl border border-line shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] transition-colors">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-6 border-b border-line bg-subtle">
           <div className="flex items-center gap-3">
