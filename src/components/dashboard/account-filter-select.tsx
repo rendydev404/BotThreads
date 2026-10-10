@@ -2,13 +2,14 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Globe, Search, Users, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 
 export interface AccountItem {
   id: string;
   username: string | null;
   displayName: string;
   avatarUrl: string | null;
+  followers?: number | null;
   _count?: {
     postStats: number;
     dailyStats?: number;
@@ -250,6 +251,9 @@ export function AccountFilterSelect({
                         </span>
                       </span>
                       <span className="text-xs font-medium text-muted bg-subtle rounded-full px-2 py-0.5 shrink-0">
+                        {acc.followers !== null && acc.followers !== undefined
+                          ? `${formatNumber(acc.followers)} fol · `
+                          : ""}
                         {acc._count?.postStats ?? 0} post
                       </span>
                       {selected && <Check className="w-5 h-5 text-accent shrink-0" />}

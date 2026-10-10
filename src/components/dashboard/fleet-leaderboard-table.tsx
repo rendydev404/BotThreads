@@ -11,6 +11,8 @@ export interface LeaderboardAccount {
   username: string;
   displayName: string;
   avatarUrl: string | null;
+  followers?: number | null;
+  followersDelta?: number | null;
   posts: number;
   views: number;
   likes: number;
@@ -99,6 +101,7 @@ export function FleetLeaderboardTable({
             <tr className="text-xs font-medium text-muted border-y border-line bg-subtle/60">
               <th className="py-2.5 pl-5 pr-2 w-12">#</th>
               <th className="py-2.5 px-3">Cabang</th>
+              <th className="py-2.5 px-3 text-right">Pengikut</th>
               <th className="py-2.5 px-3 text-right">Postingan</th>
               <th className="py-2.5 px-3 min-w-44">Penayangan</th>
               <th className="py-2.5 px-3 text-right">Interaksi</th>
@@ -109,14 +112,14 @@ export function FleetLeaderboardTable({
             {loading ? (
               [0, 1, 2, 3, 4].map((i) => (
                 <tr key={i}>
-                  <td colSpan={6} className="p-3">
+                  <td colSpan={7} className="p-3">
                     <div className="h-8 rounded-md bg-subtle animate-pulse" />
                   </td>
                 </tr>
               ))
             ) : shown.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-10 text-center text-muted">
+                <td colSpan={7} className="py-10 text-center text-muted">
                   Tidak ada cabang yang cocok dengan “{search}”.
                 </td>
               </tr>
@@ -164,6 +167,11 @@ export function FleetLeaderboardTable({
                           <Check className="w-4 h-4 text-accent shrink-0" />
                         )}
                       </div>
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums text-fg font-medium">
+                      {acc.followers !== null && acc.followers !== undefined
+                        ? formatNumber(acc.followers)
+                        : "-"}
                     </td>
                     <td className="py-3 px-3 text-right tabular-nums text-fg">
                       {formatNumber(acc.posts)}

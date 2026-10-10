@@ -77,6 +77,8 @@ export async function buildOverview(opts: OverviewParams) {
       lbCur,
       lbPrev,
       lbPosts,
+      folCurRows,
+      folPrevRows,
     ] = await Promise.all([
       // Per hari pada periode: total sekaligus data grafik
       prisma.threadsAccountDaily.groupBy({
@@ -137,6 +139,17 @@ export async function buildOverview(opts: OverviewParams) {
         where: { postedAt: inRange(from, to) },
         _count: { _all: true },
       }),
+      // Followers cabang akhir periode saat ini dan pembanding
+      prisma.threadsAccountDaily.findMany({
+        where: { date: { lte: to }, followers: { not: null } },
+        select: { threadsAccountId: true, date: true, followers: true },
+        orderBy: { date: "desc" },
+      }),
+      prisma.threadsAccountDaily.findMany({
+        where: { date: { lte: prevTo }, followers: { not: null } },
+        select: { threadsAccountId: true, date: true, followers: true },
+        orderBy: { date: "desc" },
+      }),
     ]);
 
     // ---- Total periode ini & sebelumnya
@@ -158,6 +171,41 @@ export async function buildOverview(opts: OverviewParams) {
     const avgER = erOf(cur.views, totalInteractions);
     const hasPrev = prevByDate.length >= Math.ceil(days * 0.6);
 
+    // Map followers per akun pada akhir periode dan pembanding
+    const curFollowerMap = new Map<string, number>();
+    for (const r of folCurRows) {
+      if (r.followers !== null && !curFollowerMap.has(r.threadsAccountId)) {
+        curFollowerMap.set(r.threadsAccountId, r.followers);
+      }
+    }
+
+    const prevFollowerMap = new Map<string, number>();
+    for (const r of folPrevRows) {
+      if (r.followers !== null && !prevFollowerMap.has(r.threadsAccountId)) {
+        prevFollowerMap.set(r.threadsAccountId, r.followers);
+      }
+    }
+
+    let totalFollowers: number | null = null;
+    let prevTotalFollowers: number | null = null;
+
+    if (isAll) {
+      if (curFollowerMap.size > 0) {
+        totalFollowers = Array.from(curFollowerMap.values()).reduce((a, b) => a + b, 0);
+      }
+      if (prevFollowerMap.size > 0) {
+        prevTotalFollowers = Array.from(prevFollowerMap.values()).reduce((a, b) => a + b, 0);
+      }
+    } else if (targetAccount) {
+      totalFollowers = curFollowerMap.get(targetAccount.id) ?? null;
+      prevTotalFollowers = prevFollowerMap.get(targetAccount.id) ?? null;
+    }
+
+    const followersDelta =
+      totalFollowers !== null && prevTotalFollowers !== null
+        ? totalFollowers - prevTotalFollowers
+        : null;
+
     const deltas = hasPrev
       ? {
           views: pctDelta(cur.views, prev.views),
@@ -165,6 +213,7 @@ export async function buildOverview(opts: OverviewParams) {
           interactions: pctDelta(totalInteractions, prevInteractions),
           // Selisih ER dalam poin persen
           er: Number((avgER - erOf(prev.views, prevInteractions)).toFixed(1)),
+          followers: followersDelta,
         }
       : null;
 
@@ -225,6 +274,8 @@ export async function buildOverview(opts: OverviewParams) {
           threadsUserId: targetAccount.threadsUserId,
           insightsSyncedAt: targetAccount.insightsSyncedAt?.toISOString() || null,
           totalPosts: targetAccount._count?.postStats || 0,
+          followers: totalFollowers,
+          followersDelta,
         }
       : {
           isAll: true,
@@ -235,6 +286,8 @@ export async function buildOverview(opts: OverviewParams) {
           insightsSyncedAt: accounts[0]?.insightsSyncedAt?.toISOString() || null,
           totalPosts: postsCur,
           totalAccounts: accounts.length,
+          followers: totalFollowers,
+          followersDelta,
         };
 
     // ---- Peringkat cabang
@@ -249,12 +302,16 @@ export async function buildOverview(opts: OverviewParams) {
         const likes = d?.likes || 0;
         const replies = d?.replies || 0;
         const reposts = d?.reposts || 0;
+        const fol = curFollowerMap.get(a.id) ?? null;
+        const pFol = prevFollowerMap.get(a.id) ?? null;
         return {
           id: a.id,
           username: a.username || "outlet",
           displayName: a.displayName || a.username || "Cabang",
           avatarUrl: a.avatarUrl,
           posts: postMap.get(a.id) || 0,
+          followers: fol,
+          followersDelta: fol !== null && pFol !== null ? fol - pFol : null,
           views,
           likes,
           replies,
@@ -285,9 +342,14 @@ export async function buildOverview(opts: OverviewParams) {
         avgER,
         activeAccounts: accounts.length,
         totalPosts: postsCur,
+        totalFollowers,
+        followersDelta,
       },
       deltas,
-      accounts,
+      accounts: accounts.map((a) => ({
+        ...a,
+        followers: curFollowerMap.get(a.id) ?? null,
+      })),
       leaderboard,
       topPost,
       activity,

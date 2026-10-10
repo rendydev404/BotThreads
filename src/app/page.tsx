@@ -166,6 +166,7 @@ export default function DashboardPage() {
         totalReplies={stats.totalReplies ?? 0}
         avgER={stats.avgER ?? 0}
         activeAccounts={stats.activeAccounts ?? accountCount}
+        totalFollowers={stats.totalFollowers ?? currentAccount.followers ?? null}
         deltas={data?.deltas}
       />
 

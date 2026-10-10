@@ -66,6 +66,13 @@ ${best ? `Postingan terbaik saat ini dari @${best.username} (${fmt(best.views)} 
 Waktu posting yang disarankan: sekitar jam makan siang dan sore (WIB).`;
   }
 
+  if (/(follower|pengikut)/.test(q)) {
+    const topFol = ctx.byFollowers.slice(0, 5);
+    return `${note}**Akun dengan followers tertinggi**
+
+${topFol.map((a, i) => `${i + 1}. @${a.username}: ${fmt(a.followers)} followers`).join("\n")}`;
+  }
+
   if (/(views|tayangan|impresi|populer|tertinggi|terbaik)/.test(q)) {
     return `${note}**Akun dengan views tertinggi**
 
@@ -80,8 +87,9 @@ ${topPosts.map((a, i) => `${i + 1}. @${a.username}: ${fmt(a.posts)} post`).join(
 
   return `${note}**Ringkasan jaringan**
 
-- ${ctx.totals.accounts} akun, ${fmt(ctx.totals.posts)} postingan
+- ${ctx.totals.accounts} akun, ${fmt(ctx.totals.followers)} total followers, ${fmt(ctx.totals.posts)} postingan
 - ${fmt(ctx.totals.views)} views, ${fmt(ctx.totals.interactions)} interaksi, ER ${ctx.totals.er}%
+- Followers terbanyak: @${ctx.byFollowers[0]?.username} (${fmt(ctx.byFollowers[0]?.followers ?? 0)} followers)
 - Views tertinggi: @${topViews[0]?.username} (${fmt(topViews[0]?.views ?? 0)})
 - Paling aktif posting: @${topPosts[0]?.username} (${fmt(topPosts[0]?.posts ?? 0)} post)`;
 }

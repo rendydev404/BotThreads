@@ -28,9 +28,11 @@ export interface FleetContext {
     views: number;
     interactions: number;
     er: string;
+    followers: number;
   };
-  byPosts: Array<{ username: string; posts: number }>;
-  byViews: Array<{ username: string; views: number; likes: number; replies: number }>;
+  byPosts: Array<{ username: string; posts: number; followers: number }>;
+  byViews: Array<{ username: string; views: number; likes: number; replies: number; followers: number }>;
+  byFollowers: Array<{ username: string; displayName: string; followers: number }>;
   topPosts: Array<{ username: string; text: string; views: number }>;
   usernames: string[];
 }
@@ -42,7 +44,7 @@ async function loadFleet(): Promise<FleetContext> {
   since.setDate(since.getDate() - 6);
   since.setHours(0, 0, 0, 0);
 
-  const [accounts, total, perAccount, topPosts, flopPosts, byMedia, last7] =
+  const [accounts, total, perAccount, topPosts, flopPosts, byMedia, last7, followerRows] =
     await Promise.all([
       prisma.threadsAccount.findMany({
         select: {
@@ -99,7 +101,24 @@ async function loadFleet(): Promise<FleetContext> {
         orderBy: { date: "asc" },
         _sum: { views: true, likes: true, replies: true },
       }),
+      prisma.threadsAccountDaily.findMany({
+        where: { followers: { not: null } },
+        select: { threadsAccountId: true, date: true, followers: true },
+        orderBy: { date: "desc" },
+      }),
     ]);
+
+  const latestFollowersMap = new Map<string, number>();
+  for (const r of followerRows) {
+    if (r.followers !== null && !latestFollowersMap.has(r.threadsAccountId)) {
+      latestFollowersMap.set(r.threadsAccountId, r.followers);
+    }
+  }
+
+  let totalFollowers = 0;
+  for (const f of latestFollowersMap.values()) {
+    totalFollowers += f;
+  }
 
   const nameOf = new Map(accounts.map((a) => [a.id, a.username || a.displayName]));
   const views = total._sum.views ?? 0;
@@ -108,8 +127,20 @@ async function loadFleet(): Promise<FleetContext> {
   const er = views > 0 ? ((interactions / views) * 100).toFixed(2) : "0";
   const postsTotal = accounts.reduce((s, a) => s + a._count.postStats, 0);
 
+  const byFollowers = accounts
+    .map((a) => ({
+      username: a.username || a.displayName,
+      displayName: a.displayName,
+      followers: latestFollowersMap.get(a.id) ?? 0,
+    }))
+    .sort((a, b) => b.followers - a.followers);
+
   const byPosts = accounts
-    .map((a) => ({ username: a.username || a.displayName, posts: a._count.postStats }))
+    .map((a) => ({
+      username: a.username || a.displayName,
+      posts: a._count.postStats,
+      followers: latestFollowersMap.get(a.id) ?? 0,
+    }))
     .sort((a, b) => b.posts - a.posts);
 
   const byViews = perAccount
@@ -118,6 +149,7 @@ async function loadFleet(): Promise<FleetContext> {
       views: d._sum.views ?? 0,
       likes: d._sum.likes ?? 0,
       replies: d._sum.replies ?? 0,
+      followers: latestFollowersMap.get(d.threadsAccountId) ?? 0,
     }))
     .sort((a, b) => b.views - a.views);
 
@@ -157,13 +189,16 @@ async function loadFleet(): Promise<FleetContext> {
     .join("\n");
 
   const text = `DATA LIVE JARINGAN AKUN THREADS SUKA SHAWARMA (dari database):
-Ringkasan: ${accounts.length} akun | ${fmt(postsTotal)} postingan | ${fmt(views)} views | ${fmt(interactions)} interaksi | ER rata-rata ${er}%
+Ringkasan: ${accounts.length} akun | ${fmt(totalFollowers)} total followers seluruh jaringan | ${fmt(postsTotal)} postingan | ${fmt(views)} views | ${fmt(interactions)} interaksi | ER rata-rata ${er}%
+
+DATA JUMLAH FOLLOWERS SEMUA AKUN (dari insight Threads di database):
+${byFollowers.map((a, i) => `${i + 1}. @${a.username} (${a.displayName}): ${fmt(a.followers)} followers`).join("\n")}
 
 PERINGKAT VIEWS (top 10 akun):
-${byViews.slice(0, 10).map((a, i) => `${i + 1}. @${a.username}: ${fmt(a.views)} views, ${fmt(a.likes)} suka, ${fmt(a.replies)} balasan`).join("\n")}
+${byViews.slice(0, 10).map((a, i) => `${i + 1}. @${a.username}: ${fmt(a.views)} views, ${fmt(a.followers)} followers, ${fmt(a.likes)} suka, ${fmt(a.replies)} balasan`).join("\n")}
 
 PERINGKAT JUMLAH POSTINGAN (top 10 akun):
-${byPosts.slice(0, 10).map((a, i) => `${i + 1}. @${a.username}: ${fmt(a.posts)} post`).join("\n")}
+${byPosts.slice(0, 10).map((a, i) => `${i + 1}. @${a.username}: ${fmt(a.posts)} post, ${fmt(a.followers)} followers`).join("\n")}
 
 PERFORMA PER FORMAT KONTEN:
 ${mediaText}
@@ -181,9 +216,10 @@ ${flopPosts.map((p, i) => `${i + 1}. @${p.threadsAccount?.username || "unknown"}
 
   return {
     text,
-    totals: { accounts: accounts.length, posts: postsTotal, views, interactions, er },
+    totals: { accounts: accounts.length, posts: postsTotal, views, interactions, er, followers: totalFollowers },
     byPosts,
     byViews,
+    byFollowers,
     topPosts: top.map((p) => ({ username: p.username, text: p.text, views: p.views })),
     usernames: accounts.map((a) => a.username).filter((u): u is string => !!u),
   };
@@ -196,41 +232,65 @@ export async function getFleetContext(): Promise<FleetContext> {
   return value;
 }
 
-/** Detail satu akun bila pesan menyebut username-nya. */
+/** Detail satu akun bila pesan menyebut username atau nama cabangnya. */
 export async function getAccountDetail(
   message: string,
-  usernames: string[]
+  usernames: string[] = []
 ): Promise<string> {
-  const q = message.toLowerCase();
-  const hit = usernames
-    .filter((u) => u.length >= 4 && q.includes(u.toLowerCase()))
-    .sort((a, b) => b.length - a.length)[0];
-  if (!hit) return "";
-
-  const acc = await prisma.threadsAccount.findFirst({
-    where: { username: hit },
+  const accounts = await prisma.threadsAccount.findMany({
     select: { id: true, username: true, displayName: true },
   });
-  if (!acc) return "";
 
-  const [sum, posts, count] = await Promise.all([
+  const norm = (s: string) => s.toLowerCase().replace(/[@_\s.-]/g, "");
+  const qNorm = norm(message);
+
+  // Cari kecocokan terbaik berdasarkan username atau display name
+  const hit = accounts
+    .filter((a) => {
+      const uNorm = norm(a.username || "");
+      const dNorm = norm(a.displayName || "");
+      if (uNorm.length >= 3 && qNorm.includes(uNorm)) return true;
+      if (dNorm.length >= 3 && qNorm.includes(dNorm)) return true;
+      return false;
+    })
+    .sort((a, b) => {
+      const lenA = Math.max((a.username || "").length, (a.displayName || "").length);
+      const lenB = Math.max((b.username || "").length, (b.displayName || "").length);
+      return lenB - lenA;
+    })[0];
+
+  if (!hit) return "";
+
+  const [sum, posts, count, latestDaily] = await Promise.all([
     prisma.threadsAccountDaily.aggregate({
-      where: { threadsAccountId: acc.id },
+      where: { threadsAccountId: hit.id },
       _sum: { views: true, likes: true, replies: true },
     }),
     prisma.threadsPostStat.findMany({
-      where: { threadsAccountId: acc.id },
+      where: { threadsAccountId: hit.id },
       take: 6,
       orderBy: { views: "desc" },
       select: { text: true, views: true, likes: true, replies: true, mediaType: true },
     }),
-    prisma.threadsPostStat.count({ where: { threadsAccountId: acc.id } }),
+    prisma.threadsPostStat.count({ where: { threadsAccountId: hit.id } }),
+    prisma.threadsAccountDaily.findFirst({
+      where: { threadsAccountId: hit.id, followers: { not: null } },
+      orderBy: { date: "desc" },
+      select: { followers: true, date: true },
+    }),
   ]);
 
   const v = sum._sum.views ?? 0;
   const inter = (sum._sum.likes ?? 0) + (sum._sum.replies ?? 0);
-  return `DETAIL AKUN YANG DITANYAKAN (@${acc.username}, ${acc.displayName}):
-${fmt(count)} postingan | ${fmt(v)} views | ${fmt(inter)} suka+balasan | ER ${v ? ((inter / v) * 100).toFixed(2) : "0"}%
+  const fol = latestDaily?.followers ?? 0;
+  const folDate = latestDaily?.date ? latestDaily.date.toISOString().slice(0, 10) : null;
+
+  return `DETAIL AKUN YANG DITANYAKAN (@${hit.username}, ${hit.displayName}):
+- Followers: ${fmt(fol)} pengikut${folDate ? ` (data insight Threads per ${folDate})` : ""}
+- Postingan: ${fmt(count)} post
+- Total Views: ${fmt(v)} views
+- Total Interaksi: ${fmt(inter)} (suka & balasan)
+- Engagement Rate: ${v ? ((inter / v) * 100).toFixed(2) : "0"}%
 Postingan terbaik akun ini:
 ${posts.map((p, i) => `${i + 1}. [${MEDIA_LABEL[p.mediaType] || p.mediaType}] ${fmt(p.views)} views, ${p.likes} suka, ${p.replies} balasan: "${clip(p.text, 160)}"`).join("\n")}`;
 }

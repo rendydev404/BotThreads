@@ -228,6 +228,9 @@ export function ReportCard({ report: initial, onPickAccount }: ReportCardProps) 
                 <DeltaBadge delta={row.delta} className="w-12" />
               </div>
               <p className="mt-0.5 pl-7 text-xs text-muted">
+                {row.followers !== null && row.followers !== undefined && (
+                  <span className="font-medium text-fg/80">{compact(row.followers)} fol · </span>
+                )}
                 ER {String(row.er).replace(".", ",")}% · {row.posts} post
               </p>
             </button>

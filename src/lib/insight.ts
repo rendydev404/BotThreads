@@ -56,7 +56,7 @@ function periodContext(o: Overview): string {
     .slice(0, 8)
     .map(
       (a, i) =>
-        `${i + 1}. @${a.username}: ${fmt(a.views)} views${dtext(a.delta)}, ER ${a.er}%, ${a.posts} post`
+        `${i + 1}. @${a.username}: ${fmt(a.views)} views${dtext(a.delta)}, ${a.followers !== null && a.followers !== undefined ? `${fmt(a.followers)} followers, ` : ""}ER ${a.er}%, ${a.posts} post`
     )
     .join("\n");
 
@@ -74,6 +74,7 @@ Cakupan: ${scopeOf(o)}
 Periode: ${period.label} (${period.from} s/d ${period.to}, ${period.days} hari). ${
     period.hasPrev ? "Pembanding: periode sebelumnya yang sama panjang." : "Belum ada data pembanding periode sebelumnya."
   }
+Total pengikut (followers): ${stats.totalFollowers !== null && stats.totalFollowers !== undefined ? `${fmt(stats.totalFollowers)}${deltas?.followers ? ` (${deltas.followers >= 0 ? "+" : ""}${deltas.followers} dibanding sebelumnya)` : ""}` : "belum ada data"}
 Total penayangan: ${fmt(stats.totalViews)}${dtext(deltas?.views)}
 Postingan terbit: ${fmt(stats.totalPosts)}${dtext(deltas?.posts)}
 Interaksi: ${fmt(stats.totalInteractions)} (${fmt(stats.totalLikes)} suka, ${fmt(stats.totalReplies)} komentar, ${fmt(stats.totalReposts)} repost)

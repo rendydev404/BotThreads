@@ -2,7 +2,7 @@
 
 import React from "react";
 import { formatNumber } from "@/lib/utils";
-import { Users, Eye, FileText, TrendingUp, type LucideIcon } from "lucide-react";
+import { Users, Eye, FileText, TrendingUp, UserCheck, type LucideIcon } from "lucide-react";
 import type { Delta } from "@/lib/report";
 import { DeltaBadge } from "@/components/ui/delta-badge";
 
@@ -17,7 +17,8 @@ interface FleetSummaryCardsProps {
   totalReplies: number;
   avgER: number;
   activeAccounts: number;
-  deltas?: { views: Delta; posts: Delta; er: number } | null;
+  totalFollowers?: number | null;
+  deltas?: { views: Delta; posts: Delta; er: number; followers?: number | null } | null;
   loading?: boolean;
 }
 
@@ -41,6 +42,7 @@ export function FleetSummaryCards({
   totalReplies,
   avgER,
   activeAccounts,
+  totalFollowers,
   deltas,
   loading = false,
 }: FleetSummaryCardsProps) {
@@ -48,9 +50,25 @@ export function FleetSummaryCards({
     {
       title: isAll ? "Akun cabang" : "Akun dipilih",
       value: isAll ? String(activeAccounts) : `@${accountName}`,
-      hint: isAll ? "Semua akun terhubung" : displayName,
+      hint: isAll ? "Semua cabang terhubung" : displayName,
       icon: Users,
       tone: "bg-subtle text-muted",
+    },
+    {
+      title: isAll ? "Total pengikut" : "Pengikut akun",
+      value:
+        totalFollowers !== null && totalFollowers !== undefined
+          ? formatNumber(totalFollowers)
+          : "-",
+      hint: isAll
+        ? `Gabungan dari ${activeAccounts} cabang`
+        : displayName,
+      icon: UserCheck,
+      tone: "bg-accent-soft text-accent",
+      delta:
+        deltas?.followers !== undefined && deltas?.followers !== null ? (
+          <DeltaBadge delta={deltas.followers} unit="" />
+        ) : undefined,
     },
     {
       title: "Total penayangan",
@@ -79,7 +97,7 @@ export function FleetSummaryCards({
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
       {cards.map((card) => {
         const Icon = card.icon;
         return (

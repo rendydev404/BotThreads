@@ -19,6 +19,7 @@ export interface RankRow {
   delta: Delta;
   er: number; // persen
   posts: number;
+  followers?: number | null;
 }
 
 export interface ScopeOption {
@@ -101,7 +102,7 @@ export async function buildReport(
 
   const sums = { views: true, likes: true, replies: true, reposts: true, quotes: true } as const;
 
-  const [cur, prev, prevDates, posts, folEnd, folStart] = await Promise.all([
+  const [cur, prev, prevDates, posts, folEnd, folStart, folRows] = await Promise.all([
     prisma.threadsAccountDaily.groupBy({
       by: ["threadsAccountId"],
       where: { ...idFilter, date: { gte: from, lte: to } },
@@ -131,7 +132,19 @@ export async function buildReport(
       _sum: { followers: true },
       _count: { followers: true },
     }),
+    prisma.threadsAccountDaily.findMany({
+      where: { ...idFilter, date: { lte: to }, followers: { not: null } },
+      select: { threadsAccountId: true, followers: true },
+      orderBy: { date: "desc" },
+    }),
   ]);
+
+  const folMap = new Map<string, number>();
+  for (const f of folRows) {
+    if (f.followers !== null && !folMap.has(f.threadsAccountId)) {
+      folMap.set(f.threadsAccountId, f.followers);
+    }
+  }
 
   const nameOf = new Map(accounts.map((a) => [a.id, a.username || a.displayName]));
   const prevViews = new Map(prev.map((p) => [p.threadsAccountId, p._sum.views ?? 0]));
@@ -150,6 +163,7 @@ export async function buildReport(
         delta: hasPrev ? pctDelta(views, prevViews.get(c.threadsAccountId) ?? 0) : null,
         er: views > 0 ? Math.round((inter(c._sum) / views) * 1000) / 10 : 0,
         posts: postCount.get(c.threadsAccountId) ?? 0,
+        followers: folMap.get(c.threadsAccountId) ?? null,
       };
     })
     .sort((a, b) => b.views - a.views);
@@ -196,6 +210,6 @@ Total: ${fmt(r.totals.views)} views${dtext(r.totals.viewsDelta)}, ${fmt(r.totals
 Peringkat akun menurut views periode ini:
 ${r.ranking
   .slice(0, 15)
-  .map((a, i) => `${i + 1}. @${a.username}: ${fmt(a.views)} views${dtext(a.delta)}, ER ${a.er}%, ${a.posts} post`)
+  .map((a, i) => `${i + 1}. @${a.username}: ${fmt(a.views)} views${dtext(a.delta)}, ${a.followers !== null && a.followers !== undefined ? `${fmt(a.followers)} followers, ` : ""}ER ${a.er}%, ${a.posts} post`)
   .join("\n")}`;
 }
