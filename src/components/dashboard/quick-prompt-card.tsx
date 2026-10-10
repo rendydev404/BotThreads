@@ -36,7 +36,7 @@ interface QuickPromptCardProps {
 
 export function QuickPromptCard({
   activeAccount = "all",
-  accountLabel = "Semua Akun (32 Outlet)",
+  accountLabel = "Semua Akun (32 Terhubung)",
 }: QuickPromptCardProps) {
   const router = useRouter();
   const [selectedPersona, setSelectedPersona] = useState("strategist");

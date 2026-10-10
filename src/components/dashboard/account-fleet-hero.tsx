@@ -102,7 +102,7 @@ export function AccountFleetHero({
                 {displayName}
               </span>
               <span className="block text-xs text-white/70">
-                {isAll ? "32 Akun Outlet Terkoneksi" : `@${accountName}`} •{" "}
+                {isAll ? "32 Akun Terkoneksi" : `@${accountName}`} •{" "}
                 <span className="font-semibold text-white">
                   {totalPosts} Postingan
                 </span>

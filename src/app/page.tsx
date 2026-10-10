@@ -114,7 +114,7 @@ export default function DashboardPage() {
             accounts={accounts}
             selectedAccount={selectedAccount}
             onSelectAccount={handleSelectAccount}
-            totalOutlets={accounts.length || 32}
+            totalAccounts={accounts.length || 32}
           />
 
           <button
@@ -165,7 +165,7 @@ export default function DashboardPage() {
               </div>
               <p className="text-xs text-[#718EBF] mt-0.5">
                 {currentAccount.isAll
-                  ? "Akumulasi impresi dan interaksi seluruh jaringan outlet 7 hari terakhir"
+                  ? "Akumulasi impresi dan interaksi seluruh jaringan akun 7 hari terakhir"
                   : `Impresi dan interaksi @${currentAccount.username} 7 hari terakhir`}
               </p>
             </div>

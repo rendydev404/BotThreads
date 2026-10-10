@@ -19,14 +19,14 @@ interface AccountFilterSelectProps {
   accounts: AccountItem[];
   selectedAccount: string; // 'all' or username
   onSelectAccount: (username: string) => void;
-  totalOutlets?: number;
+  totalAccounts?: number;
 }
 
 export function AccountFilterSelect({
   accounts,
   selectedAccount,
   onSelectAccount,
-  totalOutlets = 32,
+  totalAccounts = 32,
 }: AccountFilterSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,7 +97,7 @@ export function AccountFilterSelect({
           </span>
           <span className="text-xs md:text-sm font-bold text-[#343C6A] truncate max-w-[170px] sm:max-w-[210px]">
             {isAllSelected
-              ? `Semua Akun (${totalOutlets} Outlet)`
+              ? `Semua Akun (${totalAccounts})`
               : currentSelectedObj?.displayName || `@${selectedAccount}`}
           </span>
         </div>
@@ -121,7 +121,7 @@ export function AccountFilterSelect({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari outlet atau username..."
+                placeholder="Cari akun atau username..."
                 className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-white border border-[#EDF2F7] text-[#343C6A] placeholder-[#94A3B8] focus:outline-none focus:border-[#1814F3] transition-colors"
                 autoFocus
               />
@@ -155,7 +155,7 @@ export function AccountFilterSelect({
                 </div>
                 <div>
                   <p className="text-xs font-bold leading-tight">
-                    Semua Akun ({totalOutlets} Outlet)
+                    Semua Akun ({totalAccounts})
                   </p>
                   <p className="text-[11px] text-[#718EBF]">
                     Agregasi performa jaringan Threads

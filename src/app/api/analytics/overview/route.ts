@@ -286,7 +286,7 @@ export async function GET(request: NextRequest) {
           threadsUserId: null,
           insightsSyncedAt: accounts[0]?.insightsSyncedAt?.toISOString() || null,
           totalPosts: totalPostsCount,
-          totalOutlets: accounts.length,
+          totalAccounts: accounts.length,
         };
 
     return NextResponse.json({

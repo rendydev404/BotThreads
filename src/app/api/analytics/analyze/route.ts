@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
 
     // 2. Prepare Context for Hermes AI / Analysis Engine
     const targetLabel = isAll
-      ? "Seluruh Jaringan Outlet Suka Shawarma (32 Akun Terhubung)"
-      : `@${targetAccount?.username || account} (${targetAccount?.displayName || "Outlet"})`;
+      ? "Seluruh Jaringan Suka Shawarma (32 Akun Terhubung)"
+      : `@${targetAccount?.username || account} (${targetAccount?.displayName || "Akun"})`;
 
     const promptContext = `Analisis Kinerja Threads Bot:
 Target Akun: ${targetLabel}
