@@ -8,7 +8,6 @@ const titleMap: Record<string, string> = {
   "/": "Overview",
   "/posts": "Content & Posts Hub",
   "/prompt-studio": "Hermes AI Prompt Studio",
-  "/auto-comment": "Auto Comment Bot",
 };
 
 export function Header() {

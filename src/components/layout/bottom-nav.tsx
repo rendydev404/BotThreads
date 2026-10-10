@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   FileText,
   Bot,
-  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,11 +26,6 @@ const mobileNavItems = [
     href: "/prompt-studio",
     icon: Bot,
     highlight: true,
-  },
-  {
-    name: "Auto-Bot",
-    href: "/auto-comment",
-    icon: MessageCircle,
   },
 ];
 
