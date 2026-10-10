@@ -7,7 +7,6 @@ import { AccountAnalysisModal } from "@/components/dashboard/account-analysis-mo
 import { RecentActivityCard } from "@/components/dashboard/recent-activity-card";
 import { WeeklyActivityChart } from "@/components/dashboard/weekly-activity-chart";
 import { FormatPieChart } from "@/components/dashboard/format-pie-chart";
-import { QuickPromptCard } from "@/components/dashboard/quick-prompt-card";
 import { EngagementSplineChart } from "@/components/dashboard/engagement-spline-chart";
 import { TrendingUp, Layers, RefreshCw, BarChart2 } from "lucide-react";
 
@@ -197,16 +196,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Row 3: Quick AI Prompt (Hermes) & Engagement History */}
+      {/* Row 3: Engagement History & Recent Bot Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-5">
-          <QuickPromptCard
-            activeAccount={selectedAccount}
-            accountLabel={currentAccount.displayName}
-          />
-        </div>
-
-        <div className="lg:col-span-7 neo-card p-6">
+        <div className="lg:col-span-8 neo-card p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-base font-bold text-[#343C6A]">
@@ -223,11 +215,10 @@ export default function DashboardPage() {
           </div>
           <EngagementSplineChart data={engagementHistory} />
         </div>
-      </div>
 
-      {/* Row 4: Recent Bot Logs & Audit Trail */}
-      <div className="grid grid-cols-1 gap-6">
-        <RecentActivityCard activities={data?.recentBotActions} />
+        <div className="lg:col-span-4">
+          <RecentActivityCard activities={data?.recentBotActions} />
+        </div>
       </div>
 
       {/* Interactive Hermes AI Account Analysis Modal */}
