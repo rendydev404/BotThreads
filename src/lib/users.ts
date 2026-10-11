@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { db, must } from "@/lib/supabase";
 import {
   SESSION_COOKIE,
   passwordFingerprint,
@@ -9,19 +9,28 @@ export function normalizeIdentifier(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
+export interface LoginUser {
+  id: string;
+  username: string;
+  name: string | null;
+  passwordHash: string;
+  isActive: boolean;
+}
+
+/** Kutip nilai untuk filter or() PostgREST agar koma/titik/kurung tidak ditafsirkan. */
+const quote = (v: string) => `"${v.replace(/["\\]/g, "\\$&")}"`;
+
 /** Cari pengguna lewat username ATAU email (tidak peka huruf besar/kecil). */
-export function findUserByIdentifier(identifier: string) {
-  const id = normalizeIdentifier(identifier);
-  return prisma.dashboardUser.findFirst({
-    where: { OR: [{ username: id }, { email: id }] },
-    select: {
-      id: true,
-      username: true,
-      name: true,
-      passwordHash: true,
-      isActive: true,
-    },
-  });
+export async function findUserByIdentifier(identifier: string): Promise<LoginUser | null> {
+  const id = quote(normalizeIdentifier(identifier));
+  return must<LoginUser | null>(
+    db()
+      .from("DashboardUser")
+      .select("id, username, name, passwordHash, isActive")
+      .or(`username.eq.${id},email.eq.${id}`)
+      .limit(1)
+      .maybeSingle()
+  );
 }
 
 // Cache status pengguna agar proxy tidak query DB di setiap request.
@@ -33,10 +42,13 @@ async function currentStatus(userId: string) {
   const hit = statusCache.get(userId);
   if (hit && Date.now() - hit.at < STATUS_TTL_MS) return hit;
 
-  const user = await prisma.dashboardUser.findUnique({
-    where: { id: userId },
-    select: { isActive: true, passwordHash: true },
-  });
+  const user = await must<{ isActive: boolean; passwordHash: string } | null>(
+    db()
+      .from("DashboardUser")
+      .select("isActive, passwordHash")
+      .eq("id", userId)
+      .maybeSingle()
+  );
   const entry = {
     at: Date.now(),
     ok: !!user?.isActive,

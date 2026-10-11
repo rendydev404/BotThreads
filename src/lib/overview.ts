@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { agg, db, must, sqlTs, toDate, toDateOrNull, type DailyByDate } from "@/lib/supabase";
 import { isoDate, resolvePeriod } from "@/lib/period";
 import { pctDelta } from "@/lib/report";
 
@@ -6,8 +6,6 @@ const DAY = 86_400_000;
 const WIB_MS = 7 * 3_600_000;
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-
-const sums = { views: true, likes: true, replies: true, reposts: true } as const;
 
 function erOf(views: number, interactions: number, digits = 1) {
   return views > 0 ? Number(((interactions / views) * 100).toFixed(digits)) : 0;
@@ -34,18 +32,30 @@ export async function buildOverview(opts: OverviewParams) {
     });
 
     // Daftar akun (untuk filter & peringkat)
-    const rawAccounts = await prisma.threadsAccount.findMany({
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        avatarUrl: true,
-        threadsUserId: true,
-        insightsSyncedAt: true,
-        _count: { select: { postStats: true } },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const [accountRows, allPostCounts] = await Promise.all([
+      must<
+        {
+          id: string;
+          username: string | null;
+          displayName: string;
+          avatarUrl: string | null;
+          threadsUserId: string;
+          insightsSyncedAt: string | null;
+        }[]
+      >(
+        db()
+          .from("ThreadsAccount")
+          .select("id, username, displayName, avatarUrl, threadsUserId, insightsSyncedAt")
+          .order("createdAt", { ascending: true })
+      ),
+      agg.postsByAccount(),
+    ]);
+    const postCountOf = new Map(allPostCounts.map((c) => [c.threadsAccountId, c.posts]));
+    const rawAccounts = accountRows.map((a) => ({
+      ...a,
+      insightsSyncedAt: toDateOrNull(a.insightsSyncedAt),
+      _count: { postStats: postCountOf.get(a.id) ?? 0 },
+    }));
 
     const accounts = [...rawAccounts].sort(
       (a, b) => (b._count?.postStats || 0) - (a._count?.postStats || 0)
@@ -60,97 +70,89 @@ export async function buildOverview(opts: OverviewParams) {
             a.id === accountFilter
         );
 
-    const acc = targetAccount ? { threadsAccountId: targetAccount.id } : {};
-    const dailyCur = { ...acc, date: { gte: from, lte: to } };
-    const dailyPrev = { ...acc, date: { gte: prevFrom, lte: prevTo } };
-    const postCur = { ...acc, postedAt: inRange(from, to) };
-    const postPrev = { ...acc, postedAt: inRange(prevFrom, prevTo) };
+    const ids = targetAccount ? [targetAccount.id] : undefined;
+    const curPostRange = inRange(from, to);
+    const prevPostRange = inRange(prevFrom, prevTo);
+
+    let topPostQuery = db()
+      .from("ThreadsPostStat")
+      .select(
+        "id, text, mediaType, views, likes, replies, reposts, permalink, postedAt, ThreadsAccount(username, displayName, avatarUrl)"
+      )
+      .gte("postedAt", sqlTs(curPostRange.gte))
+      .lt("postedAt", sqlTs(curPostRange.lt));
+    if (targetAccount) topPostQuery = topPostQuery.eq("threadsAccountId", targetAccount.id);
 
     const [
-      curByDate,
-      prevByDate,
-      postsCur,
-      postsPrev,
-      mediaTypesGrouped,
-      topPost,
-      reportLogs,
-      lbCur,
-      lbPrev,
-      lbPosts,
+      curDaily,
+      prevDaily,
+      mediaRows,
+      prevPostRows,
+      topPostRows,
+      reportLogRows,
+      lbCurRows,
+      lbPrevRows,
+      lbPostRows,
       folCurRows,
       folPrevRows,
     ] = await Promise.all([
       // Per hari pada periode: total sekaligus data grafik
-      prisma.threadsAccountDaily.groupBy({
-        by: ["date"],
-        where: dailyCur,
-        _sum: sums,
-        orderBy: { date: "asc" },
-      }),
+      agg.dailyByDate({ from, to, ids }),
       // Periode pembanding (jumlah hari berdata dipakai untuk menilai kelayakan)
-      prisma.threadsAccountDaily.groupBy({
-        by: ["date"],
-        where: dailyPrev,
-        _sum: { views: true, likes: true, replies: true, reposts: true },
-      }),
-      prisma.threadsPostStat.count({ where: postCur }),
-      prisma.threadsPostStat.count({ where: postPrev }),
-      prisma.threadsPostStat.groupBy({
-        by: ["mediaType"],
-        where: postCur,
-        _count: { id: true },
-      }),
-      prisma.threadsPostStat.findFirst({
-        where: postCur,
-        orderBy: { views: "desc" },
-        select: {
-          id: true,
-          text: true,
-          mediaType: true,
-          views: true,
-          likes: true,
-          replies: true,
-          reposts: true,
-          permalink: true,
-          postedAt: true,
-          threadsAccount: {
-            select: { username: true, displayName: true, avatarUrl: true },
-          },
-        },
-      }),
-      prisma.analyticsReportLog.findMany({
-        take: 4,
-        orderBy: { createdAt: "desc" },
-        select: { id: true, kind: true, periodKey: true, createdAt: true },
-      }),
+      agg.dailyByDate({ from: prevFrom, to: prevTo, ids }),
+      agg.postsByMedia({ from: curPostRange.gte, to: curPostRange.lt, ids }),
+      agg.postsByAccount({ from: prevPostRange.gte, to: prevPostRange.lt, ids }),
+      must<
+        {
+          id: string;
+          text: string;
+          mediaType: string;
+          views: number;
+          likes: number;
+          replies: number;
+          reposts: number;
+          permalink: string | null;
+          postedAt: string;
+          ThreadsAccount: { username: string | null; displayName: string; avatarUrl: string | null } | null;
+        }[]
+      >(topPostQuery.order("views", { ascending: false }).limit(1)),
+      must<{ id: string; kind: string; periodKey: string; createdAt: string }[]>(
+        db()
+          .from("AnalyticsReportLog")
+          .select("id, kind, periodKey, createdAt")
+          .order("createdAt", { ascending: false })
+          .limit(4)
+      ),
       // Peringkat seluruh cabang pada periode ini dan periode sebelumnya
-      prisma.threadsAccountDaily.groupBy({
-        by: ["threadsAccountId"],
-        where: { date: { gte: from, lte: to } },
-        _sum: sums,
-      }),
-      prisma.threadsAccountDaily.groupBy({
-        by: ["threadsAccountId"],
-        where: { date: { gte: prevFrom, lte: prevTo } },
-        _sum: { views: true },
-      }),
-      prisma.threadsPostStat.groupBy({
-        by: ["threadsAccountId"],
-        where: { postedAt: inRange(from, to) },
-        _count: { _all: true },
-      }),
+      agg.dailyByAccount({ from, to }),
+      agg.dailyByAccount({ from: prevFrom, to: prevTo }),
+      agg.postsByAccount({ from: curPostRange.gte, to: curPostRange.lt }),
       // Followers cabang akhir periode saat ini dan pembanding
-      prisma.threadsAccountDaily.findMany({
-        where: { date: { lte: to }, followers: { not: null } },
-        select: { threadsAccountId: true, date: true, followers: true },
-        orderBy: { date: "desc" },
-      }),
-      prisma.threadsAccountDaily.findMany({
-        where: { date: { lte: prevTo }, followers: { not: null } },
-        select: { threadsAccountId: true, date: true, followers: true },
-        orderBy: { date: "desc" },
-      }),
+      agg.latestFollowers({ to }),
+      agg.latestFollowers({ to: prevTo }),
     ]);
+
+    // Bentuk hasil disamakan dengan groupBy/aggregate Prisma sebelumnya
+    const bySum = (r: DailyByDate) => ({
+      date: toDate(r.date),
+      _sum: { views: r.views, likes: r.likes, replies: r.replies, reposts: r.reposts },
+    });
+    const curByDate = curDaily.map(bySum);
+    const prevByDate = prevDaily.map(bySum);
+    const mediaTypesGrouped = mediaRows.map((m) => ({ mediaType: m.mediaType, _count: { id: m.posts } }));
+    const postsCur = mediaRows.reduce((s, m) => s + m.posts, 0);
+    const postsPrev = prevPostRows.reduce((s, p) => s + p.posts, 0);
+    const topPost = topPostRows[0]
+      ? (({ ThreadsAccount, ...p }) => ({
+          ...p,
+          postedAt: toDate(p.postedAt),
+          threadsAccount: ThreadsAccount,
+        }))(topPostRows[0])
+      : null;
+    const reportLogs = reportLogRows.map((l) => ({ ...l, createdAt: toDate(l.createdAt) }));
+    const lbCur = lbCurRows.map(({ threadsAccountId, ...s }) => ({ threadsAccountId, _sum: s }));
+    const lbPrev = lbPrevRows.map((p) => ({ threadsAccountId: p.threadsAccountId, _sum: { views: p.views } }));
+    const lbPosts = lbPostRows.map((p) => ({ threadsAccountId: p.threadsAccountId, _count: { _all: p.posts } }));
 
     // ---- Total periode ini & sebelumnya
     const total = (rows: typeof curByDate) =>
@@ -165,7 +167,7 @@ export async function buildOverview(opts: OverviewParams) {
       );
 
     const cur = total(curByDate);
-    const prev = total(prevByDate as typeof curByDate);
+    const prev = total(prevByDate);
     const totalInteractions = cur.likes + cur.replies + cur.reposts;
     const prevInteractions = prev.likes + prev.replies + prev.reposts;
     const avgER = erOf(cur.views, totalInteractions);

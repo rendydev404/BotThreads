@@ -5,7 +5,7 @@ import {
   authConfigured,
   createSessionToken,
 } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { db, nowTs } from "@/lib/supabase";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { clearFailures, lockedSeconds, recordFailure } from "@/lib/rate-limit";
 import { findUserByIdentifier, normalizeIdentifier } from "@/lib/users";
@@ -98,9 +98,10 @@ export async function POST(req: NextRequest) {
   clearFailures(idKey);
 
   // Catat waktu login terakhir, tidak perlu ditunggu
-  void prisma.dashboardUser
-    .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
-    .catch(() => {});
+  const now = nowTs();
+  void Promise.resolve(
+    db().from("DashboardUser").update({ lastLoginAt: now, updatedAt: now }).eq("id", user.id)
+  ).catch(() => {});
 
   const proto = req.headers.get("x-forwarded-proto") ?? req.nextUrl.protocol;
   const res = json({ success: true }, 200);

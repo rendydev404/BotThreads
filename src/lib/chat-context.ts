@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { agg, db, must, sqlTs, toDate } from "@/lib/supabase";
 
 /**
  * Konteks data live untuk asisten AI. Semua agregasi dikerjakan di database;
@@ -44,69 +44,76 @@ async function loadFleet(): Promise<FleetContext> {
   since.setDate(since.getDate() - 6);
   since.setHours(0, 0, 0, 0);
 
-  const [accounts, total, perAccount, topPosts, flopPosts, byMedia, last7, followerRows] =
+  type PostRow = {
+    text: string;
+    views: number;
+    likes: number;
+    replies: number;
+    mediaType: string;
+    postedAt: string;
+    ThreadsAccount: { username: string | null } | null;
+  };
+  const postSel = "text, views, likes, replies, mediaType, postedAt, ThreadsAccount(username)";
+
+  const [accountRows, postCounts, perAccountRows, topPostRows, flopPostRows, mediaRows, last7Rows, followerRows] =
     await Promise.all([
-      prisma.threadsAccount.findMany({
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          _count: { select: { postStats: true } },
-        },
-      }),
-      prisma.threadsAccountDaily.aggregate({
-        _sum: { views: true, likes: true, replies: true, reposts: true },
-      }),
-      prisma.threadsAccountDaily.groupBy({
-        by: ["threadsAccountId"],
-        _sum: { views: true, likes: true, replies: true },
-      }),
-      prisma.threadsPostStat.findMany({
-        take: 30,
-        orderBy: { views: "desc" },
-        select: {
-          text: true,
-          views: true,
-          likes: true,
-          replies: true,
-          mediaType: true,
-          postedAt: true,
-          threadsAccount: { select: { username: true } },
-        },
-      }),
-      prisma.threadsPostStat.findMany({
-        take: 5,
-        where: {
-          views: { gt: 0 },
-          postedAt: { lt: new Date(Date.now() - 3 * 86_400_000) },
-        },
-        orderBy: { views: "asc" },
-        select: {
-          text: true,
-          views: true,
-          likes: true,
-          replies: true,
-          threadsAccount: { select: { username: true } },
-        },
-      }),
-      prisma.threadsPostStat.groupBy({
-        by: ["mediaType"],
-        _count: { _all: true },
-        _avg: { views: true },
-        _sum: { likes: true, replies: true, views: true },
-      }),
-      prisma.threadsAccountDaily.groupBy({
-        by: ["date"],
-        where: { date: { gte: since } },
-        orderBy: { date: "asc" },
-        _sum: { views: true, likes: true, replies: true },
-      }),
-      prisma.threadsAccountDaily.findMany({
-        where: { followers: { not: null } },
-        select: { threadsAccountId: true, date: true, followers: true },
-        orderBy: { date: "desc" },
-      }),
+      must<{ id: string; username: string | null; displayName: string }[]>(
+        db().from("ThreadsAccount").select("id, username, displayName")
+      ),
+      agg.postsByAccount(),
+      agg.dailyByAccount(),
+      must<PostRow[]>(
+        db().from("ThreadsPostStat").select(postSel).order("views", { ascending: false }).limit(30)
+      ),
+      must<PostRow[]>(
+        db()
+          .from("ThreadsPostStat")
+          .select(postSel)
+          .gt("views", 0)
+          .lt("postedAt", sqlTs(new Date(Date.now() - 3 * 86_400_000)))
+          .order("views", { ascending: true })
+          .limit(5)
+      ),
+      agg.postsByMedia(),
+      agg.dailyByDate({ from: since }),
+      agg.latestFollowers(),
     ]);
+
+  // Bentuk hasil disamakan dengan query Prisma sebelumnya
+  const countOf = new Map(postCounts.map((c) => [c.threadsAccountId, c.posts]));
+  const accounts = accountRows.map((a) => ({ ...a, _count: { postStats: countOf.get(a.id) ?? 0 } }));
+  const total = {
+    _sum: perAccountRows.reduce(
+      (s, r) => ({
+        views: s.views + r.views,
+        likes: s.likes + r.likes,
+        replies: s.replies + r.replies,
+        reposts: s.reposts + r.reposts,
+      }),
+      { views: 0, likes: 0, replies: 0, reposts: 0 }
+    ),
+  };
+  const perAccount = perAccountRows.map((r) => ({
+    threadsAccountId: r.threadsAccountId,
+    _sum: { views: r.views, likes: r.likes, replies: r.replies },
+  }));
+  const asPost = ({ ThreadsAccount, ...p }: PostRow) => ({
+    ...p,
+    postedAt: toDate(p.postedAt),
+    threadsAccount: ThreadsAccount,
+  });
+  const topPosts = topPostRows.map(asPost);
+  const flopPosts = flopPostRows.map(asPost);
+  const byMedia = mediaRows.map((m) => ({
+    mediaType: m.mediaType,
+    _count: { _all: m.posts },
+    _avg: { views: m.avg_views },
+    _sum: { likes: m.likes, replies: m.replies, views: m.views },
+  }));
+  const last7 = last7Rows.map((d) => ({
+    date: toDate(d.date),
+    _sum: { views: d.views, likes: d.likes, replies: d.replies },
+  }));
 
   const latestFollowersMap = new Map<string, number>();
   for (const r of followerRows) {
@@ -237,9 +244,9 @@ export async function getAccountDetail(
   message: string,
   usernames: string[] = []
 ): Promise<string> {
-  const accounts = await prisma.threadsAccount.findMany({
-    select: { id: true, username: true, displayName: true },
-  });
+  const accounts = await must<{ id: string; username: string | null; displayName: string }[]>(
+    db().from("ThreadsAccount").select("id, username, displayName")
+  );
 
   const norm = (s: string) => s.toLowerCase().replace(/[@_\s.-]/g, "");
   const qNorm = norm(message);
@@ -261,24 +268,32 @@ export async function getAccountDetail(
 
   if (!hit) return "";
 
-  const [sum, posts, count, latestDaily] = await Promise.all([
-    prisma.threadsAccountDaily.aggregate({
-      where: { threadsAccountId: hit.id },
-      _sum: { views: true, likes: true, replies: true },
-    }),
-    prisma.threadsPostStat.findMany({
-      where: { threadsAccountId: hit.id },
-      take: 6,
-      orderBy: { views: "desc" },
-      select: { text: true, views: true, likes: true, replies: true, mediaType: true },
-    }),
-    prisma.threadsPostStat.count({ where: { threadsAccountId: hit.id } }),
-    prisma.threadsAccountDaily.findFirst({
-      where: { threadsAccountId: hit.id, followers: { not: null } },
-      orderBy: { date: "desc" },
-      select: { followers: true, date: true },
-    }),
+  const ids = [hit.id];
+  const [sumRows, posts, countRes, latestRows] = await Promise.all([
+    agg.dailyByAccount({ ids }),
+    must<{ text: string; views: number; likes: number; replies: number; mediaType: string }[]>(
+      db()
+        .from("ThreadsPostStat")
+        .select("text, views, likes, replies, mediaType")
+        .eq("threadsAccountId", hit.id)
+        .order("views", { ascending: false })
+        .limit(6)
+    ),
+    db()
+      .from("ThreadsPostStat")
+      .select("id", { count: "exact", head: true })
+      .eq("threadsAccountId", hit.id),
+    agg.latestFollowers({ ids }),
   ]);
+  if (countRes.error) throw new Error(`Supabase: ${countRes.error.message}`);
+
+  // Bentuk hasil disamakan dengan query Prisma sebelumnya
+  const s0 = sumRows[0];
+  const sum = { _sum: { views: s0?.views ?? 0, likes: s0?.likes ?? 0, replies: s0?.replies ?? 0 } };
+  const count = countRes.count ?? 0;
+  const latestDaily = latestRows[0]
+    ? { followers: latestRows[0].followers, date: toDate(latestRows[0].date) }
+    : null;
 
   const v = sum._sum.views ?? 0;
   const inter = (sum._sum.likes ?? 0) + (sum._sum.replies ?? 0);

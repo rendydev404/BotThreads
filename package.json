@@ -7,13 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "prisma:generate": "prisma generate",
     "auth:secret": "node scripts/gen-secret.mjs",
     "user:create": "node scripts/create-user.mjs",
     "env:push": "node scripts/push-env-to-coolify.mjs"
   },
   "dependencies": {
-    "@prisma/client": "^6.4.1",
+    "@supabase/supabase-js": "^2.117.3",
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
     "next": "16.4.0",
@@ -29,7 +28,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
-    "prisma": "^6.4.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

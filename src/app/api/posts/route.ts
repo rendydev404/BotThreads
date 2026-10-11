@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { agg, db, likeEscape, must, toDate } from "@/lib/supabase";
 import { cleanPostText } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
@@ -16,88 +16,98 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit;
 
-    const whereClause: any = {};
-    if (search) {
-      whereClause.text = {
-        contains: search,
-        mode: "insensitive",
-      };
-    }
-
+    // Filter akun lewat username ➜ id (setara relasi threadsAccount.username di Prisma)
+    let accountIds: string[] | null = null;
     if (accountFilter && accountFilter !== "all") {
-      whereClause.threadsAccount = {
-        username: accountFilter,
-      };
+      const rows = await must<{ id: string }[]>(
+        db().from("ThreadsAccount").select("id").eq("username", accountFilter)
+      );
+      accountIds = rows.map((r) => r.id);
     }
 
-    if (formatFilter && formatFilter !== "all") {
-      if (formatFilter === "TEXT") {
-        whereClause.mediaType = { contains: "TEXT", mode: "insensitive" };
-      } else if (formatFilter === "VIDEO") {
-        whereClause.mediaType = { contains: "VIDEO", mode: "insensitive" };
-      } else if (formatFilter === "CAROUSEL") {
-        whereClause.mediaType = { contains: "CAROUSEL", mode: "insensitive" };
-      } else if (formatFilter === "IMAGE") {
-        whereClause.mediaType = { contains: "IMAGE", mode: "insensitive" };
-      }
-    }
+    const FORMAT_FILTERS = ["TEXT", "VIDEO", "CAROUSEL", "IMAGE"];
 
     // Determine ordering
-    let orderBy: any = { postedAt: "desc" };
+    let orderCol: "postedAt" | "views" | "likes" = "postedAt";
+    let ascending = false;
     if (tab === "top" || sortBy === "views_desc") {
-      orderBy = { views: "desc" };
+      orderCol = "views";
     } else if (tab === "flop") {
-      orderBy = { views: "asc" };
+      orderCol = "views";
+      ascending = true;
     } else if (sortBy === "likes_desc") {
-      orderBy = { likes: "desc" };
+      orderCol = "likes";
     }
 
-    const [totalCount, postsRaw, accountList, totalViewsAgg] = await Promise.all([
-      prisma.threadsPostStat.count({ where: whereClause }),
-      prisma.threadsPostStat.findMany({
-        where: whereClause,
-        skip,
-        take: limit,
-        orderBy,
-        select: {
-          id: true,
-          mediaId: true,
-          mediaType: true,
-          text: true,
-          permalink: true,
-          postedAt: true,
-          views: true,
-          likes: true,
-          replies: true,
-          reposts: true,
-          quotes: true,
-          shares: true,
-          threadsAccount: {
-            select: {
-              username: true,
-              displayName: true,
-              avatarUrl: true,
-            },
-          },
-        },
-      }),
-      prisma.threadsAccount.findMany({
-        select: {
-          username: true,
-          displayName: true,
-          _count: {
-            select: { postStats: true },
-          },
-        },
-        orderBy: {
-          postStats: { _count: "desc" },
-        },
-        take: 35,
-      }),
-      prisma.threadsPostStat.aggregate({
-        _sum: { views: true, likes: true, replies: true },
-      }),
+    let postsQuery = db()
+      .from("ThreadsPostStat")
+      .select(
+        "id, mediaId, mediaType, text, permalink, postedAt, views, likes, replies, reposts, quotes, shares, ThreadsAccount(username, displayName, avatarUrl)",
+        { count: "exact" }
+      );
+    if (search) postsQuery = postsQuery.ilike("text", `%${likeEscape(search)}%`);
+    if (accountIds) {
+      postsQuery = accountIds.length
+        ? postsQuery.in("threadsAccountId", accountIds)
+        : postsQuery.eq("threadsAccountId", "__none__");
+    }
+    if (FORMAT_FILTERS.includes(formatFilter)) {
+      postsQuery = postsQuery.ilike("mediaType", `%${formatFilter}%`);
+    }
+    postsQuery = postsQuery
+      .order(orderCol, { ascending })
+      .order("id", { ascending: true })
+      .range(skip, skip + limit - 1);
+
+    type PostRow = {
+      id: string;
+      mediaId: string;
+      mediaType: string;
+      text: string;
+      permalink: string | null;
+      postedAt: string;
+      views: number;
+      likes: number;
+      replies: number;
+      reposts: number;
+      quotes: number;
+      shares: number;
+      ThreadsAccount: { username: string | null; displayName: string; avatarUrl: string | null } | null;
+    };
+
+    const [postsRes, allAccounts, postCounts, mediaTotals] = await Promise.all([
+      postsQuery,
+      must<{ id: string; username: string | null; displayName: string }[]>(
+        db().from("ThreadsAccount").select("id, username, displayName")
+      ),
+      agg.postsByAccount(),
+      agg.postsByMedia(),
     ]);
+    if (postsRes.error) throw new Error(`Supabase: ${postsRes.error.message}`);
+
+    const totalCount = postsRes.count ?? 0;
+    const postsRaw = ((postsRes.data ?? []) as unknown as PostRow[]).map((p) => ({
+      ...p,
+      postedAt: toDate(p.postedAt),
+      threadsAccount: p.ThreadsAccount,
+    }));
+
+    const countOf = new Map(postCounts.map((c) => [c.threadsAccountId, c.posts]));
+    const accountList = allAccounts
+      .map((a) => ({
+        username: a.username,
+        displayName: a.displayName,
+        _count: { postStats: countOf.get(a.id) ?? 0 },
+      }))
+      .sort((a, b) => b._count.postStats - a._count.postStats)
+      .slice(0, 35);
+
+    const totalViewsAgg = {
+      _sum: mediaTotals.reduce(
+        (s, m) => ({ views: s.views + m.views, likes: s.likes + m.likes, replies: s.replies + m.replies }),
+        { views: 0, likes: 0, replies: 0 }
+      ),
+    };
 
     // Calculate ER and enrich posts
     const posts = postsRaw.map((post) => {
@@ -183,9 +193,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await prisma.threadsPostStat.delete({
-      where: { id },
-    });
+    const deleted = await must<{ id: string }[]>(
+      db().from("ThreadsPostStat").delete().eq("id", id).select("id")
+    );
+    if (deleted.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Post tidak ditemukan" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

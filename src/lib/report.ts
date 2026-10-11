@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { agg, db, must } from "@/lib/supabase";
 
 /**
  * Laporan periodik jaringan (mirip laporan bot Telegram):
@@ -66,14 +66,17 @@ export async function buildReport(
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
 
-  const accounts = await prisma.threadsAccount.findMany({
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      workspace: { select: { slug: true, nama: true } },
-    },
-  });
+  const rawAccounts = await must<
+    {
+      id: string;
+      username: string | null;
+      displayName: string;
+      Workspace: { slug: string; nama: string } | null;
+    }[]
+  >(db().from("ThreadsAccount").select("id, username, displayName, Workspace(slug, nama)"));
+  const accounts = rawAccounts
+    .filter((a) => a.Workspace)
+    .map((a) => ({ ...a, workspace: a.Workspace as { slug: string; nama: string } }));
 
   const byWs = new Map<string, ScopeOption>();
   for (const a of accounts) {
@@ -87,10 +90,9 @@ export async function buildReport(
   ];
   const scope = scopes.find((s) => s.slug === scopeSlug) ?? scopes.find((s) => s.slug === DEFAULT_SCOPE) ?? scopes[scopes.length - 1];
   const scoped = scope.slug === "all" ? accounts : accounts.filter((a) => a.workspace.slug === scope.slug);
-  const idFilter = scope.slug === "all" ? {} : { threadsAccountId: { in: scoped.map((a) => a.id) } };
+  const ids = scope.slug === "all" ? undefined : scoped.map((a) => a.id);
 
-  const max = await prisma.threadsAccountDaily.aggregate({ where: idFilter, _max: { date: true } });
-  const to = max._max.date;
+  const to = await agg.dailyMaxDate(ids);
   if (!to) return null;
 
   const from = new Date(to.getTime() - (days - 1) * DAY);
@@ -100,44 +102,27 @@ export async function buildReport(
   const postFrom = new Date(from.getTime() - WIB_MS);
   const postTo = new Date(to.getTime() + DAY - WIB_MS);
 
-  const sums = { views: true, likes: true, replies: true, reposts: true, quotes: true } as const;
-
-  const [cur, prev, prevDates, posts, folEnd, folStart, folRows] = await Promise.all([
-    prisma.threadsAccountDaily.groupBy({
-      by: ["threadsAccountId"],
-      where: { ...idFilter, date: { gte: from, lte: to } },
-      _sum: sums,
-    }),
-    prisma.threadsAccountDaily.groupBy({
-      by: ["threadsAccountId"],
-      where: { ...idFilter, date: { gte: prevFrom, lte: prevTo } },
-      _sum: { views: true },
-    }),
-    prisma.threadsAccountDaily.groupBy({
-      by: ["date"],
-      where: { ...idFilter, date: { gte: prevFrom, lte: prevTo } },
-    }),
-    prisma.threadsPostStat.groupBy({
-      by: ["threadsAccountId"],
-      where: { ...idFilter, postedAt: { gte: postFrom, lt: postTo } },
-      _count: { _all: true },
-    }),
-    prisma.threadsAccountDaily.aggregate({
-      where: { ...idFilter, date: to, followers: { not: null } },
-      _sum: { followers: true },
-      _count: { followers: true },
-    }),
-    prisma.threadsAccountDaily.aggregate({
-      where: { ...idFilter, date: prevTo, followers: { not: null } },
-      _sum: { followers: true },
-      _count: { followers: true },
-    }),
-    prisma.threadsAccountDaily.findMany({
-      where: { ...idFilter, date: { lte: to }, followers: { not: null } },
-      select: { threadsAccountId: true, followers: true },
-      orderBy: { date: "desc" },
-    }),
+  const [curRows, prevRows, prevDates, postRows, folEndRows, folStartRows, folLatest] = await Promise.all([
+    agg.dailyByAccount({ from, to, ids }),
+    agg.dailyByAccount({ from: prevFrom, to: prevTo, ids }),
+    agg.dailyByDate({ from: prevFrom, to: prevTo, ids }),
+    agg.postsByAccount({ from: postFrom, to: postTo, ids }),
+    agg.dailyByDate({ from: to, to, ids }),
+    agg.dailyByDate({ from: prevTo, to: prevTo, ids }),
+    agg.latestFollowers({ to, ids }),
   ]);
+
+  // Bentuk hasil disamakan dengan groupBy/aggregate Prisma sebelumnya
+  const cur = curRows.map(({ threadsAccountId, ...s }) => ({ threadsAccountId, _sum: s }));
+  const prev = prevRows.map((p) => ({ threadsAccountId: p.threadsAccountId, _sum: { views: p.views } }));
+  const posts = postRows.map((p) => ({ threadsAccountId: p.threadsAccountId, _count: { _all: p.posts } }));
+  const folOn = (rows: typeof folEndRows) => ({
+    _sum: { followers: rows[0]?.followers ?? null },
+    _count: { followers: rows[0]?.followers_count ?? 0 },
+  });
+  const folEnd = folOn(folEndRows);
+  const folStart = folOn(folStartRows);
+  const folRows = folLatest;
 
   const folMap = new Map<string, number>();
   for (const f of folRows) {

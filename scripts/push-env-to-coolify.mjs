@@ -20,8 +20,8 @@ const dry = args.includes("--dry-run");
 const deploy = args.includes("--deploy");
 
 const KEYS = [
-  "DATABASE_URL",
-  "DIRECT_URL",
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
   "GEMINI_API_KEY",
   "GEMINI_MODELS",
   "HERMES_HOST",
