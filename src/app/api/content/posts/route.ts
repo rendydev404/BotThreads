@@ -80,15 +80,69 @@ export async function POST(request: NextRequest) {
       userId,
       idempotencyKey: parsed.value.idempotencyKey,
       items: parsed.value.items,
+      partial: parsed.value.partial,
+      autoReschedule: parsed.value.autoReschedule,
     });
     if (!result.ok) return jsonError(result.status, result.error, result.details);
     const body: CreatePostsResponse = {
       success: true,
       posts: result.posts,
       ...(result.replayed ? { replayed: true } : {}),
+      ...(result.skipped ? { skipped: result.skipped } : {}),
     };
-    return NextResponse.json(body, { status: result.replayed ? 200 : 201 });
+    return NextResponse.json(body, { status: result.replayed || result.posts.length === 0 ? 200 : 201 });
   } catch (err) {
     return internalError("content/posts:POST", err);
+  }
+}
+
+/**
+ * Batalkan banyak postingan sekaligus (bulk cancel).
+ */
+export async function DELETE(request: NextRequest) {
+  const userId = await getRequestUserId(request);
+  if (!userId) return UNAUTHORIZED();
+  if (!isPublishEnabled()) return PUBLISH_DISABLED();
+
+  try {
+    const body = (await readJson(request)) as { ids?: string[] } | null;
+    if (!body || !Array.isArray(body.ids)) {
+      return jsonError(400, "Daftar ids tidak valid.");
+    }
+    if (body.ids.length === 0) {
+      return NextResponse.json({ success: true, failedCount: 0 });
+    }
+    if (body.ids.length > 50) {
+      return jsonError(400, "Maksimal 50 postingan dapat dibatalkan sekaligus.");
+    }
+
+    const { throttle } = await import("@/lib/throttle");
+    const limit = throttle(`cancel:${userId}`, 10, 60_000);
+    if (!limit.ok) {
+      return jsonError(429, "Terlalu banyak aksi pembatalan. Tunggu sebentar.", undefined, {
+        "Retry-After": String(limit.retryAfter),
+      });
+    }
+
+    const { cancelPost } = await import("@/lib/threads-publish");
+    
+    // Untuk bulk hapus/batal kita bisa jalankan secara berurutan atau Promise.all 
+    // karena memanggil operasi RPC cancelPost masing-masing.
+    let failedCount = 0;
+    const results = await Promise.all(
+      body.ids.map(async (id: string) => {
+        const res = await cancelPost({ userId, postId: id });
+        if (!res.ok) failedCount++;
+        return res;
+      })
+    );
+
+    if (failedCount === body.ids.length && body.ids.length > 0) {
+      return jsonError(400, "Gagal membatalkan semua postingan yang dipilih. Mungkin sudah diproses.");
+    }
+
+    return NextResponse.json({ success: true, failedCount });
+  } catch (err) {
+    return internalError("content/posts:DELETE", err);
   }
 }

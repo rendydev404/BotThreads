@@ -5,6 +5,7 @@
 import type {
   AccountsResponse,
   CreatePostsResponse,
+  OrchestrateEvent,
   PostItemDTO,
   PostsResponse,
   PostStatusKey,
@@ -71,11 +72,84 @@ export interface CreateItemRequest {
   aiEdited?: boolean;
 }
 
-export const createPosts = (idempotencyKey: string, items: CreateItemRequest[]) =>
+/** `partial`: item bermasalah dilewati dan dilaporkan di `skipped`, sisanya tetap dijadwalkan. */
+export const createPosts = (
+  idempotencyKey: string,
+  items: CreateItemRequest[],
+  opts: { partial?: boolean; autoReschedule?: boolean } = {}
+) =>
   call<CreatePostsResponse>("/api/content/posts", {
     method: "POST",
-    body: JSON.stringify({ idempotencyKey, items }),
+    body: JSON.stringify({
+      idempotencyKey,
+      items,
+      ...(opts.partial ? { partial: true } : {}),
+      ...(opts.autoReschedule ? { autoReschedule: true } : {}),
+    }),
   });
+
+export interface OrchestrateRequest {
+  /** null = semua akun. */
+  accountIds: string[] | null;
+  topic?: string;
+  /** "HH:MM" WIB untuk semua akun; null = jam terbaik tiap akun. */
+  time?: string | null;
+  /** Teks draf yang sedang diganti (buat ulang satu akun). */
+  avoid?: string | null;
+  /** Posting otomatis dari prompt; null/kosong = draf saja. */
+  publish?: { mode: "now" | "schedule"; dayOffset: number | null; hourWib: number | null } | null;
+}
+
+/**
+ * Jalankan Multi-Agent Orchestrator dan teruskan tiap peristiwa SSE ke `onEvent`. Selesai saat aliran
+ * ditutup; melempar `ContentApiError` bila permintaan ditolak atau koneksi putus di tengah jalan.
+ */
+export async function orchestrate(
+  body: OrchestrateRequest,
+  onEvent: (event: OrchestrateEvent) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch("/api/content/orchestrate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (err) {
+    if ((err as Error).name === "AbortError") throw err;
+    throw new ContentApiError("Koneksi bermasalah. Periksa jaringan lalu coba lagi.", 0);
+  }
+  if (!res.ok || !res.body) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new ContentApiError(
+      data?.error ?? (res.status === 401 ? "Sesi berakhir. Silakan masuk kembali." : "Orkestrasi gagal dimulai. Coba lagi."),
+      res.status
+    );
+  }
+
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    let end: number;
+    while ((end = buffer.indexOf("\n\n")) >= 0) {
+      const frame = buffer.slice(0, end);
+      buffer = buffer.slice(end + 2);
+      for (const line of frame.split("\n")) {
+        if (!line.startsWith("data:")) continue; // komentar ": ping" dilewati
+        try {
+          onEvent(JSON.parse(line.slice(5)) as OrchestrateEvent);
+        } catch {
+          /* baris rusak dilewati */
+        }
+      }
+    }
+  }
+}
 
 export interface ListParams {
   scope: "upcoming" | "history";
@@ -105,6 +179,9 @@ export const patchPost = (id: string, body: { text?: string; topicTag?: string |
 
 export const cancelPost = (id: string) =>
   call<{ success: true }>(`/api/content/posts/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+export const cancelPosts = (ids: string[]) =>
+  call<{ success: true }>(`/api/content/posts`, { method: "DELETE", body: JSON.stringify({ ids }) });
 
 export const retryPost = (id: string) =>
   call<{ success: true; post: PostItemDTO | null }>(`/api/content/posts/${encodeURIComponent(id)}/retry`, {

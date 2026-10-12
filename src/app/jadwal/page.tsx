@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ContentApiError, cancelPost, listPosts, retryPost } from "@/lib/content-client";
+import { ContentApiError, cancelPost, cancelPosts, listPosts, retryPost } from "@/lib/content-client";
 import type { PostItemDTO, PostStatusKey, PostsSummaryDTO } from "@/lib/content-types";
 import { clipChars } from "@/lib/threads-text";
 import { formatWibFull, wibDayKey, wibParts } from "@/lib/scheduling";
@@ -115,6 +115,9 @@ export default function JadwalPage() {
   const [cancelTarget, setCancelTarget] = useState<PostItemDTO | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkCancelling, setBulkCancelling] = useState(false);
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -217,6 +220,27 @@ export default function JadwalPage() {
     }
   };
 
+  const confirmBulkCancel = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkCancelling(true);
+    try {
+      const idsArray = Array.from(selectedIds);
+      await cancelPosts(idsArray);
+      
+      setLoaded((prev) => ({ ...prev, items: prev.items.filter((i) => !selectedIds.has(i.id)) }));
+      setSelectedIds(new Set());
+      setTick((t) => t + 1);
+      setShowBulkConfirm(false);
+      showNotice("success", `${idsArray.length} postingan dibatalkan dan dihapus dari antrean.`);
+    } catch (e) {
+      setShowBulkConfirm(false);
+      showNotice("error", e instanceof ContentApiError ? e.message : "Gagal membatalkan postingan yang dipilih.");
+      setTick((t) => t + 1);
+    } finally {
+      setBulkCancelling(false);
+    }
+  };
+
   const retry = async (it: PostItemDTO) => {
     setRetryingId(it.id);
     try {
@@ -234,6 +258,7 @@ export default function JadwalPage() {
     if (next === scope) return;
     setScope(next);
     setStatus(null);
+    setSelectedIds(new Set());
   };
 
   const filterAccounts = useMemo(
@@ -364,7 +389,10 @@ export default function JadwalPage() {
             <button
               key={f.label}
               type="button"
-              onClick={() => setStatus(f.key)}
+              onClick={() => {
+                setStatus(f.key);
+                setSelectedIds(new Set());
+              }}
               aria-pressed={status === f.key}
               className={cn(
                 "shrink-0 h-8 px-3.5 rounded-full border text-[13px] font-semibold transition-colors cursor-pointer",
@@ -435,12 +463,61 @@ export default function JadwalPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          {scope === "upcoming" && items.some(i => i.cancellable) && (
+            <div className="flex items-center justify-between p-3 bg-surface border border-line rounded-xl">
+              <div className="flex items-center gap-3 ml-1">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded border-line-strong text-accent focus:ring-accent cursor-pointer"
+                  checked={items.filter((i) => i.cancellable).every((i) => selectedIds.has(i.id)) && items.some((i) => i.cancellable)}
+                  onChange={(e) => {
+                    const cancellableIds = items.filter((i) => i.cancellable).map((i) => i.id);
+                    if (e.target.checked) {
+                      setSelectedIds(new Set([...selectedIds, ...cancellableIds]));
+                    } else {
+                      const next = new Set(selectedIds);
+                      cancellableIds.forEach((id) => next.delete(id));
+                      setSelectedIds(next);
+                    }
+                  }}
+                />
+                <span className="text-sm font-semibold text-fg">
+                  {selectedIds.size > 0 ? `${selectedIds.size} dipilih` : "Pilih semua"}
+                </span>
+              </div>
+              {selectedIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowBulkConfirm(true)}
+                  className="h-8 px-3 rounded-lg bg-danger-soft text-danger text-[13px] font-semibold inline-flex items-center gap-1.5 hover:bg-danger hover:text-white transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Batalkan ({selectedIds.size})
+                </button>
+              )}
+            </div>
+          )}
           {groups.map(([key, list]) => (
             <section key={key} aria-label={dayHeading(list[0].tayangPada, todayKey)}>
               <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">{dayHeading(list[0].tayangPada, todayKey)}</h3>
               <ul className="card divide-y divide-line overflow-hidden">
                 {list.map((it) => (
-                  <li key={it.dispatchId} className="p-4 flex gap-3">
+                  <li key={it.dispatchId} className="p-4 flex items-start gap-3 relative">
+                    {it.cancellable && (
+                      <div className="pt-0.5">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 rounded border-line-strong text-accent focus:ring-accent cursor-pointer"
+                          checked={selectedIds.has(it.id)}
+                          onChange={(e) => {
+                            const next = new Set(selectedIds);
+                            if (e.target.checked) next.add(it.id);
+                            else next.delete(it.id);
+                            setSelectedIds(next);
+                          }}
+                        />
+                      </div>
+                    )}
                     <div className="w-12 shrink-0 pt-0.5 text-sm font-bold text-fg tabular-nums">{timeOf(it.tayangPada)}</div>
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
@@ -549,6 +626,16 @@ export default function JadwalPage() {
         tableName='ScheduledPost + PostDispatch (antrean Threads)'
         recordIdentifier={cancelTarget ? `@${cancelTarget.account.username ?? cancelTarget.account.displayName} | ${formatWibFull(new Date(cancelTarget.tayangPada))}` : ""}
         description={cancelTarget ? `Postingan "${clipChars(cancelTarget.text, 90)}" dibatalkan dan baris antreannya dihapus. Tidak ada yang diposting.` : undefined}
+      />
+
+      <DeleteConfirmModal
+        isOpen={showBulkConfirm}
+        onClose={() => !bulkCancelling && setShowBulkConfirm(false)}
+        onConfirm={confirmBulkCancel}
+        isDeleting={bulkCancelling}
+        tableName='ScheduledPost + PostDispatch (antrean Threads)'
+        recordIdentifier={`${selectedIds.size} Postingan Terpilih`}
+        description={`Anda yakin ingin membatalkan ${selectedIds.size} postingan sekaligus? Postingan akan dihapus dari antrean dan tidak akan diposting ke Threads.`}
       />
     </div>
   );
