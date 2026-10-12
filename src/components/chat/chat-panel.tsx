@@ -10,10 +10,23 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Markdown } from "./markdown";
+import { Markdown, type CodeRenderer } from "./markdown";
+import { IdeaCard } from "./idea-card";
+import { ScopeDialog } from "./scope-dialog";
+import { IDEA_LANG, ideaPlainText, parseIdea } from "@/lib/idea-block";
+import { OrchestratorCard } from "@/components/orchestrator/orchestrator-card";
 import { quickActions, type ChatApi, type ChatMessage } from "./use-chat";
 import { ReportCard } from "./report-card";
 import { DraftCard } from "@/components/content/draft-card";
+
+/** Blok ```ide pada jawaban asisten dirender sebagai kartu ide bernomor urut. */
+function ideaRenderer(): CodeRenderer {
+  return function renderIdea(lang, code, _key, ordinal) {
+    if (lang !== IDEA_LANG) return null;
+    const idea = parseIdea(code);
+    return idea ? <IdeaCard idea={idea} index={ordinal} /> : null;
+  };
+}
 
 interface ChatPanelProps {
   chat: ChatApi;
@@ -55,7 +68,7 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
 
   const copy = async (m: ChatMessage) => {
     try {
-      await navigator.clipboard.writeText(m.content);
+      await navigator.clipboard.writeText(ideaPlainText(m.content));
       setCopiedId(m.id);
       setTimeout(() => setCopiedId(null), 1800);
     } catch {
@@ -97,7 +110,7 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                 Tanya apa saja soal akun Threads
               </h3>
               <p className="mt-1 text-sm text-muted">
-                Jawaban diambil dari data 32 akun dan semua postingannya.
+                Jawaban diambil dari data semua akun dan postingannya.
               </p>
 
               <div className="mt-6 grid gap-2 text-left">
@@ -171,10 +184,15 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                           Menyusun insight…
                         </span>
                       ) : (
-                        <Markdown text={m.content} />
+                        <Markdown text={m.content} renderCode={ideaRenderer()} />
                       )}
                     </div>
 
+                    {m.showOrchestrator && <OrchestratorCard sessionId={m.id} />}
+                    {m.orchestrator && <OrchestratorCard sessionId={m.id} preset={m.orchestrator} />}
+                    {m.scopeAsk && (
+                      <ScopeDialog sessionId={m.id} topic={m.scopeAsk.topic} time={m.scopeAsk.time} publish={m.scopeAsk.publish ?? null} />
+                    )}
                     {m.drafts && m.drafts.length > 0 && (
                       <div className="mt-3 space-y-3">
                         {m.drafts.map((d, di) => (
@@ -312,3 +330,6 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
     </div>
   );
 }
+
+
+

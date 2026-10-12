@@ -5,6 +5,7 @@ import {
   findSlot,
   formatWibFull,
   formatWibLabel,
+  fullDayKeys,
   hasGapConflict,
   hourMultiplier,
   nextFreeSlot,
@@ -122,5 +123,26 @@ describe("findScheduleViolation", () => {
     const sukapost = Array.from({ length: 6 }, (_, i) => ({ at: wibAt(NOW, 1, 6 + i * 2).getTime(), dashboard: false }));
     expect(findScheduleViolation(wibAt(NOW, 1, 23), sukapost, limits)).toBeNull();
     expect(findScheduleViolation(at, [{ at: at.getTime() + 30 * MIN, dashboard: false }], limits)).toContain("kurang dari 60 menit");
+  });
+});
+
+describe("findSlot: menit dan kuota harian", () => {
+  const now = new Date("2026-03-02T03:00:00Z"); // Senin 10.00 WIB
+
+  it("menit pada jam yang diminta", () => {
+    const t = findSlot({ now, hours: [17], takenMs: [], minGapMs: 0, minute: 30 });
+    expect([wibParts(t!).h, wibParts(t!).min]).toEqual([17, 30]);
+  });
+
+  it("melewati hari yang kuotanya penuh", () => {
+    const t = findSlot({ now, hours: [17], takenMs: [], minGapMs: 0, fullDays: new Set(["2026-03-02"]) });
+    expect(wibDayKey(t!)).toBe("2026-03-03");
+  });
+
+  it("fullDayKeys menghitung per hari WIB, bukan per hari UTC", () => {
+    // 23.30 WIB Senin dan 00.30 WIB Selasa jatuh di tanggal UTC yang sama, tetapi hari WIB berbeda.
+    const times = [wibAt(now, 0, 9).getTime(), wibAt(now, 0, 23, 30).getTime(), wibAt(now, 1, 0, 30).getTime()];
+    expect([...fullDayKeys(times, 2)]).toEqual(["2026-03-02"]);
+    expect(fullDayKeys(times, 3).size).toBe(0);
   });
 });

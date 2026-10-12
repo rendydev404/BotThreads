@@ -148,7 +148,7 @@ export function FloatingAiBubble() {
                   Asisten AI
                 </h2>
                 <p className="text-xs text-muted truncate">
-                  Terhubung ke data 32 akun
+                  Terhubung ke data semua akun
                 </p>
               </div>
             </div>

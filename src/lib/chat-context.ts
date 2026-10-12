@@ -1,4 +1,5 @@
-import { agg, db, must, sqlTs, toDate } from "@/lib/supabase";
+import { agg, db, excludedIdList, must, sqlTs, toDate } from "@/lib/supabase";
+import { withoutExcluded } from "@/lib/account-visibility";
 
 /**
  * Konteks data live untuk asisten AI. Semua agregasi dikerjakan di database;
@@ -54,21 +55,22 @@ async function loadFleet(): Promise<FleetContext> {
     ThreadsAccount: { username: string | null } | null;
   };
   const postSel = "text, views, likes, replies, mediaType, postedAt, ThreadsAccount(username)";
+  const hidden = await excludedIdList();
+  const posts = () => {
+    const q = db().from("ThreadsPostStat").select(postSel);
+    return hidden ? q.not("threadsAccountId", "in", hidden) : q;
+  };
 
   const [accountRows, postCounts, perAccountRows, topPostRows, flopPostRows, mediaRows, last7Rows, followerRows] =
     await Promise.all([
       must<{ id: string; username: string | null; displayName: string }[]>(
         db().from("ThreadsAccount").select("id, username, displayName")
-      ),
+      ).then(withoutExcluded),
       agg.postsByAccount(),
       agg.dailyByAccount(),
+      must<PostRow[]>(posts().order("views", { ascending: false }).limit(30)),
       must<PostRow[]>(
-        db().from("ThreadsPostStat").select(postSel).order("views", { ascending: false }).limit(30)
-      ),
-      must<PostRow[]>(
-        db()
-          .from("ThreadsPostStat")
-          .select(postSel)
+        posts()
           .gt("views", 0)
           .lt("postedAt", sqlTs(new Date(Date.now() - 3 * 86_400_000)))
           .order("views", { ascending: true })
@@ -244,8 +246,10 @@ export async function getAccountDetail(
   message: string,
   usernames: string[] = []
 ): Promise<string> {
-  const accounts = await must<{ id: string; username: string | null; displayName: string }[]>(
-    db().from("ThreadsAccount").select("id, username, displayName")
+  const accounts = withoutExcluded(
+    await must<{ id: string; username: string | null; displayName: string }[]>(
+      db().from("ThreadsAccount").select("id, username, displayName")
+    )
   );
 
   const norm = (s: string) => s.toLowerCase().replace(/[@_\s.-]/g, "");

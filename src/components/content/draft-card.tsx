@@ -30,6 +30,8 @@ interface Sent {
   postId: string;
   at: string;
   mode: "now" | "schedule";
+  /** Jam semula bila sistem menggesernya karena bentrok. */
+  movedFrom?: string;
 }
 
 interface DraftMeta {
@@ -105,6 +107,9 @@ export function DraftCard({ draft, index }: { draft: ContentDraft; index?: numbe
     setBusy(true);
     setError(null);
     try {
+      // Jam masih jam saran AI (atau "sekarang"): bentrok diselesaikan sistem dengan menggeser ke slot
+      // kosong terdekat. Jam yang dipilih sendiri oleh pengguna tetap dicek ketat.
+      const autoReschedule = pending === "now" || publishAt === meta.suggestedAt;
       const res = await createPosts(keyRef.current.key, [
         {
           threadsAccountId: accountId,
@@ -114,9 +119,14 @@ export function DraftCard({ draft, index }: { draft: ContentDraft; index?: numbe
           aiModel: meta.model,
           aiEdited,
         },
-      ]);
+      ], { autoReschedule });
       const created = res.posts[0];
-      setSent({ postId: created.postId, at: created.tayangPada, mode: pending });
+      setSent({
+        postId: created.postId,
+        at: created.tayangPada,
+        mode: created.rescheduledFrom ? "schedule" : pending,
+        movedFrom: created.rescheduledFrom,
+      });
       setPending(null);
     } catch (e) {
       const err = e instanceof ContentApiError ? e : null;
@@ -172,6 +182,12 @@ export function DraftCard({ draft, index }: { draft: ContentDraft; index?: numbe
           <PostStatusChip status={status} />
         </div>
         <p className="text-sm text-fg whitespace-pre-wrap break-words">{fields.text.trim()}</p>
+        {sent.movedFrom && (
+          <p className="flex items-start gap-2 rounded-xl bg-accent-soft text-accent p-3 text-[13px] font-medium">
+            <Sparkles className="w-4 h-4 mt-0.5 shrink-0" />
+            Digeser otomatis dari {formatWibFull(new Date(sent.movedFrom))} ke {formatWibFull(new Date(sent.at))} supaya tidak bentrok dengan postingan lain di akun ini.
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] text-muted">
           <span className="inline-flex items-center gap-1.5">
             <CalendarClock className="w-3.5 h-3.5" />

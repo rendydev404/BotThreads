@@ -4,7 +4,7 @@
  * (`= ANY($ids)`), bukan satu query per akun. Bobot paruh waktu 14 hari, 60 hari terakhir.
  * Cache 10 menit per akun.
  */
-import { rpc } from "@/lib/supabase";
+import { rpc, scopedIds } from "@/lib/supabase";
 import {
   hourMultiplier,
   overallAverage,
@@ -40,6 +40,22 @@ async function fetchRows(ids: string[] | null, now: Date): Promise<HourSqlRow[]>
   return rpc<HourSqlRow[]>("dash_hour_rows", { p_ids: ids, p_now: now, p_half_life: HALF_LIFE_DAYS });
 }
 
+/** Pola jam seluruh jaringan tanpa akun yang dikecualikan (baris per akun digabung per jam). */
+async function fetchNetworkRows(now: Date): Promise<HourSqlRow[]> {
+  const visible = await scopedIds();
+  if (!visible) return fetchRows(null, now);
+  const byHour = new Map<number, { n: number; vw: number; w: number }>();
+  for (const r of await fetchRows(visible, now)) {
+    const h = byHour.get(r.hour) ?? { n: 0, vw: 0, w: 0 };
+    h.n += r.n;
+    const w = r.w ?? 0;
+    h.vw += r.avg * w;
+    h.w += w;
+    byHour.set(r.hour, h);
+  }
+  return [...byHour].map(([hour, h]) => ({ aid: null, hour, n: h.n, avg: h.w ? Math.round(h.vw / h.w) : 0, w: h.w }));
+}
+
 function summarize(rows: HourRow[]): { best: BestHour[]; overall: number } {
   return { best: rankBestHours(rows), overall: overallAverage(rows) };
 }
@@ -61,7 +77,7 @@ export async function bestHoursForAccounts(
   const needNetwork = !fresh(NETWORK_KEY);
   const [accountRows, networkRows] = await Promise.all([
     missing.length ? fetchRows(missing, now) : Promise.resolve([] as HourSqlRow[]),
-    needNetwork ? fetchRows(null, now) : Promise.resolve(null),
+    needNetwork ? fetchNetworkRows(now) : Promise.resolve(null),
   ]);
 
   if (missing.length) {

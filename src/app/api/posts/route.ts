@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { agg, db, likeEscape, must, toDate } from "@/lib/supabase";
+import { agg, db, excludedIdList, likeEscape, must, toDate } from "@/lib/supabase";
+import { isExcludedUsername, withoutExcluded } from "@/lib/account-visibility";
 import { cleanPostText } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
@@ -19,11 +20,15 @@ export async function GET(request: NextRequest) {
     // Filter akun lewat username ➜ id (setara relasi threadsAccount.username di Prisma)
     let accountIds: string[] | null = null;
     if (accountFilter && accountFilter !== "all") {
-      const rows = await must<{ id: string }[]>(
-        db().from("ThreadsAccount").select("id").eq("username", accountFilter)
-      );
-      accountIds = rows.map((r) => r.id);
+      accountIds = isExcludedUsername(accountFilter)
+        ? []
+        : (
+            await must<{ id: string }[]>(
+              db().from("ThreadsAccount").select("id").eq("username", accountFilter)
+            )
+          ).map((r) => r.id);
     }
+    const hidden = accountIds ? null : await excludedIdList();
 
     const FORMAT_FILTERS = ["TEXT", "VIDEO", "CAROUSEL", "IMAGE"];
 
@@ -46,6 +51,7 @@ export async function GET(request: NextRequest) {
         { count: "exact" }
       );
     if (search) postsQuery = postsQuery.ilike("text", `%${likeEscape(search)}%`);
+    if (hidden) postsQuery = postsQuery.not("threadsAccountId", "in", hidden);
     if (accountIds) {
       postsQuery = accountIds.length
         ? postsQuery.in("threadsAccountId", accountIds)
@@ -79,7 +85,7 @@ export async function GET(request: NextRequest) {
       postsQuery,
       must<{ id: string; username: string | null; displayName: string }[]>(
         db().from("ThreadsAccount").select("id, username, displayName")
-      ),
+      ).then(withoutExcluded),
       agg.postsByAccount(),
       agg.postsByMedia(),
     ]);

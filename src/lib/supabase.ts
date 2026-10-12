@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { isExcludedUsername } from "@/lib/account-visibility";
 
 /**
  * Akses database lewat Supabase REST memakai service role key.
@@ -136,21 +137,71 @@ const postArgs = (a: PostArgs) => ({
   p_ids: a.ids,
 });
 
+// ---------- Akun yang dikecualikan dari dashboard (lihat account-visibility.ts) ----------
+
+interface AccountScope {
+  visibleIds: string[];
+  excludedIds: string[];
+}
+
+const SCOPE_TTL_MS = 60_000;
+let scopeCache: { at: number; value: AccountScope } | null = null;
+let scopePending: Promise<AccountScope> | null = null;
+
+/** Id akun yang tampil dan yang dikecualikan (cache 60 detik, permintaan serentak digabung). */
+export async function accountScope(): Promise<AccountScope> {
+  if (scopeCache && Date.now() - scopeCache.at < SCOPE_TTL_MS) return scopeCache.value;
+  scopePending ??= must<{ id: string; username: string | null }[]>(
+    db().from("ThreadsAccount").select("id, username")
+  )
+    .then((rows) => {
+      const value: AccountScope = { visibleIds: [], excludedIds: [] };
+      for (const r of rows) (isExcludedUsername(r.username) ? value.excludedIds : value.visibleIds).push(r.id);
+      scopeCache = { at: Date.now(), value };
+      return value;
+    })
+    .finally(() => {
+      scopePending = null;
+    });
+  return scopePending;
+}
+
+/**
+ * Id untuk parameter p_ids. Tanpa akun dikecualikan, perilaku lama dipertahankan
+ * (undefined = tanpa filter); bila ada, "semua akun" berarti semua akun yang tampil.
+ */
+export async function scopedIds(ids?: string[]): Promise<string[] | undefined> {
+  const { visibleIds, excludedIds } = await accountScope();
+  if (!excludedIds.length) return ids;
+  if (!ids) return visibleIds;
+  const hidden = new Set(excludedIds);
+  return ids.filter((id) => !hidden.has(id));
+}
+
+/** Filter PostgREST `not.in` untuk membuang baris milik akun yang dikecualikan. */
+export async function excludedIdList(): Promise<string | null> {
+  const { excludedIds } = await accountScope();
+  return excludedIds.length ? `(${excludedIds.join(",")})` : null;
+}
+
 export const agg = {
-  dailyByDate: (a: DailyArgs = {}) => rpc<DailyByDate[]>("dash_daily_by_date", dailyArgs(a)),
-  dailyByAccount: (a: DailyArgs = {}) =>
-    rpc<DailyByAccount[]>("dash_daily_by_account", dailyArgs(a)),
+  dailyByDate: async (a: DailyArgs = {}) =>
+    rpc<DailyByDate[]>("dash_daily_by_date", dailyArgs({ ...a, ids: await scopedIds(a.ids) })),
+  dailyByAccount: async (a: DailyArgs = {}) =>
+    rpc<DailyByAccount[]>("dash_daily_by_account", dailyArgs({ ...a, ids: await scopedIds(a.ids) })),
   dailyMaxDate: async (ids?: string[]) => {
-    const v = await rpc<string | null>("dash_daily_max_date", { p_ids: ids });
+    const v = await rpc<string | null>("dash_daily_max_date", { p_ids: await scopedIds(ids) });
     return v ? toDate(v) : null;
   },
-  latestFollowers: (a: { to?: Date; ids?: string[] } = {}) =>
+  latestFollowers: async (a: { to?: Date; ids?: string[] } = {}) =>
     rpc<LatestFollowers[]>("dash_latest_followers", {
       p_to: a.to ? sqlDate(a.to) : undefined,
-      p_ids: a.ids,
+      p_ids: await scopedIds(a.ids),
     }),
-  postsByAccount: (a: PostArgs = {}) => rpc<PostsByAccount[]>("dash_posts_by_account", postArgs(a)),
-  postsByMedia: (a: PostArgs = {}) => rpc<PostsByMedia[]>("dash_posts_by_media", postArgs(a)),
+  postsByAccount: async (a: PostArgs = {}) =>
+    rpc<PostsByAccount[]>("dash_posts_by_account", postArgs({ ...a, ids: await scopedIds(a.ids) })),
+  postsByMedia: async (a: PostArgs = {}) =>
+    rpc<PostsByMedia[]>("dash_posts_by_media", postArgs({ ...a, ids: await scopedIds(a.ids) })),
 };
 
 /** Alias dipakai modul penjadwalan: timestamp UTC dari database -> Date. */

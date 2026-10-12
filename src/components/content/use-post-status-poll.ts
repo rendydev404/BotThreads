@@ -34,7 +34,11 @@ export function usePostStatusPoll(ids: string[]): Record<string, PostItemDTO> {
         return;
       }
       try {
-        const res = await fetchPostsByIds([...active.current].slice(0, 20));
+        // API membatasi 20 id per permintaan: dipecah dan diminta paralel (32 akun = 2 permintaan).
+        const ids = [...active.current];
+        const chunks = Array.from({ length: Math.ceil(ids.length / 20) }, (_, i) => ids.slice(i * 20, i * 20 + 20));
+        const pages = await Promise.all(chunks.map((c) => fetchPostsByIds(c)));
+        const res = { items: pages.flatMap((p) => p.items) };
         if (stopped) return;
         setItems((prev) => {
           const next = { ...prev };

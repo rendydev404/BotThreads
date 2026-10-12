@@ -33,6 +33,10 @@ export interface CreateItemInput {
 export interface CreateBody {
   idempotencyKey: string;
   items: CreateItemInput[];
+  /** Item yang melanggar aturan dilewati (dilaporkan per akun) alih-alih menggagalkan seluruh kiriman. */
+  partial: boolean;
+  /** Bentrok jadwal digeser otomatis ke slot kosong terdekat (sistem yang mengatur jadwal). */
+  autoReschedule: boolean;
 }
 
 const KEY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
@@ -88,7 +92,79 @@ export function parseCreateBody(body: unknown): Parsed<CreateBody> {
       aiEdited: raw.aiEdited === true,
     });
   }
-  return { ok: true, value: { idempotencyKey: key, items } };
+  return {
+    ok: true,
+    value: { idempotencyKey: key, items, partial: body.partial === true, autoReschedule: body.autoReschedule === true },
+  };
+}
+
+/** Batas akun per putaran orkestrator (jaringan saat ini puluhan akun). */
+export const MAX_ORCHESTRATE_ACCOUNTS = 100;
+
+export interface OrchestrateBody {
+  /** null = semua akun. */
+  accountIds: string[] | null;
+  topic: string;
+  /** Jam manual WIB untuk semua akun; null = jam terbaik tiap akun. */
+  fixedTime: { hour: number; minute: number } | null;
+  /** Teks draf yang sedang diganti (buat ulang satu akun). */
+  avoid: string | null;
+  /** Posting otomatis: draf langsung masuk antrean; null = draf saja (ditinjau dulu). */
+  publish: { mode: "now" | "schedule"; dayOffset: number | null; hourWib: number | null } | null;
+}
+
+export function parseOrchestrateBody(body: unknown): Parsed<OrchestrateBody> {
+  if (!isRecord(body)) return fail("Permintaan tidak valid.");
+
+  let accountIds: string[] | null = null;
+  if (body.accountIds !== undefined && body.accountIds !== null) {
+    const ids = body.accountIds;
+    if (!Array.isArray(ids) || ids.length === 0) return fail("Pilih minimal satu akun.");
+    if (ids.length > MAX_ORCHESTRATE_ACCOUNTS) return fail(`Maksimal ${MAX_ORCHESTRATE_ACCOUNTS} akun per putaran.`);
+    if (ids.some((id) => typeof id !== "string" || !id || id.length > 100)) return fail("Daftar akun tidak valid.");
+    accountIds = [...new Set(ids as string[])];
+  }
+
+  const topic = body.topic;
+  if (topic !== undefined && topic !== null && typeof topic !== "string") return fail("Topik tidak valid.");
+  if (typeof topic === "string" && topic.length > MAX_BRIEF_CHARS) {
+    return fail(`Topik maksimal ${MAX_BRIEF_CHARS} karakter.`);
+  }
+
+  let fixedTime: OrchestrateBody["fixedTime"] = null;
+  if (body.time !== undefined && body.time !== null && body.time !== "") {
+    const m = typeof body.time === "string" ? /^([01]\d|2[0-3]):([0-5]\d)$/.exec(body.time) : null;
+    if (!m) return fail("Format jam harus HH:MM (WIB).");
+    fixedTime = { hour: Number(m[1]), minute: Number(m[2]) };
+  }
+
+  const avoid = body.avoid;
+  if (avoid !== undefined && avoid !== null && (typeof avoid !== "string" || avoid.length > MAX_RAW_TEXT)) {
+    return fail("Teks yang dihindari tidak valid.");
+  }
+
+  let publish: OrchestrateBody["publish"] = null;
+  if (body.publish !== undefined && body.publish !== null) {
+    const p = body.publish;
+    const intOrNull = (v: unknown, min: number, max: number) =>
+      v === null || v === undefined ? null : Number.isInteger(v) && (v as number) >= min && (v as number) <= max ? (v as number) : NaN;
+    if (!isRecord(p) || (p.mode !== "now" && p.mode !== "schedule")) return fail("Mode posting tidak valid.");
+    const dayOffset = intOrNull(p.dayOffset, 0, 30);
+    const hourWib = intOrNull(p.hourWib, 0, 23);
+    if (Number.isNaN(dayOffset) || Number.isNaN(hourWib)) return fail("Jadwal posting tidak valid.");
+    publish = { mode: p.mode, dayOffset, hourWib };
+  }
+
+  return {
+    ok: true,
+    value: {
+      accountIds,
+      topic: typeof topic === "string" ? topic.trim() : "",
+      fixedTime,
+      avoid: typeof avoid === "string" && avoid.trim() ? avoid.trim() : null,
+      publish,
+    },
+  };
 }
 
 export interface RecommendBody {

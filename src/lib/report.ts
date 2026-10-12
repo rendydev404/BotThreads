@@ -1,4 +1,5 @@
 import { agg, db, must } from "@/lib/supabase";
+import { withoutExcluded } from "@/lib/account-visibility";
 
 /**
  * Laporan periodik jaringan (mirip laporan bot Telegram):
@@ -74,7 +75,7 @@ export async function buildReport(
       Workspace: { slug: string; nama: string } | null;
     }[]
   >(db().from("ThreadsAccount").select("id, username, displayName, Workspace(slug, nama)"));
-  const accounts = rawAccounts
+  const accounts = withoutExcluded(rawAccounts)
     .filter((a) => a.Workspace)
     .map((a) => ({ ...a, workspace: a.Workspace as { slug: string; nama: string } }));
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findMentionedAccounts, parseDraftIntent, parseHour } from "../content-intent";
+import { findMentionedAccounts, isOrchestratorIntent, parseDraftIntent, parseHour } from "../content-intent";
 import type { PublishAccount } from "../publish-accounts";
 
 describe("parseHour", () => {
@@ -80,5 +80,28 @@ describe("findMentionedAccounts", () => {
   });
   it("tanpa sebutan akun", () => {
     expect(findMentionedAccounts("buat 3 draf", list)).toEqual([]);
+  });
+});
+
+describe("isOrchestratorIntent", () => {
+  it.each([
+    "buat ide konten",
+    "Bikinkan ide konten buat hari ini",
+    "buat postingan untuk semua akun",
+    "tulis caption tiap cabang dong",
+    "jalankan multi-agent orchestrator",
+  ])("membuka orkestrator: %s", (text) => {
+    expect(isOrchestratorIntent(text)).toBe(true);
+  });
+
+  it.each([
+    "Apa pola postingan terbaik dan kenapa berhasil?",
+    "Buat 3 draf postingan untuk besok",
+    "Buat ide postingan dari postingan terbaik",
+    "Peringkat akun berdasarkan views minggu ini",
+    "buat ide konten untuk @sukashawarmabeji",
+    "gimana cara bikin ide konten untuk semua akun?",
+  ])("tidak membajak pesan lain: %s", (text) => {
+    expect(isOrchestratorIntent(text)).toBe(false);
   });
 });

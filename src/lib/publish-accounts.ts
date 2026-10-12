@@ -6,6 +6,7 @@
  * dikerjakan worker auto-suka; di sini hanya menilai kesiapan akun.
  */
 import { rpc, utc } from "@/lib/supabase";
+import { withoutExcluded } from "./account-visibility";
 import { publishTestAccounts } from "./content-config";
 import { REASON_LABEL, type PublishAccountDTO, type PublishReason } from "./content-types";
 import { evaluateReadiness } from "./readiness";
@@ -45,7 +46,7 @@ async function load(): Promise<PublishAccount[]> {
 
   const now = new Date();
   const allow = publishTestAccounts();
-  return rows.map((r) => {
+  return withoutExcluded(rows).map((r) => {
     const reason = evaluateReadiness({ ...r, accessExpiresAt: utc(r.accessExpiresAt) }, now, allow);
     return {
       id: r.id,

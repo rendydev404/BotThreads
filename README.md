@@ -59,7 +59,11 @@ Env wajib: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
 | `CONTENT_PUBLISH_TEST_ACCOUNTS` | kosong | Daftar id atau username akun Threads (dipisah koma) yang boleh diposting. Kosong berarti tanpa pembatasan akun. |
 | `CONTENT_MAX_POSTS_PER_DAY` | `6` | Batas posting per akun per hari (WIB). |
 | `CONTENT_MIN_GAP_MINUTES` | `60` | Jarak minimum antar posting pada akun yang sama. |
-| `GEMINI_API_KEY` | - | Dipakai rekomendasi draf (sisi server saja). |
+| `HERMES_API_KEY` | - | Kunci router AI (9Router). Tanpa ini semua panggilan AI langsung memakai Gemini. |
+| `HERMES_BASE_URL` | `http://$HERMES_HOST:$NINE_ROUTER_PORT/v1` | Alamat router AI bergaya OpenAI. |
+| `HERMES_MODELS` | `hermes-combo` | Model router, dipisah koma, dicoba berurutan. |
+| `GEMINI_API_KEY` | - | Cadangan bila router gagal (sisi server saja). |
+| `ORCHESTRATE_CONCURRENCY` | `10` | Jumlah agen Multi-Agent Orchestrator yang berjalan serentak (1-16). |
 
 ### Tes
 

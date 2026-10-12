@@ -34,7 +34,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex bg-canvas text-fg font-sans">
+      <body suppressHydrationWarning className="min-h-full flex bg-canvas text-fg font-sans">
         <ThemeProvider>
           <AppShell>{children}</AppShell>
         </ThemeProvider>
@@ -42,3 +42,6 @@ export default function RootLayout({
     </html>
   );
 }
+
+
+

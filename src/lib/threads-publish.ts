@@ -14,6 +14,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { rpc, utc, utcOrNull } from "@/lib/supabase";
+import { isExcludedUsername } from "./account-visibility";
 import {
   DASHBOARD_SOURCE,
   DUPLICATE_WINDOW_MS,
@@ -30,11 +31,13 @@ import {
   type PostItemDTO,
   type PostStatusKey,
   type PostsSummaryDTO,
+  type SkippedPostDTO,
 } from "./content-types";
 import { getPublishAccountMap, reasonText, type PublishAccount } from "./publish-accounts";
 import { isAccountError, postStatusView } from "./post-status";
 import {
   findScheduleViolation,
+  resolveSlot,
   parsePublishAt,
   startOfWibDay,
   type ExistingSlot,
@@ -252,9 +255,10 @@ export async function listPosts(
 
   const rows = raw.map(parseListRow);
   const page = rows.slice(0, LIST_PAGE_SIZE);
+  // Kursor dari baris terakhir sebelum disaring, supaya halaman berikutnya tidak melompat.
   const last = page.at(-1);
   return {
-    items: page.map((r) => toPostItem(r, now)),
+    items: page.filter((r) => !isExcludedUsername(r.username)).map((r) => toPostItem(r, now)),
     nextCursor: rows.length > LIST_PAGE_SIZE && last ? encodeCursor(last.tayangPada, last.dispatchId) : null,
     ...(summary ? { summary } : {}),
   };
@@ -272,10 +276,21 @@ export interface CreateInput {
   userId: string;
   idempotencyKey: string;
   items: CreateItemInput[];
+  /**
+   * Mode massal (orkestrator): item yang melanggar aturan dilewati dan dilaporkan di `skipped`,
+   * sisanya tetap masuk antrean. Tanpa ini satu item bermasalah menggagalkan seluruh kiriman.
+   */
+  partial?: boolean;
+  /**
+   * Sistem yang mengatur jadwal (orkestrator/posting otomatis): bentrok jarak minimal atau kuota harian
+   * diselesaikan dengan menggeser ke slot kosong terdekat, bukan ditolak. Pergeseran dilaporkan di
+   * `rescheduledFrom` tiap posting.
+   */
+  autoReschedule?: boolean;
 }
 
 export type CreateResult =
-  | { ok: true; posts: CreatedPostDTO[]; replayed: boolean }
+  | { ok: true; posts: CreatedPostDTO[]; replayed: boolean; skipped?: SkippedPostDTO[] }
   | Failure;
 
 // Permintaan serentak dengan key sama (klik ganda) digabung jadi satu eksekusi.
@@ -313,6 +328,8 @@ interface Prepared {
   /** Teks yang disimpan di ScheduledPost.caption (boleh memuat {nama_cabang}). */
   caption: string;
   topicTag: string | null;
+  /** Waktu semula sebelum digeser otomatis karena bentrok. */
+  movedFrom?: Date;
 }
 
 async function doCreate(input: CreateInput, now: Date): Promise<CreateResult> {
@@ -325,27 +342,33 @@ async function doCreate(input: CreateInput, now: Date): Promise<CreateResult> {
   }
 
   const accounts = await getPublishAccountMap([...new Set(input.items.map((i) => i.threadsAccountId))]);
+  const partial = input.partial === true;
+  const skipped: SkippedPostDTO[] = [];
   const errors: string[] = [];
-  const prepared: Prepared[] = [];
+  let prepared: Prepared[] = [];
 
   for (const item of input.items) {
     const account = accounts.get(item.threadsAccountId);
+    const reject = (error: string) => {
+      errors.push(account ? `${who(account)}: ${error}` : error);
+      skipped.push({ threadsAccountId: item.threadsAccountId, error });
+    };
     if (!account) {
-      errors.push("Akun Threads tidak ditemukan.");
+      reject("Akun Threads tidak ditemukan.");
       continue;
     }
     if (!account.ready || !account.outletId || !account.socialAccountId || !account.workspaceId) {
-      errors.push(`${who(account)}: akun belum siap diposting (${reasonText(account.reason) || "belum dipetakan"}).`);
+      reject(`akun belum siap diposting (${reasonText(account.reason) || "belum dipetakan"}).`);
       continue;
     }
     const check = validateThreadsText(item.text, account.outletNama ?? "", item.topicTag);
     if (!check.ok) {
-      errors.push(`${who(account)}: ${check.error}`);
+      reject(check.error);
       continue;
     }
     const when = parsePublishAt(item.publishAt, now);
     if (!when.ok) {
-      errors.push(`${who(account)}: ${when.error}`);
+      reject(when.error);
       continue;
     }
     prepared.push({
@@ -357,24 +380,36 @@ async function doCreate(input: CreateInput, now: Date): Promise<CreateResult> {
       topicTag: check.topicTag,
     });
   }
-  if (errors.length) return failure(400, errors[0], errors);
+  if (errors.length && !partial) return failure(400, errors[0], errors);
 
   // Teks identik ke beberapa akun dianggap spam oleh Threads, kecuali memakai {nama_cabang}.
   const seen = new Map<string, string>();
+  const unique: Prepared[] = [];
   for (const p of prepared) {
     const key = normalizeForCompare(p.caption);
     const other = seen.get(key);
     if (other && other !== p.account.id && !hasBranchTag(p.caption)) {
-      return failure(
-        409,
-        "Teks identik ke beberapa akun berisiko dianggap spam oleh Threads. Variasikan teks tiap akun atau pakai {nama_cabang}."
-      );
+      const error =
+        "Teks identik ke beberapa akun berisiko dianggap spam oleh Threads. Variasikan teks tiap akun atau pakai {nama_cabang}.";
+      if (!partial) return failure(409, error);
+      skipped.push({ threadsAccountId: p.account.id, error });
+      continue;
     }
     seen.set(key, p.account.id);
+    unique.push(p);
   }
+  prepared = unique;
 
-  const violation = await checkRules(prepared, now);
-  if (violation) return violation;
+  if (prepared.length) {
+    const violations = await checkRules(prepared, now, input.autoReschedule === true);
+    if (violations.size && !partial) {
+      const [first, message] = [...violations][0];
+      return failure(409, `${who(first.account)}: ${message}`);
+    }
+    for (const [p, error] of violations) skipped.push({ threadsAccountId: p.account.id, error });
+    prepared = prepared.filter((p) => !violations.has(p));
+  }
+  if (prepared.length === 0) return { ok: true, posts: [], replayed: false, skipped };
 
   const batchId = randomUUID();
   const items: Record<string, unknown>[] = [];
@@ -408,6 +443,7 @@ async function doCreate(input: CreateInput, now: Date): Promise<CreateResult> {
       threadsAccountId: p.account.id,
       tayangPada: p.at.toISOString(),
       status: "MENUNGGU",
+      ...(p.movedFrom ? { rescheduledFrom: p.movedFrom.toISOString() } : {}),
     });
   }
 
@@ -418,11 +454,15 @@ async function doCreate(input: CreateInput, now: Date): Promise<CreateResult> {
     if (isMissingAuditTable(err)) throw new MissingAuditTableError();
     throw err;
   }
-  return { ok: true, posts, replayed: false };
+  return { ok: true, posts, replayed: false, ...(partial ? { skipped } : {}) };
 }
 
-/** Anti-spam (kuota harian, jarak minimal) dan duplikat 7 hari terhadap data DB. Null bila lolos. */
-async function checkRules(prepared: Prepared[], now: Date): Promise<Failure | null> {
+/**
+ * Anti-spam (kuota harian, jarak minimal) dan duplikat 7 hari terhadap data DB. Mengembalikan
+ * pelanggaran per item, urut kronologis; kosong bila semua lolos. Item yang melanggar tidak ikut
+ * menjadi pembanding item berikutnya.
+ */
+async function checkRules(prepared: Prepared[], now: Date, autoReschedule = false): Promise<Map<Prepared, string>> {
   const ids = [...new Set(prepared.map((p) => p.account.id))];
   const gapMs = minGapMinutes() * 60_000;
   const limits = { minGapMs: gapMs, maxPerDay: maxPostsPerDay() };
@@ -453,21 +493,33 @@ async function checkRules(prepared: Prepared[], now: Date): Promise<Failure | nu
 
   // Urut waktu per akun supaya pelanggaran dilaporkan pada item yang paling akhir secara kronologis.
   const ordered = [...prepared].sort((a, b) => a.at.getTime() - b.at.getTime());
+  const violations = new Map<Prepared, string>();
   for (const p of ordered) {
-    const violation = findScheduleViolation(p.at, slotsByAccount.get(p.account.id)!, limits);
-    if (violation) return failure(409, `${who(p.account)}: ${violation}`);
+    const slots = slotsByAccount.get(p.account.id)!;
+    const violation = findScheduleViolation(p.at, slots, limits);
+    if (violation) {
+      const moved = autoReschedule ? resolveSlot(p.at, slots, limits, now) : null;
+      if (!moved) {
+        violations.set(p, autoReschedule ? `${violation} Tidak ada slot kosong dalam 14 hari ke depan.` : violation);
+        continue;
+      }
+      p.movedFrom = p.at;
+      p.at = moved;
+      p.immediate = false;
+    }
 
     const known = textsByAccount.get(p.account.id)!;
     const final = validateThreadsText(p.caption, p.account.outletNama ?? "", p.topicTag);
     const candidates = [normalizeForCompare(p.caption), final.ok ? normalizeForCompare(final.text) : ""];
     if (candidates.some((c) => c && known.has(c))) {
-      return failure(409, `${who(p.account)}: teks yang sama sudah diposting atau dijadwalkan dalam 7 hari terakhir.`);
+      violations.set(p, "teks yang sama sudah diposting atau dijadwalkan dalam 7 hari terakhir.");
+      continue;
     }
     // Item lain di batch yang sama ikut menjadi pembanding.
     slotsByAccount.get(p.account.id)!.push({ at: p.at.getTime(), dashboard: true });
     for (const c of candidates) if (c) known.add(c);
   }
-  return null;
+  return violations;
 }
 
 /* ------------------------------------------------------------------ ubah / batal / kirim ulang */

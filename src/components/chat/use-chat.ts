@@ -2,7 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { Report } from "@/lib/report";
-import type { ContentDraft } from "@/lib/content-types";
+import type { ContentDraft, QueueResultDTO } from "@/lib/content-types";
+import type { PublishIntent } from "@/lib/content-intent";
 
 /** Tombol aksi cepat (seperti tombol di bot Telegram). */
 export const quickActions = [
@@ -25,6 +26,14 @@ export interface ChatMessage {
   report?: Report;
   /** Draf postingan siap edit dari asisten (FR-3) */
   drafts?: ContentDraft[];
+  /** Menampilkan Multi-Agent Orchestrator UI */
+  showOrchestrator?: boolean;
+  /** Cakupan akun belum jelas: tampilkan dialog pilihan akun. */
+  scopeAsk?: { topic: string; time: string | null; publish: PublishIntent | null };
+  /** Cakupan jelas dari chat: orkestrator langsung berjalan untuk akun ini (null = semua). */
+  orchestrator?: { accountIds: string[] | null; topic: string; time: string | null; publish: PublishIntent | null };
+  /** Draf satu akun yang sudah otomatis masuk antrean (id draf -> hasil). */
+  queued?: Record<string, QueueResultDTO>;
   /** Kartu sudah tampil, insight AI masih disusun */
   pending?: boolean;
 }
@@ -100,13 +109,13 @@ export function useChat(account = "all") {
           const id = cardId;
           update((prev) =>
             prev.map((m) =>
-              m.id === id ? { ...m, content: data.message, pending: false, report: data.report ?? m.report, drafts: data.drafts?.length ? data.drafts : m.drafts } : m
+              m.id === id ? { ...m, content: data.message, pending: false, report: data.report ?? m.report, drafts: data.drafts?.length ? data.drafts : m.drafts, showOrchestrator: data.showOrchestrator ?? m.showOrchestrator, scopeAsk: data.askScope ?? m.scopeAsk, orchestrator: data.orchestrator ?? m.orchestrator, queued: data.queued ?? m.queued } : m
             )
           );
         } else {
           update((prev) => [
             ...prev,
-            { id: nextId(), role: "assistant", content: data.message, time: nowLabel(), report: data.report, drafts: data.drafts?.length ? data.drafts : undefined },
+            { id: nextId(), role: "assistant", content: data.message, time: nowLabel(), report: data.report, drafts: data.drafts?.length ? data.drafts : undefined, showOrchestrator: data.showOrchestrator, scopeAsk: data.askScope, orchestrator: data.orchestrator, queued: data.queued },
           ]);
         }
       } catch {
@@ -170,3 +179,4 @@ export function useChat(account = "all") {
 }
 
 export type ChatApi = ReturnType<typeof useChat>;
+

@@ -156,9 +156,13 @@ export interface SlotQuery {
   /** Mulai mencari dari hari ke-N (WIB) dari hari ini. */
   startDay?: number;
   horizonDays?: number;
+  /** Menit pada jam yang dicari (default 0 = jam bulat). */
+  minute?: number;
+  /** Kunci hari WIB ("YYYY-MM-DD") yang kuota hariannya sudah penuh; dilewati. */
+  fullDays?: ReadonlySet<string>;
 }
 
-/** Slot pertama (jam bulat WIB) ≥ now + 10 menit yang tidak bentrok; null bila tidak ketemu. */
+/** Slot pertama (jam WIB, default jam bulat) ≥ now + 10 menit yang tidak bentrok; null bila tidak ketemu. */
 export function findSlot(q: SlotQuery): Date | null {
   const min = q.now.getTime() + SLOT_MIN_LEAD_MS;
   const horizon = q.horizonDays ?? 7;
@@ -167,11 +171,22 @@ export function findSlot(q: SlotQuery): Date | null {
   const hours = [...new Set(q.hours)].sort((a, b) => a - b);
   for (let day = start; day < start + horizon; day++) {
     for (const h of hours) {
-      const t = wibAt(q.now, day, h);
-      if (t.getTime() >= min && !hasGapConflict(t.getTime(), q.takenMs, q.minGapMs)) return t;
+      const t = wibAt(q.now, day, h, q.minute ?? 0);
+      if (t.getTime() < min || q.fullDays?.has(wibDayKey(t))) continue;
+      if (!hasGapConflict(t.getTime(), q.takenMs, q.minGapMs)) return t;
     }
   }
   return null;
+}
+
+/** Hari WIB yang sudah memuat `maxPerDay` posting dashboard (kuota harian habis). */
+export function fullDayKeys(dashboardTimesMs: number[], maxPerDay: number): Set<string> {
+  const count = new Map<string, number>();
+  for (const ms of dashboardTimesMs) {
+    const key = wibDayKey(new Date(ms));
+    count.set(key, (count.get(key) ?? 0) + 1);
+  }
+  return new Set([...count].filter(([, n]) => n >= maxPerDay).map(([key]) => key));
 }
 
 /**
@@ -244,6 +259,31 @@ export function findScheduleViolation(
   if (clash) {
     const minutes = Math.round(limits.minGapMs / 60000);
     return `Jarak dengan postingan lain di akun ini kurang dari ${minutes} menit (sudah ada yang tayang ${formatWibLabel(new Date(clash.at))}).`;
+  }
+  return null;
+}
+
+/** Jendela jam posting wajar (WIB) saat sistem menggeser jadwal sendiri. */
+const RESOLVE_FIRST_HOUR = 7;
+const RESOLVE_LAST_HOUR = 22;
+const RESOLVE_STEP_MS = 15 * 60 * 1000;
+const RESOLVE_HORIZON_MS = 14 * DAY_MS;
+
+/**
+ * Waktu terdekat pada/setelah `at` yang lolos aturan kuota harian dan jarak minimal, dalam jendela
+ * 07.00-22.59 WIB, maksimal 14 hari ke depan. Dipakai saat AI/sistem mengatur jadwal sendiri: bentrok
+ * diselesaikan dengan menggeser, bukan menggagalkan. Null bila tidak ada slot dalam jangkauan.
+ */
+export function resolveSlot(at: Date, existing: ExistingSlot[], limits: SlotLimits, now: Date): Date | null {
+  const earliest = now.getTime() + SCHEDULE_MIN_LEAD_MS;
+  // Mulai dari kelipatan 15 menit supaya hasilnya jam yang rapi (17.00 -> 18.00, bukan 18.07).
+  let t = Math.ceil(Math.max(at.getTime(), earliest) / RESOLVE_STEP_MS) * RESOLVE_STEP_MS;
+  const end = at.getTime() + RESOLVE_HORIZON_MS;
+  for (; t <= end; t += RESOLVE_STEP_MS) {
+    const d = new Date(t);
+    const h = wibParts(d).h;
+    if (h < RESOLVE_FIRST_HOUR || h > RESOLVE_LAST_HOUR) continue;
+    if (!findScheduleViolation(d, existing, limits)) return d;
   }
   return null;
 }

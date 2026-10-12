@@ -4,6 +4,7 @@ import { evaluateReadiness, type ReadinessInput } from "../readiness";
 import {
   parseCreateBody,
   parseIdList,
+  parseOrchestrateBody,
   parsePatchBody,
   parseRecommendBody,
 } from "../content-validation";
@@ -125,5 +126,33 @@ describe("parsePatchBody & parseIdList", () => {
     expect(parseIdList("")).toBeNull();
     expect(parseIdList("a;b")).toBeNull();
     expect(parseIdList(Array.from({ length: 21 }, (_, i) => `i${i}`).join(","))).toBeNull();
+  });
+});
+
+describe("parseOrchestrateBody", () => {
+  it("default: semua akun, jam terbaik tiap akun", () => {
+    const r = parseOrchestrateBody({});
+    expect(r.ok && r.value).toEqual({ accountIds: null, topic: "", fixedTime: null, avoid: null, publish: null });
+  });
+  it("jam manual HH:MM dan dedupe akun", () => {
+    const r = parseOrchestrateBody({ accountIds: ["a", "a"], time: "17:30", topic: "  kopi  " });
+    expect(r.ok && r.value).toMatchObject({ accountIds: ["a"], topic: "kopi", fixedTime: { hour: 17, minute: 30 } });
+  });
+  it("menolak jam, akun, dan topik yang tidak valid", () => {
+    expect(parseOrchestrateBody({ time: "25:00" }).ok).toBe(false);
+    expect(parseOrchestrateBody({ time: "7.30" }).ok).toBe(false);
+    expect(parseOrchestrateBody({ accountIds: [] }).ok).toBe(false);
+    expect(parseOrchestrateBody({ accountIds: [1] }).ok).toBe(false);
+    expect(parseOrchestrateBody({ topic: "x".repeat(601) }).ok).toBe(false);
+  });
+});
+
+describe("parseCreateBody: mode partial", () => {
+  const item = { threadsAccountId: "a", text: "halo dunia", topicTag: null, publishAt: "now" };
+  it("hanya aktif bila bernilai tepat true", () => {
+    const off = parseCreateBody({ idempotencyKey: "kunci-12345", items: [item] });
+    const on = parseCreateBody({ idempotencyKey: "kunci-12345", items: [item], partial: true });
+    const odd = parseCreateBody({ idempotencyKey: "kunci-12345", items: [item], partial: "true" });
+    expect([off.ok && off.value.partial, on.ok && on.value.partial, odd.ok && odd.value.partial]).toEqual([false, true, false]);
   });
 });

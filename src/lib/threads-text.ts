@@ -181,3 +181,10 @@ export const SIMILARITY_LIMIT = 0.8;
 
 export const isTooSimilar = (text: string, others: string[]): boolean =>
   others.some((o) => jaccard(text, o) >= SIMILARITY_LIMIT);
+
+/** Placeholder yang harus diisi manusia (mis. "[isi detail lokasi]"): teks seperti ini tidak siap tayang. */
+export const PLACEHOLDER =
+  /\[\s*(?:isi|masukkan|tulis|sisipkan|tempel|ganti|nama|alamat|lokasi|harga|link|tautan|url|promo|tanggal|nomor|no\.|kontak|detail|data|menu|jam|xxx+|\.{2,}|…)(?=[\s\]:.,/-])[^\]]*\]/i;
+
+/** Batas kalimat yang tidak memotong singkatan alamat ("Jl. Siliwangi No. 12"). */
+export const SENTENCE_BREAK = /(?<!\b(?:jl|jln|no|kel|kec|rt|rw|gg|blk|dr|st|kav)\.)(?<=[.!?])\s+/i;

@@ -45,7 +45,7 @@ type Block =
   | { type: "hr" }
   | { type: "quote"; text: string }
   | { type: "ul" | "ol"; items: Item[] }
-  | { type: "code"; text: string };
+  | { type: "code"; text: string; lang: string };
 
 const BULLET = /^(\s*)[-*•]\s+(.*)$/;
 const NUMBER = /^(\s*)\d+[.)]\s+(.*)$/;
@@ -66,6 +66,7 @@ function parse(source: string): Block[] {
     const line = lines[i];
 
     if (line.trim().startsWith("```")) {
+      const lang = line.trim().slice(3).trim().toLowerCase();
       const code: string[] = [];
       i++;
       while (i < lines.length && !lines[i].trim().startsWith("```")) {
@@ -73,7 +74,7 @@ function parse(source: string): Block[] {
         i++;
       }
       i++;
-      blocks.push({ type: "code", text: code.join("\n") });
+      blocks.push({ type: "code", text: code.join("\n"), lang });
       continue;
     }
 
@@ -140,8 +141,21 @@ function parse(source: string): Block[] {
   return blocks;
 }
 
-export function Markdown({ text }: { text: string }) {
+/** Render khusus blok kode berbahasa tertentu; kembalikan null untuk tampilan kode biasa. */
+export type CodeRenderer = (lang: string, code: string, key: string, ordinal: number) => React.ReactNode | null;
+
+export function Markdown({ text, renderCode }: { text: string; renderCode?: CodeRenderer }) {
   const blocks = React.useMemo(() => parse(text), [text]);
+  // Nomor urut per bahasa blok kode (mis. kartu ide 1, 2, 3), dihitung ulang tiap render.
+  const ordinals = React.useMemo(() => {
+    const seen = new Map<string, number>();
+    return blocks.map((b) => {
+      if (b.type !== "code") return 0;
+      const n = (seen.get(b.lang) ?? 0) + 1;
+      seen.set(b.lang, n);
+      return n;
+    });
+  }, [blocks]);
 
   return (
     <div className="space-y-3">
@@ -185,7 +199,9 @@ export function Markdown({ text }: { text: string }) {
               </Tag>
             );
           }
-          case "code":
+          case "code": {
+            const custom = renderCode?.(b.lang, b.text, key, ordinals[idx]);
+            if (custom) return <React.Fragment key={key}>{custom}</React.Fragment>;
             return (
               <pre
                 key={key}
@@ -194,6 +210,7 @@ export function Markdown({ text }: { text: string }) {
                 {b.text}
               </pre>
             );
+          }
           default:
             return (
               <p key={key} className="whitespace-pre-line">

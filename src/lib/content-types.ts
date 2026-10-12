@@ -135,16 +135,55 @@ export interface CreatedPostDTO {
   /** ISO UTC */
   tayangPada: string;
   status: string;
+  /** ISO UTC jadwal semula bila sistem menggesernya karena bentrok. */
+  rescheduledFrom?: string;
+}
+
+/** Item yang dilewati pada mode `partial` beserta alasannya. */
+export interface SkippedPostDTO {
+  threadsAccountId: string;
+  error: string;
 }
 
 export interface CreatePostsResponse {
   success: true;
   posts: CreatedPostDTO[];
   replayed?: boolean;
+  /** Hanya pada mode `partial`: item yang tidak masuk antrean. */
+  skipped?: SkippedPostDTO[];
 }
+
+/* ------------------------------------------------------------------ Multi-Agent Orchestrator */
+
+export interface OrchestrateAgent {
+  id: string;
+  username: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+  /** Terisi bila akun dilewati (belum siap diposting) beserta alasannya. */
+  skipped?: string;
+}
+
+/** Peristiwa aliran `/api/content/orchestrate` (satu baris `data:` SSE per peristiwa). */
+export type OrchestrateEvent =
+  | { type: "plan"; agents: OrchestrateAgent[]; concurrency: number }
+  | { type: "start"; accountId: string }
+  | { type: "retry"; accountId: string; attempt: number }
+  | { type: "draft"; accountId: string; draft: ContentDraft }
+  | { type: "error"; accountId: string; error: string }
+  /** Mode posting otomatis: draf akun ini sudah masuk antrean (sekarang/terjadwal). */
+  | { type: "queued"; accountId: string; postId: string; at: string; mode: "now" | "schedule"; rescheduledFrom?: string }
+  | { type: "queue-error"; accountId: string; error: string }
+  | { type: "done"; ok: number; failed: number; skipped: number; ms: number }
+  | { type: "fatal"; error: string };
 
 export interface ApiError {
   success: false;
   error: string;
   details?: string[];
 }
+
+/** Hasil antrean otomatis satu draf (posting dari prompt). */
+export type QueueResultDTO =
+  | { ok: true; postId: string; at: string; mode: "now" | "schedule"; rescheduledFrom?: string }
+  | { ok: false; error: string };
