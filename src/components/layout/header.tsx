@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 const titleMap: Record<string, string> = {
   "/": "Ringkasan Performa",
   "/posts": "Postingan Cabang",
+  "/jadwal": "Jadwal Konten",
   "/prompt-studio": "Studio AI",
 };
 

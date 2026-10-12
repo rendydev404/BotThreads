@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Markdown } from "./markdown";
 import { quickActions, type ChatApi, type ChatMessage } from "./use-chat";
 import { ReportCard } from "./report-card";
+import { DraftCard } from "@/components/content/draft-card";
 
 interface ChatPanelProps {
   chat: ChatApi;
@@ -173,6 +174,14 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                         <Markdown text={m.content} />
                       )}
                     </div>
+
+                    {m.drafts && m.drafts.length > 0 && (
+                      <div className="mt-3 space-y-3">
+                        {m.drafts.map((d, di) => (
+                          <DraftCard key={d.id} draft={d} index={m.drafts && m.drafts.length > 1 ? di + 1 : undefined} />
+                        ))}
+                      </div>
+                    )}
 
                     <div className="mt-2 flex items-center gap-3 text-xs text-faint">
                       <span>{m.time}</span>

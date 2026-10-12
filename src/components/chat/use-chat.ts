@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { Report } from "@/lib/report";
+import type { ContentDraft } from "@/lib/content-types";
 
 /** Tombol aksi cepat (seperti tombol di bot Telegram). */
 export const quickActions = [
@@ -9,7 +10,9 @@ export const quickActions = [
   { label: "Ringkasan 30 hari", prompt: "Ringkasan performa 30 hari terakhir" },
   { label: "Peringkat views", prompt: "Peringkat akun berdasarkan views minggu ini" },
   { label: "Postingan terbaik", prompt: "Apa pola postingan terbaik dan kenapa berhasil?" },
-  { label: "Ide konten", prompt: "Buatkan 3 ide postingan Threads untuk besok berdasarkan postingan terbaik" },
+  { label: "Buat draf untuk besok", prompt: "Buat 3 draf postingan untuk besok" },
+  { label: "Jadwalkan 3 post minggu ini", prompt: "Jadwalkan 3 post minggu ini" },
+  { label: "Ide dari postingan terbaik", prompt: "Buat ide postingan dari postingan terbaik" },
   { label: "Kenapa ER rendah?", prompt: "Kenapa interaksi rendah dan apa solusinya?" },
 ];
 
@@ -20,6 +23,8 @@ export interface ChatMessage {
   time: string;
   isError?: boolean;
   report?: Report;
+  /** Draf postingan siap edit dari asisten (FR-3) */
+  drafts?: ContentDraft[];
   /** Kartu sudah tampil, insight AI masih disusun */
   pending?: boolean;
 }
@@ -50,6 +55,10 @@ export function useChat(account = "all") {
       busy.current = true;
       setIsLoading(true);
 
+      // Draf terakhir dari asisten, dipakai untuk perintah lanjutan ("ganti draf 2 lebih singkat")
+      const lastWithDrafts = [...history].reverse().find((m) => m.drafts?.length);
+      const lastDrafts = (lastWithDrafts?.drafts ?? []).slice(0, 5).map((d) => ({ threadsAccountId: d.threadsAccountId, text: d.text }));
+
       const post = (extra: object) =>
         fetch("/api/bot/chat", {
           method: "POST",
@@ -57,6 +66,7 @@ export function useChat(account = "all") {
           body: JSON.stringify({
             message: text,
             account,
+            lastDrafts,
             history: history
               .filter((m) => !m.isError)
               .slice(-6)
@@ -90,13 +100,13 @@ export function useChat(account = "all") {
           const id = cardId;
           update((prev) =>
             prev.map((m) =>
-              m.id === id ? { ...m, content: data.message, pending: false, report: data.report ?? m.report } : m
+              m.id === id ? { ...m, content: data.message, pending: false, report: data.report ?? m.report, drafts: data.drafts?.length ? data.drafts : m.drafts } : m
             )
           );
         } else {
           update((prev) => [
             ...prev,
-            { id: nextId(), role: "assistant", content: data.message, time: nowLabel(), report: data.report },
+            { id: nextId(), role: "assistant", content: data.message, time: nowLabel(), report: data.report, drafts: data.drafts?.length ? data.drafts : undefined },
           ]);
         }
       } catch {

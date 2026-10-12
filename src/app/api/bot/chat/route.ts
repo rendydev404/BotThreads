@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateWithFailover, type GeminiContent } from "@/lib/gemini";
 import { DEFAULT_SCOPE, buildReport, reportToText, type Report, type ScopeOption } from "@/lib/report";
 import { getAccountDetail, getFleetContext, type FleetContext } from "@/lib/chat-context";
+import { getRequestUserId } from "@/lib/api-auth";
+import { handleDraftChat, parseLastDrafts } from "@/lib/content-chat";
+import { parseDraftIntent } from "@/lib/content-intent";
+import { throttle } from "@/lib/throttle";
 
 const fmt = (n: number) => n.toLocaleString("id-ID");
 
@@ -119,6 +123,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, report: card ?? undefined });
     }
 
+    // Jalur draf konten (FR-3): kartu draf siap edit. Tidak ada eksekusi otomatis; pengguna menekan tombol.
+    if (detectReportDays(text) === null) {
+      const lastDrafts = parseLastDrafts(body.lastDrafts);
+      const intent = parseDraftIntent(text, lastDrafts.length > 0);
+      if (intent) {
+        const userId = await getRequestUserId(request);
+        if (!userId) {
+          return NextResponse.json({ success: false, error: "Sesi berakhir. Silakan masuk kembali." }, { status: 401 });
+        }
+        const limit = throttle(`recommend:${userId}`, 20, 5 * 60_000);
+        if (!limit.ok) {
+          return NextResponse.json(
+            { success: false, error: "Terlalu sering meminta draf. Coba lagi sebentar lagi." },
+            { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
+          );
+        }
+        const result = await handleDraftChat({
+          text,
+          accountFilter: typeof body.account === "string" ? body.account.slice(0, 60) : null,
+          lastDrafts,
+          intent,
+        });
+        return NextResponse.json({
+          success: true,
+          message: result.message,
+          drafts: result.drafts,
+          meta: { latencyMs: Date.now() - startTime, model: result.model, degraded: result.degraded },
+        });
+      }
+    }
     let ctx: FleetContext;
     try {
       ctx = await getFleetContext();

@@ -9,7 +9,8 @@
     "lint": "eslint",
     "auth:secret": "node scripts/gen-secret.mjs",
     "user:create": "node scripts/create-user.mjs",
-    "env:push": "node scripts/push-env-to-coolify.mjs"
+    "env:push": "node scripts/push-env-to-coolify.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
@@ -29,6 +30,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

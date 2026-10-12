@@ -42,3 +42,6 @@ next-env.d.ts
 
 # kredensial awal login
 INITIAL-ADMIN-LOGIN.txt
+
+# local sandbox
+.local-db/

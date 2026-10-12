@@ -152,3 +152,7 @@ export const agg = {
   postsByAccount: (a: PostArgs = {}) => rpc<PostsByAccount[]>("dash_posts_by_account", postArgs(a)),
   postsByMedia: (a: PostArgs = {}) => rpc<PostsByMedia[]>("dash_posts_by_media", postArgs(a)),
 };
+
+/** Alias dipakai modul penjadwalan: timestamp UTC dari database -> Date. */
+export const utc = toDate;
+export const utcOrNull = toDateOrNull;

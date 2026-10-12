@@ -34,3 +34,35 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Posting AI ke Threads (Jadwal)
+
+Asisten AI merekomendasikan draf Threads siap posting per akun cabang. Pengguna memilih **Posting sekarang** atau **Jadwalkan** (WIB). Dashboard hanya **menulis ke antrean bersama** (`ScheduledPost` dengan `source='DASHBOARD_AI'` + `PostDispatch` dengan `publisher='THREADS'`); worker `threads-publisher` di repo auto-suka yang menerbitkan. Dashboard tidak menyimpan token Threads dan AI tidak pernah memposting tanpa klik pengguna.
+
+Akses data memakai `supabase-js` (service role, hanya di server). Penulisan antrean dan query kompleks dilakukan lewat fungsi RPC `SECURITY DEFINER` (`dash_*`), sehingga service role tidak butuh GRANT langsung ke tabel milik auto-suka.
+
+### Setup database (sekali, oleh pemilik)
+
+Jalankan berurutan di SQL Editor Supabase (aditif, idempoten, tidak mengubah/menghapus data):
+
+1. `supabase/setup.sql` (sudah ada: grant + fungsi agregasi analitik)
+2. `sql/002_dashboard_post_log.sql` (tabel audit `DashboardPostLog`)
+3. `sql/003_dashboard_rpc.sql` (fungsi RPC penjadwalan/antrean)
+
+Env wajib: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+
+### Variabel lingkungan fitur
+
+| Variabel | Default | Fungsi |
+| --- | --- | --- |
+| `CONTENT_PUBLISH_ENABLED` | mati | Kill switch. Selama bukan `true`, semua endpoint tulis membalas 403 dan tombol Posting/Jadwalkan dinonaktifkan. |
+| `CONTENT_PUBLISH_TEST_ACCOUNTS` | kosong | Daftar id atau username akun Threads (dipisah koma) yang boleh diposting. Kosong berarti tanpa pembatasan akun. |
+| `CONTENT_MAX_POSTS_PER_DAY` | `6` | Batas posting per akun per hari (WIB). |
+| `CONTENT_MIN_GAP_MINUTES` | `60` | Jarak minimum antar posting pada akun yang sama. |
+| `GEMINI_API_KEY` | - | Dipakai rekomendasi draf (sisi server saja). |
+
+### Tes
+
+```bash
+npm test
+```

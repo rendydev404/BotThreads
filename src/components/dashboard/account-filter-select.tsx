@@ -250,11 +250,11 @@ export function AccountFilterSelect({
                           @{acc.username}
                         </span>
                       </span>
-                      <span className="text-xs font-medium text-muted bg-subtle rounded-full px-2 py-0.5 shrink-0">
+                      <span hidden={!acc._count && (acc.followers === null || acc.followers === undefined)} className="text-xs font-medium text-muted bg-subtle rounded-full px-2 py-0.5 shrink-0">
                         {acc.followers !== null && acc.followers !== undefined
                           ? `${formatNumber(acc.followers)} fol · `
                           : ""}
-                        {acc._count?.postStats ?? 0} post
+                        {acc._count ? `${acc._count.postStats} post` : ""}
                       </span>
                       {selected && <Check className="w-5 h-5 text-accent shrink-0" />}
                     </button>

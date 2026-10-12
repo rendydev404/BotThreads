@@ -4,12 +4,13 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Sparkles } from "lucide-react";
+import { LayoutDashboard, FileText, CalendarClock, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const navigationItems = [
   { name: "Ringkasan", href: "/", icon: LayoutDashboard },
   { name: "Postingan", href: "/posts", icon: FileText },
+  { name: "Jadwal", href: "/jadwal", icon: CalendarClock },
   { name: "Studio AI", href: "/prompt-studio", icon: Sparkles },
 ];
 
