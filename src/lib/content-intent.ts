@@ -12,6 +12,25 @@ const VERB =
 const NOUN = /\b(draf|draft|konten|caption|postingan|posting|post|hook|ide|thread|threads|cuitan)\b/i;
 const HOWTO = /\b(cara|tips|bagaimana|gimana|kenapa|mengapa|apa itu|apa yang)\b/i;
 const REVISE = /\b(ganti|ubah|revisi|perbaiki|singkat(?:kan)?|panjangkan|lebih|jadwalkan|pendekkan|ringkas)\b/i;
+const AGREE_PUBLISH = /\b(gpp|gapapa|enggak apa-apa|oke|ok|baik|setuju|sip|mantap|lanjut|yaudah|ya udah)\s+(?:posting(?:kan|in)?|post|publish|tayang(?:kan)?|jadwal(?:kan|in)?)\b|\b(?:posting(?:kan|in)?|post|publish|tayang(?:kan)?|jadwal(?:kan|in)?)\s+(?:aja|saja|langsung|sekarang)\b/i;
+
+const ORCHESTRATOR_WORD = /\b(orchestrator|orkestra(?:si|tor)|multi[- ]?agen(?:t)?)\b/i;
+const ALL_ACCOUNTS = /\b(semua|seluruh|tiap|setiap|masing-masing|banyak)\s+(akun|cabang|outlet)\b/i;
+const IDEA_REQUEST = /\b(buat|bikin)(?:kan)?\b.*\bide\s+konten\b/i;
+
+/**
+ * Permintaan membuat konten untuk banyak akun sekaligus (membuka Multi-Agent Orchestrator):
+ * menyebut orkestrator/multi-agent, meminta konten untuk semua akun, atau "buat ide konten" tanpa
+ * menyebut akun tertentu. Pertanyaan analitik ("postingan terbaik?") tidak ikut tertangkap.
+ */
+export function isOrchestratorIntent(text: string): boolean {
+  const t = text.trim();
+  if (!t || t.length > 600) return false;
+  if (AGREE_PUBLISH.test(t)) return false;
+  if (ORCHESTRATOR_WORD.test(t)) return true;
+  if (HOWTO.test(t) || !VERB.test(t) || !NOUN.test(t)) return false;
+  return ALL_ACCOUNTS.test(t) || (IDEA_REQUEST.test(t) && !t.includes("@"));
+}
 
 const NUMBER_WORDS: Record<string, number> = {
   satu: 1,
@@ -59,6 +78,7 @@ function parseCount(text: string): number | null {
 export function parseDraftIntent(text: string, hasLastDrafts: boolean): DraftIntent | null {
   const t = text.trim();
   if (!t || t.length > 600) return null;
+  if (AGREE_PUBLISH.test(t)) return null;
   if (!VERB.test(t) || !NOUN.test(t) || HOWTO.test(t)) return null;
 
   const explicitCount = parseCount(t);
@@ -101,3 +121,42 @@ export function findMentionedAccounts(text: string, accounts: PublishAccount[]):
 }
 
 const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export interface PublishIntent {
+  /** now = langsung masuk antrean terbit; schedule = dijadwalkan ke jam terbaik/jam yang diminta. */
+  mode: "now" | "schedule";
+  /** Selisih hari WIB ("besok" = 1); null = slot terdekat. */
+  dayOffset: number | null;
+  /** Jam WIB yang diminta; null = jam ramai tiap akun. */
+  hourWib: number | null;
+}
+
+const PUBLISH_VERB = "(?:posting(?:kan|in)?|post|terbit(?:kan)?|upload|unggah|publish|tayang(?:kan)?)";
+const PUBLISH_NOW = new RegExp(
+  String.raw`\b${PUBLISH_VERB}\s+(?:\S+\s+){0,4}?(?:sekarang|langsung|skrg|saat ini)\b|\blangsung\s+${PUBLISH_VERB}\b|\bsekarang\s+juga\b`,
+  "i"
+);
+const PUBLISH_SCHEDULE = new RegExp(
+  String.raw`\b(?:jadwal(?:kan|in)|terjadwal|schedule)\b|\b${PUBLISH_VERB}\s+(?:\S+\s+){0,4}?(?:besok|lusa|nanti|jam|pukul|hari ini)\b`,
+  "i"
+);
+
+/**
+ * Perintah eksplisit untuk memposting/menjadwalkan, bukan sekadar meminta ide atau draf.
+ * "posting sekarang ke semua akun", "jadwalkan besok jam 7 malam", "langsung post".
+ */
+export function parsePublishIntent(text: string): PublishIntent | null {
+  const t = text.trim();
+  if (!t || t.length > 600 || /\b(cara|bagaimana|gimana|kenapa|kapan)\b/i.test(t)) return null;
+  const now = PUBLISH_NOW.test(t);
+  if (!now && !PUBLISH_SCHEDULE.test(t)) return null;
+  let dayOffset: number | null = null;
+  const inDays = /\b(\d{1,2})\s*hari\s+lagi\b/i.exec(t);
+  if (inDays) dayOffset = Math.min(30, Number(inDays[1]));
+  else if (/\blusa\b/i.test(t)) dayOffset = 2;
+  else if (/\bbesok\b/i.test(t)) dayOffset = 1;
+  else if (/\bhari ini\b/i.test(t)) dayOffset = 0;
+  const hourWib = parseHour(t);
+  const schedule = !now || dayOffset !== null || hourWib !== null;
+  return { mode: now && !schedule ? "now" : "schedule", dayOffset, hourWib };
+}
