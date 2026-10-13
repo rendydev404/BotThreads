@@ -1,4 +1,16 @@
 import React from "react";
+import { cn } from "@/lib/utils";
+import {
+  BAR_LANG,
+  STAT_LANG,
+  isTableStart,
+  parseBars,
+  parseCallout,
+  parseStats,
+  parseTable,
+  type TableData,
+} from "@/lib/rich-blocks";
+import { BarChart, Callout, RichTable, StatGrid } from "./markdown-blocks";
 
 /**
  * Renderer markdown ringan untuk jawaban AI: judul, **tebal**, *miring*,
@@ -41,7 +53,8 @@ interface Item {
 
 type Block =
   | { type: "p"; text: string }
-  | { type: "h"; text: string }
+  | { type: "h"; level: 1 | 2 | 3 | 4; text: string }
+  | { type: "table"; table: TableData }
   | { type: "hr" }
   | { type: "quote"; text: string }
   | { type: "ul" | "ol"; items: Item[] }
@@ -89,10 +102,17 @@ function parse(source: string): Block[] {
       continue;
     }
 
-    const heading = line.match(/^#{1,4}\s+(.*)$/);
+    const heading = line.match(/^(#{1,4})\s+(.*)$/);
     if (heading) {
-      blocks.push({ type: "h", text: heading[1] });
+      blocks.push({ type: "h", level: heading[1].length as 1 | 2 | 3 | 4, text: heading[2].replace(/\s+#+\s*$/, "") });
       i++;
+      continue;
+    }
+
+    if (isTableStart(line, lines[i + 1])) {
+      const { table, next } = parseTable(lines, i);
+      blocks.push({ type: "table", table });
+      i = next;
       continue;
     }
 
@@ -131,7 +151,12 @@ function parse(source: string): Block[] {
 
     const para: string[] = [line];
     i++;
-    while (i < lines.length && lines[i].trim() && !startsBlock(lines[i])) {
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
+      !startsBlock(lines[i]) &&
+      !isTableStart(lines[i], lines[i + 1])
+    ) {
       para.push(lines[i]);
       i++;
     }
@@ -158,19 +183,53 @@ export function Markdown({ text, renderCode }: { text: string; renderCode?: Code
   }, [blocks]);
 
   return (
-    <div className="space-y-3">
+    <div className={cn("space-y-3.5")}>
       {blocks.map((b, idx) => {
         const key = `b${idx}`;
         switch (b.type) {
-          case "h":
+          case "h": {
+            const inner = renderInline(b.text, key);
+            if (b.level === 1)
+              return (
+                <h2 key={key} className="pt-2 text-xl font-bold text-fg leading-snug tracking-tight">
+                  {inner}
+                </h2>
+              );
+            if (b.level === 2)
+              return (
+                <h3
+                  key={key}
+                  className="pt-2 flex items-center gap-2.5 text-[17px] font-bold text-fg leading-snug"
+                >
+                  <span className="w-1 h-5 rounded-full bg-gradient-to-b from-accent to-violet-500 shrink-0" aria-hidden />
+                  {inner}
+                </h3>
+              );
+            if (b.level === 3)
+              return (
+                <h4 key={key} className="pt-1 text-[15px] font-semibold text-fg">
+                  {inner}
+                </h4>
+              );
             return (
-              <p key={key} className="font-semibold text-[15px] pt-1">
-                {renderInline(b.text, key)}
-              </p>
+              <h5 key={key} className="pt-1 text-xs font-semibold uppercase tracking-wider text-muted">
+                {inner}
+              </h5>
             );
+          }
+          case "table":
+            return <RichTable key={key} data={b.table} inline={renderInline} keyPrefix={key} />;
           case "hr":
             return <hr key={key} className="border-line" />;
-          case "quote":
+          case "quote": {
+            const callout = parseCallout(b.text);
+            if (callout) {
+              return (
+                <Callout key={key} kind={callout.kind} title={callout.title}>
+                  {callout.body ? <Markdown text={callout.body} /> : null}
+                </Callout>
+              );
+            }
             return (
               <blockquote
                 key={key}
@@ -179,6 +238,7 @@ export function Markdown({ text, renderCode }: { text: string; renderCode?: Code
                 {renderInline(b.text, key)}
               </blockquote>
             );
+          }
           case "ul":
           case "ol": {
             const Tag = b.type;
@@ -187,8 +247,8 @@ export function Markdown({ text, renderCode }: { text: string; renderCode?: Code
                 key={key}
                 className={
                   b.type === "ul"
-                    ? "list-disc pl-5 space-y-1.5 marker:text-faint"
-                    : "list-decimal pl-5 space-y-1.5 marker:text-muted"
+                    ? "list-disc pl-5 space-y-1.5 marker:text-accent/60"
+                    : "list-decimal pl-5 space-y-1.5 marker:font-semibold marker:text-accent"
                 }
               >
                 {b.items.map((it, j) => (
@@ -200,6 +260,14 @@ export function Markdown({ text, renderCode }: { text: string; renderCode?: Code
             );
           }
           case "code": {
+            if (b.lang === BAR_LANG) {
+              const data = parseBars(b.text);
+              if (data) return <BarChart key={key} data={data} />;
+            }
+            if (b.lang === STAT_LANG) {
+              const items = parseStats(b.text);
+              if (items.length) return <StatGrid key={key} items={items} />;
+            }
             const custom = renderCode?.(b.lang, b.text, key, ordinals[idx]);
             if (custom) return <React.Fragment key={key}>{custom}</React.Fragment>;
             return (

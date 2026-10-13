@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 import { ChatPanel } from "./chat-panel";
 import { useChat } from "./use-chat";
 
-const WIN_W = 400;
-const WIN_H = 600;
+const WIN_W = 420;
+const WIN_H = 640;
 
 export function FloatingAiBubble() {
   const pathname = usePathname();
@@ -88,6 +88,18 @@ export function FloatingAiBubble() {
     };
   }, []);
 
+  // Esc menutup jendela (atau keluar dari layar penuh dulu)
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (isFullScreen) setIsFullScreen(false);
+      else setIsOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, isFullScreen]);
+
   // Halaman Studio AI sudah berisi chat penuh, bubble tidak diperlukan di sana
   if (pathname.startsWith("/prompt-studio")) return null;
 
@@ -97,9 +109,12 @@ export function FloatingAiBubble() {
         <button
           type="button"
           onClick={openWindow}
-          className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 h-12 pl-4 pr-5 inline-flex items-center gap-2 rounded-full bg-accent hover:bg-accent-hover text-on-accent text-sm font-semibold shadow-pop transition-colors cursor-pointer"
+          aria-label="Buka asisten AI"
+          className="group fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 h-12 pl-3 pr-5 inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-accent to-violet-500 text-on-accent text-sm font-semibold shadow-pop hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
         >
-          <Sparkles className="w-[18px] h-[18px]" />
+          <span className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+            <Sparkles className="w-4 h-4" />
+          </span>
           Tanya AI
         </button>
       )}
@@ -125,14 +140,14 @@ export function FloatingAiBubble() {
             "bg-surface border border-line flex flex-col overflow-hidden shadow-pop",
             isFullScreen
               ? "fixed inset-2 sm:inset-6 z-50 rounded-2xl max-w-4xl mx-auto"
-              : "w-[calc(100vw-1.5rem)] sm:w-[400px] h-[600px] max-h-[calc(100dvh-1.5rem)] rounded-2xl"
+              : "w-[calc(100vw-1.5rem)] sm:w-[420px] h-[640px] max-h-[calc(100dvh-1.5rem)] rounded-2xl"
           )}
         >
           <div
             onPointerDown={handlePointerDown}
             title={isFullScreen ? undefined : "Tahan dan geser untuk memindahkan"}
             className={cn(
-              "h-14 px-4 flex items-center justify-between border-b border-line select-none touch-none shrink-0",
+              "h-14 px-4 flex items-center justify-between border-b border-line bg-gradient-to-r from-accent-soft/70 to-transparent select-none touch-none shrink-0",
               !isFullScreen && (isDragging ? "cursor-grabbing" : "cursor-grab")
             )}
           >
@@ -140,14 +155,18 @@ export function FloatingAiBubble() {
               {!isFullScreen && (
                 <GripHorizontal className="w-4 h-4 text-faint shrink-0" />
               )}
-              <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent to-violet-500 text-on-accent flex items-center justify-center shrink-0 shadow-sm shadow-accent/30">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div className="leading-tight min-w-0">
                 <h2 className="text-sm font-semibold text-fg truncate">
                   Asisten AI
                 </h2>
-                <p className="text-xs text-muted truncate">
+                <p className="flex items-center gap-1.5 text-xs text-muted truncate">
+                  <span className="relative flex w-1.5 h-1.5 shrink-0" aria-hidden>
+                    <span className="absolute inset-0 rounded-full bg-success opacity-60 animate-ping" />
+                    <span className="relative w-1.5 h-1.5 rounded-full bg-success" />
+                  </span>
                   Terhubung ke data semua akun
                 </p>
               </div>

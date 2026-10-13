@@ -4,18 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import type { Report } from "@/lib/report";
 import type { ContentDraft, QueueResultDTO } from "@/lib/content-types";
 import type { PublishIntent } from "@/lib/content-intent";
-
-/** Tombol aksi cepat (seperti tombol di bot Telegram). */
-export const quickActions = [
-  { label: "Ringkasan 7 hari", prompt: "Ringkasan performa 7 hari terakhir" },
-  { label: "Ringkasan 30 hari", prompt: "Ringkasan performa 30 hari terakhir" },
-  { label: "Peringkat views", prompt: "Peringkat akun berdasarkan views minggu ini" },
-  { label: "Postingan terbaik", prompt: "Apa pola postingan terbaik dan kenapa berhasil?" },
-  { label: "Buat draf untuk besok", prompt: "Buat 3 draf postingan untuk besok" },
-  { label: "Jadwalkan 3 post minggu ini", prompt: "Jadwalkan 3 post minggu ini" },
-  { label: "Ide dari postingan terbaik", prompt: "Buat ide postingan dari postingan terbaik" },
-  { label: "Kenapa ER rendah?", prompt: "Kenapa interaksi rendah dan apa solusinya?" },
-];
+import type { ActionPlan } from "@/lib/action-plan";
 
 export interface ChatMessage {
   id: string;
@@ -34,6 +23,10 @@ export interface ChatMessage {
   orchestrator?: { accountIds: string[] | null; topic: string; time: string | null; publish: PublishIntent | null };
   /** Draf satu akun yang sudah otomatis masuk antrean (id draf -> hasil). */
   queued?: Record<string, QueueResultDTO>;
+  /** Ringkasan + penutup setelah semua tugas rencana aksi selesai. */
+  kind?: "execution";
+  /** Rencana aksi otomatis dari saran asisten (kartu pilihan waktu posting). */
+  plan?: ActionPlan;
   /** Kartu sudah tampil, insight AI masih disusun */
   pending?: boolean;
 }
@@ -44,6 +37,33 @@ const nowLabel = () =>
     minute: "2-digit",
     timeZone: "Asia/Jakarta",
   }).format(new Date());
+
+/**
+ * Teks pesan untuk riwayat yang dikirim ke server: isi pesan ditambah lampiran terstruktur (rencana
+ * aksi, draf) yang hanya tampil sebagai kartu di UI, supaya AI tahu apa yang ada di layar pengguna.
+ */
+function historyText(m: ChatMessage): string {
+  let t = m.content;
+  if (m.plan?.tasks.length) {
+    t +=
+      "\n\n[RENCANA AKSI]\n" +
+      m.plan.tasks
+        .map(
+          (x, i) =>
+            `${i + 1}. ${x.title} | akun: ${x.accountNames.length ? x.accountNames.map((n) => "@" + n).join(", ") : "semua akun siap"} | isi: ${x.topic}`
+        )
+        .join("\n");
+  }
+  if (m.drafts?.length) {
+    t +=
+      "\n\n[DRAF]\n" +
+      m.drafts
+        .slice(0, 5)
+        .map((d, i) => `${i + 1}. ${d.username ? "@" + d.username : "akun"}: ${d.text.slice(0, 300)}`)
+        .join("\n");
+  }
+  return t;
+}
 
 let counter = 0;
 const nextId = () => `m-${Date.now()}-${counter++}`;
@@ -78,10 +98,10 @@ export function useChat(account = "all") {
             lastDrafts,
             history: history
               .filter((m) => !m.isError)
-              .slice(-6)
+              .slice(-10)
               .map((m) => ({
                 sender: m.role === "user" ? "user" : "bot",
-                text: m.content,
+                text: historyText(m),
               })),
             ...extra,
           }),
@@ -109,13 +129,13 @@ export function useChat(account = "all") {
           const id = cardId;
           update((prev) =>
             prev.map((m) =>
-              m.id === id ? { ...m, content: data.message, pending: false, report: data.report ?? m.report, drafts: data.drafts?.length ? data.drafts : m.drafts, showOrchestrator: data.showOrchestrator ?? m.showOrchestrator, scopeAsk: data.askScope ?? m.scopeAsk, orchestrator: data.orchestrator ?? m.orchestrator, queued: data.queued ?? m.queued } : m
+              m.id === id ? { ...m, content: data.message, pending: false, report: data.report ?? m.report, drafts: data.drafts?.length ? data.drafts : m.drafts, showOrchestrator: data.showOrchestrator ?? m.showOrchestrator, scopeAsk: data.askScope ?? m.scopeAsk, orchestrator: data.orchestrator ?? m.orchestrator, queued: data.queued ?? m.queued, plan: data.plan ?? m.plan } : m
             )
           );
         } else {
           update((prev) => [
             ...prev,
-            { id: nextId(), role: "assistant", content: data.message, time: nowLabel(), report: data.report, drafts: data.drafts?.length ? data.drafts : undefined, showOrchestrator: data.showOrchestrator, scopeAsk: data.askScope, orchestrator: data.orchestrator, queued: data.queued },
+            { id: nextId(), role: "assistant", content: data.message, time: nowLabel(), report: data.report, drafts: data.drafts?.length ? data.drafts : undefined, showOrchestrator: data.showOrchestrator, scopeAsk: data.askScope, orchestrator: data.orchestrator, queued: data.queued, plan: data.plan },
           ]);
         }
       } catch {
@@ -170,12 +190,62 @@ export function useChat(account = "all") {
     void request(lastUserText.current, withoutLastUser);
   }, [request, update]);
 
+  /**
+   * Setelah semua tugas rencana aksi selesai: kirim hasil nyata ke server dan tambahkan ringkasan +
+   * penutup sebagai pesan asisten. Tidak memblokir kolom input.
+   */
+  const summarize = useCallback(
+    async (execution: unknown) => {
+      const id = nextId();
+      update((prev) => [
+        ...prev,
+        { id, role: "assistant", content: "", time: nowLabel(), pending: true, kind: "execution" },
+      ]);
+      try {
+        const res = await fetch("/api/bot/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "Ringkas hasil eksekusi", execution }),
+        });
+        const data = await res.json();
+        if (!data.success || !data.message) throw new Error(data.error || "Respons kosong");
+        update((prev) => prev.map((m) => (m.id === id ? { ...m, content: data.message, pending: false } : m)));
+      } catch {
+        update((prev) =>
+          prev.map((m) =>
+            m.id === id
+              ? {
+                  ...m,
+                  content:
+                    "Semua tugas selesai dikerjakan. Ringkasan rincinya belum bisa dimuat; cek kartu tiap tugas di atas atau buka Jadwal Konten.",
+                  pending: false,
+                }
+              : m
+          )
+        );
+      }
+    },
+    [update]
+  );
+
+  /** Jawab ulang pertanyaan pengguna terakhir: jawaban sesudahnya dibuang, pertanyaannya dipertahankan. */
+  const regenerate = useCallback(() => {
+    if (busy.current) return;
+    const msgs = messagesRef.current;
+    let idx = msgs.length - 1;
+    while (idx >= 0 && msgs[idx].role !== "user") idx--;
+    if (idx < 0) return;
+    const question = msgs[idx];
+    update(() => msgs.slice(0, idx + 1));
+    void request(question.content, msgs.slice(0, idx));
+  }, [request, update]);
+
   const reset = useCallback(() => {
     if (busy.current) return;
     update(() => []);
   }, [update]);
 
-  return { messages, isLoading, send, retry, reset };
+  return { messages, isLoading, send, retry, regenerate, summarize, reset };
 }
 
 export type ChatApi = ReturnType<typeof useChat>;
