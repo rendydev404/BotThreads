@@ -31,6 +31,8 @@ const account = (id: string, over: Record<string, unknown> = {}) => ({
 const inserted: unknown[][] = [];
 
 beforeEach(() => {
+  // Default produksi tanpa batas jarak; aturan jarak diuji dengan menyalakannya lewat env.
+  process.env.CONTENT_MIN_GAP_MINUTES = "60";
   inserted.length = 0;
   vi.mocked(rpc).mockImplementation(async (fn: string, args?: Record<string, unknown>) => {
     switch (fn) {
@@ -119,6 +121,27 @@ describe("createPosts tanpa partial (perilaku lama)", () => {
     expect(r.ok && r.posts).toHaveLength(2);
     expect(r.ok && "skipped" in r).toBe(false);
     expect(inserted[0]).toHaveLength(2);
+  });
+});
+
+describe("createPosts tanpa batas jarak (default)", () => {
+  beforeEach(() => {
+    delete process.env.CONTENT_MIN_GAP_MINUTES;
+  });
+
+  it("posting yang berdekatan atau bersamaan dengan jadwal lain tetap diterima", async () => {
+    const r = await createPosts(
+      {
+        userId: "u",
+        idempotencyKey: "nogap-1",
+        // b sudah punya posting tepat IN_1H: 70 menit sesudahnya dan jam yang sama sama-sama lolos.
+        items: [item("b", "Draf b berjarak 10 menit dari jadwal lain", IN_70M), item("b", "Draf b tepat di jam yang sama", IN_1H)],
+        partial: true,
+      },
+      NOW
+    );
+    expect(r.ok && r.skipped).toEqual([]);
+    expect(r.ok && r.posts.map((p) => p.tayangPada)).toEqual([IN_70M, IN_1H]);
   });
 });
 

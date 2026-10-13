@@ -6,7 +6,7 @@
  * - CONTENT_PUBLISH_ENABLED        "true" untuk membuka jalur tulis (default: mati, kill switch FR-11)
  * - CONTENT_PUBLISH_TEST_ACCOUNTS  daftar id/username akun yang diizinkan selama uji (kosong = semua)
  * - CONTENT_MAX_POSTS_PER_DAY      batas posting dashboard per akun per hari WIB (default 6)
- * - CONTENT_MIN_GAP_MINUTES        jarak minimal antar posting per akun (default 60)
+ * - CONTENT_MIN_GAP_MINUTES        jarak minimal antar posting per akun (default 0 = tanpa batas)
  */
 
 /** Maksimal item dalam satu permintaan membuat posting. */
@@ -53,4 +53,4 @@ export function publishTestAccounts(): string[] | null {
 }
 
 export const maxPostsPerDay = (): number => intEnv("CONTENT_MAX_POSTS_PER_DAY", 6, 1, 50);
-export const minGapMinutes = (): number => intEnv("CONTENT_MIN_GAP_MINUTES", 60, 0, 24 * 60);
+export const minGapMinutes = (): number => intEnv("CONTENT_MIN_GAP_MINUTES", 0, 0, 24 * 60);
