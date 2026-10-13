@@ -108,6 +108,22 @@ export async function bestHoursForAccounts(
   return out;
 }
 
+/** Jam terbaik seluruh jaringan (rata-rata views berbobot waktu per jam WIB), cache 10 menit. */
+export async function networkBestHours(
+  now = new Date(),
+  limit = 5
+): Promise<{ best: BestHour[]; overall: number }> {
+  const hit = cache.get(NETWORK_KEY);
+  let rows: HourRow[];
+  if (hit && now.getTime() - hit.at < TTL_MS) {
+    rows = hit.rows;
+  } else {
+    rows = (await fetchNetworkRows(now)).map((r) => ({ hour: r.hour, n: r.n, avg: r.avg, w: r.w }));
+    cache.set(NETWORK_KEY, { at: now.getTime(), rows });
+  }
+  return { best: rankBestHours(rows, limit), overall: overallAverage(rows) };
+}
+
 /** Bentuk ringkas untuk chip jam terbaik di UI. */
 export function toBestHourDTO(hours: AccountHours): BestHourDTO[] {
   return hours.best.slice(0, 3).map((b) => ({

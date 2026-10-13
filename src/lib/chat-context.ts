@@ -1,5 +1,7 @@
-import { agg, db, excludedIdList, must, sqlTs, toDate } from "@/lib/supabase";
+import { agg, db, excludedIdList, must, rpc, sqlTs, toDate } from "@/lib/supabase";
 import { withoutExcluded } from "@/lib/account-visibility";
+import { bestHoursForAccounts } from "@/lib/best-hours";
+import { loadPostStats } from "@/lib/chat-insights";
 
 /**
  * Konteks data live untuk asisten AI. Semua agregasi dikerjakan di database;
@@ -171,17 +173,6 @@ async function loadFleet(): Promise<FleetContext> {
     media: MEDIA_LABEL[p.mediaType] || p.mediaType,
   }));
 
-  // Jam posting (WIB) dari 30 postingan terbaik
-  const hourCount = new Map<number, number>();
-  for (const p of topPosts) {
-    const h = (p.postedAt.getUTCHours() + 7) % 24;
-    hourCount.set(h, (hourCount.get(h) ?? 0) + 1);
-  }
-  const bestHours = [...hourCount.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([h, c]) => `${String(h).padStart(2, "0")}:00 WIB (${c} dari 30 post terbaik)`);
-
   const mediaText = byMedia
     .map((m) => {
       const inter = (m._sum.likes ?? 0) + (m._sum.replies ?? 0);
@@ -209,15 +200,13 @@ ${byViews.slice(0, 10).map((a, i) => `${i + 1}. @${a.username}: ${fmt(a.views)} 
 PERINGKAT JUMLAH POSTINGAN (top 10 akun):
 ${byPosts.slice(0, 10).map((a, i) => `${i + 1}. @${a.username}: ${fmt(a.posts)} post, ${fmt(a.followers)} followers`).join("\n")}
 
-PERFORMA PER FORMAT KONTEN:
+PERFORMA PER FORMAT KONTEN (sepanjang data):
 ${mediaText}
 
 TREN 7 HARI TERAKHIR (seluruh jaringan):
 ${trendText}
 
-JAM POSTING PALING SERING MUNCUL DI POSTINGAN TERBAIK: ${bestHours.join("; ") || "-"}
-
-10 POSTINGAN TERBAIK (views tertinggi):
+10 POSTINGAN DENGAN VIEWS TERTINGGI SEPANJANG DATA (bukan tren terbaru):
 ${top.map((p, i) => `${i + 1}. @${p.username} [${p.media}] ${fmt(p.views)} views, ${p.likes} suka, ${p.replies} balasan: "${clip(p.text, 180)}"`).join("\n")}
 
 5 POSTINGAN TERLEMAH (views rendah, sudah lewat 3 hari):
@@ -241,75 +230,173 @@ export async function getFleetContext(): Promise<FleetContext> {
   return value;
 }
 
-/** Detail satu akun bila pesan menyebut username atau nama cabangnya. */
+/** Maksimal akun yang dirinci dalam satu jawaban (perbandingan antar akun). */
+const MAX_DETAIL_ACCOUNTS = 3;
+const DAY_MS = 86_400_000;
+const WIB_OFFSET_MS = 7 * 3_600_000;
+
+/** Akun yang disebut pesan lewat username atau nama tampilnya (paling spesifik lebih dulu). */
+function matchAccounts<T extends { username: string | null; displayName: string }>(
+  message: string,
+  accounts: T[]
+): T[] {
+  const norm = (s: string) => s.toLowerCase().replace(/[@_\s.-]/g, "");
+  const qNorm = norm(message);
+  const len = (a: T) => Math.max((a.username || "").length, (a.displayName || "").length);
+  return accounts
+    .filter((a) => {
+      const uNorm = norm(a.username || "");
+      const dNorm = norm(a.displayName || "");
+      return (uNorm.length >= 3 && qNorm.includes(uNorm)) || (dNorm.length >= 3 && qNorm.includes(dNorm));
+    })
+    .sort((a, b) => len(b) - len(a))
+    .slice(0, MAX_DETAIL_ACCOUNTS);
+}
+
+/**
+ * Detail akun yang disebut pesan: total, perubahan 7 hari, kualitas post (median), format, jam terbaik,
+ * peringkat, dan postingan terbaru. Semua angka dihitung di database/server, bukan oleh AI.
+ */
 export async function getAccountDetail(
   message: string,
   usernames: string[] = []
 ): Promise<string> {
+  void usernames;
   const accounts = withoutExcluded(
     await must<{ id: string; username: string | null; displayName: string }[]>(
       db().from("ThreadsAccount").select("id, username, displayName")
     )
   );
+  const hits = matchAccounts(message, accounts);
+  if (hits.length === 0) return "";
 
-  const norm = (s: string) => s.toLowerCase().replace(/[@_\s.-]/g, "");
-  const qNorm = norm(message);
+  const ids = hits.map((h) => h.id);
+  const now = new Date();
+  const to = await agg.dailyMaxDate(ids);
+  const from = to ? new Date(to.getTime() - 6 * DAY_MS) : null;
+  const prevTo = from ? new Date(from.getTime() - DAY_MS) : null;
+  const prevFrom = prevTo ? new Date(prevTo.getTime() - 6 * DAY_MS) : null;
 
-  // Cari kecocokan terbaik berdasarkan username atau display name
-  const hit = accounts
-    .filter((a) => {
-      const uNorm = norm(a.username || "");
-      const dNorm = norm(a.displayName || "");
-      if (uNorm.length >= 3 && qNorm.includes(uNorm)) return true;
-      if (dNorm.length >= 3 && qNorm.includes(dNorm)) return true;
-      return false;
+  const [lifetime, windowCur, windowPrev, postCounts, winPosts, latest, stats, fleet, hours, aiCtx, topRows] =
+    await Promise.all([
+      agg.dailyByAccount({ ids }),
+      from && to ? agg.dailyByAccount({ ids, from, to }) : Promise.resolve([]),
+      prevFrom && prevTo ? agg.dailyByAccount({ ids, from: prevFrom, to: prevTo }) : Promise.resolve([]),
+      agg.postsByAccount({ ids }),
+      from && to
+        ? agg.postsByAccount({
+            ids,
+            from: new Date(from.getTime() - WIB_OFFSET_MS),
+            to: new Date(to.getTime() + DAY_MS - WIB_OFFSET_MS),
+          })
+        : Promise.resolve([]),
+      agg.latestFollowers({ ids }),
+      loadPostStats(new Date(Date.now() - 30 * DAY_MS), ids).catch(() => []),
+      getFleetContext().catch(() => null),
+      bestHoursForAccounts(ids, now).catch(() => new Map()),
+      rpc<{
+        recents?: Array<{ aid: string; text: string; views: number; rn: number }>;
+        formats?: Array<{ aid: string; mediaType: string; n: number; avgViews: number; er: number }>;
+      }>("dash_ai_context", { p_ids: ids, p_now: now }).catch(() => ({ recents: [], formats: [] })),
+      Promise.all(
+        ids.map((id) =>
+          must<{ text: string; views: number; likes: number; replies: number; mediaType: string }[]>(
+            db()
+              .from("ThreadsPostStat")
+              .select("text, views, likes, replies, mediaType")
+              .eq("threadsAccountId", id)
+              .order("views", { ascending: false })
+              .limit(5)
+          )
+        )
+      ),
+    ]);
+
+  const by = <T extends object>(rows: T[], id: string): T | undefined =>
+    rows.find((r) => {
+      const k = r as { threadsAccountId?: string; aid?: string };
+      return (k.threadsAccountId ?? k.aid) === id;
+    });
+  const fmtN = (n: number) => n.toLocaleString("id-ID");
+
+  return hits
+    .map((hit, idx) => {
+      const handle = hit.username || hit.displayName;
+      const life = by(lifetime, hit.id);
+      const views = life?.views ?? 0;
+      const inter = (life?.likes ?? 0) + (life?.replies ?? 0);
+      const fol = by(latest, hit.id);
+      const posts = by(postCounts, hit.id)?.posts ?? 0;
+      const lines: string[] = [`DETAIL AKUN YANG DITANYAKAN (@${handle}, ${hit.displayName}):`];
+
+      lines.push(
+        `- Followers: ${fmtN(fol?.followers ?? 0)}${fol?.date ? ` (insight Threads per ${toDate(fol.date).toISOString().slice(0, 10)})` : ""}`,
+        `- Total: ${fmtN(posts)} post, ${fmtN(views)} views, ${fmtN(inter)} interaksi (suka dan balasan), ER ${views ? ((inter / views) * 100).toFixed(2) : "0"}%`
+      );
+      if (fol?.followers) lines.push(`- Views per follower: ${fmtN(Math.round(views / fol.followers))}`);
+      if (fleet) {
+        const rank = fleet.byViews.findIndex((a) => a.username === handle) + 1;
+        if (rank > 0) lines.push(`- Peringkat views seluruh jaringan: ${rank} dari ${fleet.byViews.length} akun`);
+      }
+
+      const cur = by(windowCur, hit.id);
+      const prev = by(windowPrev, hit.id);
+      if (from && to && cur) {
+        const p = prev?.views ?? 0;
+        const delta = p >= 100 ? Math.round(((cur.views - p) / p) * 100) : null;
+        lines.push(
+          `- 7 hari terakhir (${from.toISOString().slice(0, 10)} s/d ${to.toISOString().slice(0, 10)}): ${fmtN(cur.views)} views, ${by(winPosts, hit.id)?.posts ?? 0} post baru` +
+            (prev
+              ? `; 7 hari sebelumnya ${fmtN(p)} views${delta === null ? "" : ` (${delta >= 0 ? "naik" : "turun"} ${Math.abs(delta)}%)`}`
+              : "; belum ada pembanding periode sebelumnya")
+        );
+      }
+
+      const st = by(stats, hit.id);
+      if (st) {
+        lines.push(
+          `- Postingan 30 hari terakhir: ${st.n} post, median ${fmtN(st.median)} views/post, rata-rata ${fmtN(st.avg)}, tertinggi ${fmtN(st.max)}, ${st.low} post dengan <=1 view`
+        );
+      }
+
+      const formats = (aiCtx.formats ?? []).filter((f) => f.aid === hit.id);
+      if (formats.length) {
+        lines.push(
+          `- Format 60 hari terakhir: ${formats
+            .map((f) => `${MEDIA_LABEL[f.mediaType] || f.mediaType} ${f.n} post, rata-rata ${fmtN(f.avgViews)} views, ER ${f.er}%`)
+            .join("; ")}`
+        );
+      }
+
+      const hr = (hours as Map<string, { best: Array<{ h: number; avgViews: number; posts: number }>; source: string }>).get(hit.id);
+      if (hr?.best.length) {
+        lines.push(
+          `- Jam terbaik (WIB, ${hr.source === "account" ? "dari data akun ini" : "dari pola jaringan karena data akun ini kurang"}): ${hr.best
+            .slice(0, 3)
+            .map((b) => `${String(b.h).padStart(2, "0")}:00 (rata-rata ${fmtN(b.avgViews)} views, ${b.posts} post)`)
+            .join("; ")}`
+        );
+      }
+
+      const recent = (aiCtx.recents ?? []).filter((r) => r.aid === hit.id).slice(0, 8);
+      if (recent.length) {
+        lines.push(
+          `Postingan terbaru (14 hari, urut terbaru):`,
+          ...recent.map((r, i) => `${i + 1}. ${fmtN(r.views)} views: "${clip(r.text, 110)}"`)
+        );
+      }
+
+      const top = topRows[idx] ?? [];
+      if (top.length) {
+        lines.push(
+          `Postingan terbaik sepanjang data:`,
+          ...top.map(
+            (p, i) =>
+              `${i + 1}. [${MEDIA_LABEL[p.mediaType] || p.mediaType}] ${fmtN(p.views)} views, ${p.likes} suka, ${p.replies} balasan: "${clip(p.text, 140)}"`
+          )
+        );
+      }
+      return lines.join("\n");
     })
-    .sort((a, b) => {
-      const lenA = Math.max((a.username || "").length, (a.displayName || "").length);
-      const lenB = Math.max((b.username || "").length, (b.displayName || "").length);
-      return lenB - lenA;
-    })[0];
-
-  if (!hit) return "";
-
-  const ids = [hit.id];
-  const [sumRows, posts, countRes, latestRows] = await Promise.all([
-    agg.dailyByAccount({ ids }),
-    must<{ text: string; views: number; likes: number; replies: number; mediaType: string }[]>(
-      db()
-        .from("ThreadsPostStat")
-        .select("text, views, likes, replies, mediaType")
-        .eq("threadsAccountId", hit.id)
-        .order("views", { ascending: false })
-        .limit(6)
-    ),
-    db()
-      .from("ThreadsPostStat")
-      .select("id", { count: "exact", head: true })
-      .eq("threadsAccountId", hit.id),
-    agg.latestFollowers({ ids }),
-  ]);
-  if (countRes.error) throw new Error(`Supabase: ${countRes.error.message}`);
-
-  // Bentuk hasil disamakan dengan query Prisma sebelumnya
-  const s0 = sumRows[0];
-  const sum = { _sum: { views: s0?.views ?? 0, likes: s0?.likes ?? 0, replies: s0?.replies ?? 0 } };
-  const count = countRes.count ?? 0;
-  const latestDaily = latestRows[0]
-    ? { followers: latestRows[0].followers, date: toDate(latestRows[0].date) }
-    : null;
-
-  const v = sum._sum.views ?? 0;
-  const inter = (sum._sum.likes ?? 0) + (sum._sum.replies ?? 0);
-  const fol = latestDaily?.followers ?? 0;
-  const folDate = latestDaily?.date ? latestDaily.date.toISOString().slice(0, 10) : null;
-
-  return `DETAIL AKUN YANG DITANYAKAN (@${hit.username}, ${hit.displayName}):
-- Followers: ${fmt(fol)} pengikut${folDate ? ` (data insight Threads per ${folDate})` : ""}
-- Postingan: ${fmt(count)} post
-- Total Views: ${fmt(v)} views
-- Total Interaksi: ${fmt(inter)} (suka & balasan)
-- Engagement Rate: ${v ? ((inter / v) * 100).toFixed(2) : "0"}%
-Postingan terbaik akun ini:
-${posts.map((p, i) => `${i + 1}. [${MEDIA_LABEL[p.mediaType] || p.mediaType}] ${fmt(p.views)} views, ${p.likes} suka, ${p.replies} balasan: "${clip(p.text, 160)}"`).join("\n")}`;
+    .join("\n\n");
 }
