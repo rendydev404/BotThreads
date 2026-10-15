@@ -20,6 +20,8 @@ export const GET = withCtx("ADMIN", async (request, ctx) => {
   if (!ctx.workspaceId) return back("Workspace tidak ditemukan.");
   if (!cfg.threadsOauth.enabled || !cfg.threadsOauth.appId || !cfg.threadsOauth.appSecret) return back("threads_oauth_off");
   if (!tokenKeyConfigured()) return back("threads_key_off");
+  // Meta menolak login dari halaman http ("Insecure Login Blocked"): jelaskan di dashboard, jangan kirim ke halaman galat Meta.
+  if (!origin.startsWith("https://")) return back("threads_insecure");
 
   // Cek paket sebelum ke Threads, supaya pengguna tidak sudah memberi izin lalu baru ditolak.
   // Kuota penuh tetap boleh lanjut bila ada akun yang perlu dihubungkan ulang (tidak menambah kuota).

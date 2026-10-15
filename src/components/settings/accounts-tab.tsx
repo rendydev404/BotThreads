@@ -60,8 +60,10 @@ export function AccountsTab({
   const quotaFull = quota.max !== null && quota.used >= quota.max;
   // Satu klik: ke halaman izin Threads lalu kembali dalam keadaan terhubung (perlu App ID Threads + kunci token di server).
   const oneClickReady = !!data?.oauthConfigured && !!data.connectReady;
-  // Tempel Access Token hanya cadangan untuk pengembang (mis. localhost, yang tidak bisa memakai login Threads).
-  const manualAllowed = !!data?.connectReady && !data.oauthConfigured;
+  // Login Threads wajib https. Komponen ini baru dirender di peramban (data dimuat di klien), jadi aman membaca window.
+  const insecure = typeof window !== "undefined" && window.location.protocol === "http:";
+  // Tempel Access Token hanya cadangan untuk pengembang (mis. localhost http, yang tidak bisa memakai login Threads).
+  const manualAllowed = !!data?.connectReady && (!data.oauthConfigured || insecure);
 
   const connectButton = (label: string) =>
     oneClickReady ? (
@@ -117,7 +119,15 @@ export function AccountsTab({
         <Banner tone="warning">
           {oauthError === "threads_oauth_off" || oauthError === "threads_key_off"
             ? "Fitur hubungkan akun Threads belum diaktifkan oleh pengelola platform. Silakan coba lagi nanti atau hubungi admin."
-            : oauthError}
+            : oauthError === "threads_insecure"
+              ? "Login Threads hanya bisa dari alamat https. Buka dashboard lewat domain https-nya, lalu klik Hubungkan Akun Threads lagi."
+              : oauthError}
+        </Banner>
+      )}
+      {insecure && !oauthError && oneClickReady && canManage && (
+        <Banner tone="info">
+          Halaman ini dibuka lewat http, sedangkan Threads hanya mengizinkan login dari https. Di produksi (https) cukup satu klik.
+          Untuk uji di komputer sendiri, jalankan <code className="font-mono">npm run dev:https</code> lalu buka https://localhost:3000.
         </Banner>
       )}
       {data && !oneClickReady && canManage && (

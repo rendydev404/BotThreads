@@ -62,7 +62,8 @@ export function appOrigin(
   const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0].trim();
   if (forwardedProto) return `${forwardedProto}://${host}`;
   const isLocal = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
-  if (isLocal) return `http://${host}`;
+  // Localhost mengikuti protokol sebenarnya: `next dev --experimental-https` harus menghasilkan https.
+  if (isLocal) return `${req.nextUrl.protocol === "https:" ? "https" : "http"}://${host}`;
   const urlProto = req.nextUrl.protocol ? req.nextUrl.protocol.replace(":", "") : "https";
   return `${urlProto}://${host}`;
 }
