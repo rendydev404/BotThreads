@@ -10,6 +10,7 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { clearFailures, lockedSeconds, recordFailure } from "@/lib/rate-limit";
 import { findUserByIdentifier, normalizeIdentifier } from "@/lib/users";
 import { isSameOrigin } from "@/lib/same-origin";
+import { platformCtx } from "@/lib/platform";
 
 const MAX_PER_IP = 5;
 const MAX_PER_IDENTIFIER = 10;
@@ -87,6 +88,18 @@ export async function POST(req: NextRequest) {
     password,
     user?.passwordHash ?? (await getDummyHash())
   );
+
+  if (user && passwordOk && !user.isActive) {
+    // Password benar tetapi akun tidak aktif: beri tahu bila itu karena diblokir pengelola. Hanya orang
+    // yang tahu password-nya yang sampai ke sini, jadi keberadaan akun tidak bocor ke penebak.
+    const platform = await platformCtx(user.id).catch(() => null);
+    if (platform?.banned) {
+      return json(
+        { error: `Akun ini diblokir oleh pengelola${platform.bannedReason ? `: ${platform.bannedReason}` : "."} Hubungi pengelola bila ini keliru.` },
+        403
+      );
+    }
+  }
 
   if (!user || !user.isActive || !passwordOk) {
     recordFailure(ipKey, MAX_PER_IP);

@@ -1,9 +1,11 @@
 import { db, must } from "@/lib/supabase";
 import {
   SESSION_COOKIE,
+  SESSION_MAX_AGE,
   passwordFingerprint,
   verifySessionToken,
 } from "@/lib/auth";
+import { platformCtx } from "@/lib/platform";
 
 export function normalizeIdentifier(raw: string): string {
   return raw.trim().toLowerCase();
@@ -36,23 +38,28 @@ export async function findUserByIdentifier(identifier: string): Promise<LoginUse
 // Cache status pengguna agar proxy tidak query DB di setiap request.
 // Menonaktifkan akun / mengganti password berlaku paling lambat TTL ini.
 const STATUS_TTL_MS = 30_000;
-const statusCache = new Map<string, { at: number; ok: boolean; pv: string }>();
+const statusCache = new Map<string, { at: number; ok: boolean; pv: string; validAfter: number | null }>();
 
 async function currentStatus(userId: string) {
   const hit = statusCache.get(userId);
   if (hit && Date.now() - hit.at < STATUS_TTL_MS) return hit;
 
-  const user = await must<{ isActive: boolean; passwordHash: string } | null>(
-    db()
-      .from("DashboardUser")
-      .select("isActive, passwordHash")
-      .eq("id", userId)
-      .maybeSingle()
-  );
+  const [user, platform] = await Promise.all([
+    must<{ isActive: boolean; passwordHash: string } | null>(
+      db()
+        .from("DashboardUser")
+        .select("isActive, passwordHash")
+        .eq("id", userId)
+        .maybeSingle()
+    ),
+    platformCtx(userId),
+  ]);
   const entry = {
     at: Date.now(),
     ok: !!user?.isActive,
     pv: user ? await passwordFingerprint(user.passwordHash) : "",
+    // Super admin bisa menggugurkan semua sesi lama tanpa mengganti password.
+    validAfter: platform.sessionsValidAfter,
   };
   statusCache.set(userId, entry);
   if (statusCache.size > 200) statusCache.clear();
@@ -71,7 +78,11 @@ export async function getSessionUserId(
   if (!payload) return null;
   try {
     const status = await currentStatus(payload.uid);
-    return status.ok && status.pv === payload.pv ? payload.uid : null;
+    // Token tidak menyimpan waktu terbit; diturunkan dari masa berlakunya (umur sesi tetap).
+    const issuedAt = (payload.exp - SESSION_MAX_AGE) * 1000;
+    // Toleransi 1 detik: `exp` dibulatkan ke detik, batasnya bermilidetik.
+    const revoked = status.validAfter !== null && issuedAt + 1000 < status.validAfter;
+    return status.ok && status.pv === payload.pv && !revoked ? payload.uid : null;
   } catch (err) {
     // Gagal tutup: jika DB tidak terjangkau, anggap belum login.
     console.error("Session status check failed:", err);

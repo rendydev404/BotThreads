@@ -39,6 +39,7 @@ import {
 import { generateWithFailover, type GeminiSchema } from "./gemini";
 import { getAccountFacts } from "./account-facts";
 import { PLACEHOLDER } from "./threads-text";
+import { scopeKey } from "@/lib/tenant-scope";
 
 const CONTEXT_TTL_MS = 10 * 60 * 1000;
 const EXAMPLE_CLIP = 280;
@@ -78,7 +79,8 @@ interface AccountContext {
 }
 
 const ctxCache = new Map<string, { at: number; value: AccountContext }>();
-let networkCache: { at: number; value: PostSample[] } | null = null;
+// Per lingkup tenant: "tren jaringan" hanya dari akun yang terlihat pengguna.
+const networkCache = new Map<string, { at: number; value: PostSample[] }>();
 
 interface SampleRow extends PostSample {
   aid: string;
@@ -118,7 +120,9 @@ async function loadContexts(ids: string[], now: Date): Promise<Map<string, Accou
     return hit && now.getTime() - hit.at < CONTEXT_TTL_MS ? hit.value : null;
   };
   const missing = ids.filter((id) => !fresh(id));
-  const needNetwork = !(networkCache && now.getTime() - networkCache.at < CONTEXT_TTL_MS);
+  const netKey = scopeKey();
+  const netHit = networkCache.get(netKey);
+  const needNetwork = !(netHit && now.getTime() - netHit.at < CONTEXT_TTL_MS);
 
   if (missing.length || needNetwork) {
     // Dua RPC saja (konteks semua akun sekaligus + tren jaringan), tanpa N+1.
@@ -147,7 +151,7 @@ async function loadContexts(ids: string[], now: Date): Promise<Map<string, Accou
         },
       });
     }
-    if (network) networkCache = { at: now.getTime(), value: network };
+    if (network) networkCache.set(netKey, { at: now.getTime(), value: network });
   }
 
   const out = new Map<string, AccountContext>();
@@ -391,6 +395,14 @@ interface PromptInput {
   peers?: string[];
   /** Kalimat fakta dari postingan akun (lokasi, menu, harga, jam buka). */
   facts?: string[];
+  /** Blok arahan tambahan (autopilot: tema akun, gaya sapaan, ide, catatan pemeriksa). */
+  extra?: PromptBlock[];
+}
+
+/** Blok tambahan di prompt: judul + butir. Isinya data/arahan isi, bukan perubahan aturan. */
+export interface PromptBlock {
+  title: string;
+  lines: string[];
 }
 
 export function buildPrompt(p: PromptInput): string {
@@ -440,6 +452,12 @@ export function buildPrompt(p: PromptInput): string {
     p.facts.forEach((f) => lines.push(`- ${f}`));
   } else {
     lines.push("\nFAKTA AKUN DARI DATABASE: tidak ada detail lokasi/menu/harga. Jangan menulis detail itu.");
+  }
+  for (const block of p.extra ?? []) {
+    const items = block.lines.map((l) => clipChars(sanitizeBrief(l), 400)).filter(Boolean);
+    if (!items.length) continue;
+    lines.push(`\n${sanitizeBrief(block.title)}:`);
+    items.forEach((l) => lines.push(`- ${l}`));
   }
   if (p.network.length) {
     lines.push("\nTREN JARINGAN (inspirasi topik saja, jangan disalin):");
@@ -645,7 +663,7 @@ export async function loadSharedContext(ids: string[], now = new Date()): Promis
     bestHoursForAccounts(ids, now),
     getAccountFacts().catch(() => new Map<string, string[]>()),
   ]);
-  return { now, contexts, queues, hours, network: networkCache?.value ?? [], facts };
+  return { now, contexts, queues, hours, network: networkCache.get(scopeKey())?.value ?? [], facts };
 }
 
 /* ------------------------------------------------------------------ agen per akun (orkestrator) */
@@ -684,6 +702,8 @@ export interface AgentTask {
   avoid: string | null;
   /** Jam manual WIB untuk semua akun; null = jam terbaik akun pilihan agen. */
   fixedTime: { hour: number; minute: number } | null;
+  /** Blok arahan tambahan untuk prompt (autopilot). */
+  extra?: PromptBlock[];
   signal?: AbortSignal;
 }
 
@@ -730,6 +750,7 @@ export async function runAccountAgent(shared: SharedContext, task: AgentTask): P
         angles: task.angles,
         peers: task.peers,
         facts: shared.facts.get(account.id),
+        extra: task.extra,
       }),
       AGENT_DEADLINE_MS,
       {

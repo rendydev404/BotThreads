@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getInsight } from "@/lib/insight";
+import { withCtx } from "@/lib/request-ctx";
 
 /** Analitik + saran AI untuk periode & akun yang sedang dilihat di dasbor. */
-export async function POST(request: NextRequest) {
+export const POST = withCtx("VIEWER", async (request) => {
   let body: Record<string, unknown> = {};
   try {
     body = await request.json();
@@ -34,4 +35,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

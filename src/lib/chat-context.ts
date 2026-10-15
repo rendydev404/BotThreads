@@ -1,5 +1,5 @@
-import { agg, db, excludedIdList, must, rpc, sqlTs, toDate } from "@/lib/supabase";
-import { withoutExcluded } from "@/lib/account-visibility";
+import { agg, db, excludedIdList, must, onlyVisible, rpc, sqlTs, toDate } from "@/lib/supabase";
+import { scopeKey } from "@/lib/tenant-scope";
 import { bestHoursForAccounts } from "@/lib/best-hours";
 import { loadPostStats } from "@/lib/chat-insights";
 
@@ -40,7 +40,8 @@ export interface FleetContext {
   usernames: string[];
 }
 
-let cache: { at: number; value: FleetContext } | null = null;
+// Per lingkup tenant: ringkasan armada satu workspace tidak boleh tersaji ke workspace lain.
+const cache = new Map<string, { at: number; value: FleetContext }>();
 
 async function loadFleet(): Promise<FleetContext> {
   const since = new Date();
@@ -67,7 +68,7 @@ async function loadFleet(): Promise<FleetContext> {
     await Promise.all([
       must<{ id: string; username: string | null; displayName: string }[]>(
         db().from("ThreadsAccount").select("id, username, displayName")
-      ).then(withoutExcluded),
+      ).then(onlyVisible),
       agg.postsByAccount(),
       agg.dailyByAccount(),
       must<PostRow[]>(posts().order("views", { ascending: false }).limit(30)),
@@ -224,9 +225,11 @@ ${flopPosts.map((p, i) => `${i + 1}. @${p.threadsAccount?.username || "unknown"}
 }
 
 export async function getFleetContext(): Promise<FleetContext> {
-  if (cache && Date.now() - cache.at < TTL_MS) return cache.value;
+  const key = scopeKey();
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
   const value = await loadFleet();
-  cache = { at: Date.now(), value };
+  cache.set(key, { at: Date.now(), value });
   return value;
 }
 
@@ -262,7 +265,7 @@ export async function getAccountDetail(
   usernames: string[] = []
 ): Promise<string> {
   void usernames;
-  const accounts = withoutExcluded(
+  const accounts = await onlyVisible(
     await must<{ id: string; username: string | null; displayName: string }[]>(
       db().from("ThreadsAccount").select("id, username, displayName")
     )

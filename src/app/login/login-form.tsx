@@ -11,6 +11,8 @@ import {
   Loader2,
   TriangleAlert,
 } from "lucide-react";
+import { BackToLanding } from "@/components/auth/auth-frame";
+import { GoogleButton } from "@/components/auth/google-button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { safeNextPath } from "@/lib/safe-next";
 import { cn } from "@/lib/utils";
@@ -39,16 +41,33 @@ function Field({
   );
 }
 
+/** Pesan untuk kode `?error=` yang dikirim alur masuk dengan Google. */
+const OAUTH_ERRORS: Record<string, string> = {
+  google_off: "Masuk dengan Google belum diaktifkan: isi GOOGLE_CLIENT_ID & GOOGLE_CLIENT_SECRET di panel Super Admin > Integrasi atau .env.local.",
+  google_gagal: "Masuk dengan Google gagal atau dibatalkan. Pastikan Authorized Redirect URI di Google Cloud Console sesuai dengan URL callback aplikasi.",
+  google_ditolak: "Google menolak akses. Bila aplikasi Google masih berstatus Testing, email ini harus ditambahkan sebagai Test user di Google Cloud Console.",
+  google_tidak_terdaftar: "Akun Google ini belum terdaftar dan pendaftaran mandiri sedang ditutup. Minta admin mengundang email Anda.",
+  undangan_email: "Undangan itu untuk email lain, atau sudah tidak berlaku. Masuk ke Google dengan email yang diundang.",
+  coba_lagi: "Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.",
+};
+
 const inputCls =
   "peer w-full h-14 pt-5 px-4 rounded-xl bg-subtle border border-transparent text-[15px] text-fg outline-none transition-colors placeholder-transparent focus:bg-surface focus:border-accent disabled:opacity-60";
 
-export function LoginForm() {
+export function LoginForm({ google = false, signup = false }: { google?: boolean; signup?: boolean }) {
   const params = useSearchParams();
+  const next = safeNextPath(params.get("next"));
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => {
+    const msg = OAUTH_ERRORS[params.get("error") ?? ""] ?? "";
+    // `why` hanya dikirim server di development (penyebab teknis kegagalan Google). Di produksi diabaikan
+    // supaya tautan buatan orang lain tidak bisa menyisipkan teks ke halaman masuk.
+    const why = process.env.NODE_ENV !== "production" ? params.get("why") : null;
+    return msg && why ? `${msg} (${why})` : msg;
+  });
   const [shake, setShake] = useState(0);
   const [loading, setLoading] = useState(false);
 
@@ -77,7 +96,7 @@ export function LoginForm() {
         return fail(data.error || "Login gagal. Coba lagi.");
       }
       // Muat ulang penuh agar seluruh state klien bersih dan cookie terbaca
-      window.location.assign(safeNextPath(params.get("next")));
+      window.location.assign(next);
     } catch {
       fail("Tidak bisa terhubung ke server. Periksa koneksi Anda.");
     }
@@ -85,6 +104,7 @@ export function LoginForm() {
 
   return (
     <main className="relative flex-1 w-full min-h-screen flex items-center justify-center px-5 py-10 bg-canvas">
+      <BackToLanding />
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
@@ -93,14 +113,14 @@ export function LoginForm() {
         <div className="flex flex-col items-center text-center">
           <Image
             src="/logo.webp"
-            alt="Dashboard Analytics Threads"
+            alt="BotThreads"
             width={88}
             height={88}
             priority
             className="w-[88px] h-[88px] rounded-[1.4rem] shadow-pop"
           />
           <h1 className="mt-6 text-[1.7rem] font-semibold tracking-tight text-fg">
-            Dashboard Analytics Threads
+            BotThreads
           </h1>
           <p className="mt-1.5 text-sm text-muted">Masuk untuk melihat performa akun</p>
         </div>
@@ -195,8 +215,33 @@ export function LoginForm() {
           </button>
         </form>
 
+        {(google || signup) && (
+          <>
+            <div className="mt-5 flex items-center gap-3 text-xs text-faint" aria-hidden="true">
+              <span className="h-px flex-1 bg-line" />
+              atau
+              <span className="h-px flex-1 bg-line" />
+            </div>
+            <GoogleButton
+              href={`/api/auth/google?signup=1&next=${encodeURIComponent(next)}`}
+              className="mt-5"
+            >
+              Masuk atau Daftar dengan Google
+            </GoogleButton>
+          </>
+        )}
+
         <p className="mt-6 text-center text-xs text-faint">
-          Akses terbatas untuk administrator.
+          {signup ? (
+            <>
+              Belum punya akun?{" "}
+              <a href="/daftar" className="font-semibold text-accent hover:underline">
+                Daftar gratis
+              </a>
+            </>
+          ) : (
+            "Akses hanya untuk anggota yang terdaftar atau diundang."
+          )}
         </p>
       </div>
     </main>

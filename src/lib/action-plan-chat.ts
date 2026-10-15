@@ -2,6 +2,7 @@ import { generateWithFailover } from "./gemini";
 import { isPublishEnabled } from "./content-config";
 import { listPublishAccounts } from "./publish-accounts";
 import { PLAN_SCHEMA, PLAN_SYSTEM, normalizePlan, type ActionPlan } from "./action-plan";
+import { applyBrand, currentBrand } from "./brand";
 import { checkAnswer, numberPool } from "./answer-check";
 import {
   composeExecutionMessage,
@@ -38,7 +39,7 @@ export async function buildPlanReply(opts: { advice: string; userText: string })
     .map((a) => `@${a.username ?? a.displayName} (${a.displayName})`)
     .join("\n");
   const result = await generateWithFailover({
-    system: PLAN_SYSTEM,
+    system: applyBrand(PLAN_SYSTEM, await currentBrand()),
     contents: [
       {
         role: "user",
@@ -95,7 +96,7 @@ Aturan: hanya boleh memakai angka, akun, dan jam dari FAKTA. Jangan menjanjikan 
 export async function buildExecutionReply(exec: Execution): Promise<{ message: string; model: string | null }> {
   const facts = executionFacts(exec);
   const result = await generateWithFailover({
-    system: CLOSING_SYSTEM,
+    system: applyBrand(CLOSING_SYSTEM, await currentBrand()),
     contents: [{ role: "user", parts: [{ text: `FAKTA:\n${facts}\n\nTulis penutupnya.` }] }],
     temperature: 0.5,
     maxOutputTokens: 400,

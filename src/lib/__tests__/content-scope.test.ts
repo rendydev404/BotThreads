@@ -12,6 +12,7 @@ const acc = (id: string, username: string): PublishAccount => ({
   socialAccountId: null,
   outletId: null,
   workspaceId: null,
+  tenantId: null,
 });
 const accounts = [acc("a1", "akbaralatas"), acc("a2", "theakbaralatas"), acc("a3", "sukashawarmaofficial")];
 

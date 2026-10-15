@@ -1,5 +1,4 @@
-import { agg, db, excludedIdList, must, sqlTs, toDate, toDateOrNull, type DailyByDate } from "@/lib/supabase";
-import { withoutExcluded } from "@/lib/account-visibility";
+import { agg, db, excludedIdList, must, onlyVisible, sqlTs, toDate, toDateOrNull, type DailyByDate } from "@/lib/supabase";
 import { isoDate, resolvePeriod } from "@/lib/period";
 import { pctDelta } from "@/lib/report";
 
@@ -48,7 +47,7 @@ export async function buildOverview(opts: OverviewParams) {
           .from("ThreadsAccount")
           .select("id, username, displayName, avatarUrl, threadsUserId, insightsSyncedAt")
           .order("createdAt", { ascending: true })
-      ).then(withoutExcluded),
+      ).then(onlyVisible),
       agg.postsByAccount(),
     ]);
     const postCountOf = new Map(allPostCounts.map((c) => [c.threadsAccountId, c.posts]));

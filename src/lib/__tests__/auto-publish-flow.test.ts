@@ -31,6 +31,7 @@ vi.mock("@/lib/supabase", async (original) => ({
   ...(await original<typeof import("@/lib/supabase")>()),
   db: () => ({ from: (table: string) => fakeQuery(table) }),
   rpc: vi.fn(),
+  tenantIdOf: async (w: string | null) => w,
   excludedIdList: async () => null,
   scopedIds: async (ids?: string[]) => ids,
 }));
@@ -91,6 +92,9 @@ beforeEach(() => {
       case "dash_create_posts":
         inserted.push(...(args!.p_items as Record<string, unknown>[]));
         return (args!.p_items as unknown[]).length as never;
+      case "dash_mu_ctx":
+        // Skema multi-user belum dipasang: pengguna aktif diperlakukan sebagai pemilik semua akun.
+        throw new Error("Supabase: Could not find the function public.dash_mu_ctx(p_user) in the schema cache (PGRST202)");
       default:
         return [] as never; // jam terbaik, antrean, replay, teks terbaru, tren jaringan
     }

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { generateWithFailover, type GeminiContent } from "@/lib/gemini";
 import { DEFAULT_SCOPE, buildReport, reportToText, type Report, type ScopeOption } from "@/lib/report";
 import { getAccountDetail, getFleetContext, type FleetContext } from "@/lib/chat-context";
@@ -16,6 +16,8 @@ import { isExecuteIntent, pickAdviceText } from "@/lib/action-plan";
 import { buildExecutionReply, buildPlanReply } from "@/lib/action-plan-chat";
 import { parseExecution } from "@/lib/execution-summary";
 import { getQueueContext } from "@/lib/queue-context";
+import { withCtx } from "@/lib/request-ctx";
+import { applyBrand, currentBrand } from "@/lib/brand";
 
 const fmt = (n: number) => n.toLocaleString("id-ID");
 
@@ -181,7 +183,7 @@ ${topPosts.map((a, i) => `${i + 1}. @${a.username}: ${fmt(a.posts)} post`).join(
 - Paling aktif posting: @${topPosts[0]?.username} (${fmt(topPosts[0]?.posts ?? 0)} post)`;
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withCtx("VIEWER", async (request) => {
   const startTime = Date.now();
   try {
     const body = await request.json();
@@ -353,7 +355,7 @@ export async function POST(request: NextRequest) {
     if (facts) dataText += "\n\n" + facts;
     if (queue) dataText += "\n\n" + queue;
 
-    let system = buildSystem(dataText);
+    let system = applyBrand(buildSystem(dataText), await currentBrand());
     if (report) {
       system += `\n\nKONTEKS PERMINTAAN INI: pengguna meminta laporan ${report.days} hari. Kartu laporan lengkap (total, perbandingan, dan peringkat akun) SUDAH ditampilkan terpisah di atas jawaban Anda, jadi JANGAN mengulang tabel atau daftar peringkat. Tugas Anda: beri insight singkat maksimal 4 poin (pola utama, akun yang naik atau turun menonjol, satu saran tindakan konkret), lalu tawarkan satu pertanyaan lanjutan yang relevan.`;
     }
@@ -467,5 +469,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 

@@ -1,27 +1,18 @@
-import { NextResponse, type NextRequest } from "next/server";
-import {
-  PUBLISH_DISABLED,
-  getRequestUserId,
-  internalError,
-  jsonError,
-  readJson,
-  UNAUTHORIZED,
-} from "@/lib/api-auth";
+import { NextResponse } from "next/server";
+import { internalError, jsonError, PUBLISH_DISABLED, readJson } from "@/lib/api-auth";
 import { isPublishEnabled } from "@/lib/content-config";
 import { parsePatchBody } from "@/lib/content-validation";
 import { cancelPost, editPost } from "@/lib/threads-publish";
+import { withCtx } from "@/lib/request-ctx";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
-type Ctx = { params: Promise<{ id: string }> };
-
 /** Ubah teks, topik, atau jadwal posting dashboard yang belum diproses worker. */
-export async function PATCH(request: NextRequest, ctx: Ctx) {
-  const userId = await getRequestUserId(request);
-  if (!userId) return UNAUTHORIZED();
+export const PATCH = withCtx<{ id: string }>("EDITOR", async (request, ctx, route) => {
+  const userId = ctx.userId;
   if (!isPublishEnabled()) return PUBLISH_DISABLED();
 
-  const { id } = await ctx.params;
+  const { id } = await route.params;
   if (!ID_PATTERN.test(id)) return jsonError(400, "Id postingan tidak valid.");
 
   const parsed = parsePatchBody(await readJson(request));
@@ -34,15 +25,14 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   } catch (err) {
     return internalError("content/posts/[id]:PATCH", err);
   }
-}
+});
 
 /** Batalkan posting dashboard yang belum diproses worker (menghapus baris antrean). */
-export async function DELETE(request: NextRequest, ctx: Ctx) {
-  const userId = await getRequestUserId(request);
-  if (!userId) return UNAUTHORIZED();
+export const DELETE = withCtx<{ id: string }>("EDITOR", async (request, ctx, route) => {
+  const userId = ctx.userId;
   if (!isPublishEnabled()) return PUBLISH_DISABLED();
 
-  const { id } = await ctx.params;
+  const { id } = await route.params;
   if (!ID_PATTERN.test(id)) return jsonError(400, "Id postingan tidak valid.");
 
   try {
@@ -52,4 +42,4 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
   } catch (err) {
     return internalError("content/posts/[id]:DELETE", err);
   }
-}
+});

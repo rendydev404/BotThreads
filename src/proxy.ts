@@ -4,14 +4,54 @@ import { SESSION_COOKIE } from "@/lib/auth";
 import { safeNextPath } from "@/lib/safe-next";
 import { getSessionUserId } from "@/lib/users";
 import { isSameOrigin } from "@/lib/same-origin";
+import { CRON_PATHS, cronSecretConfigured, isCronAuthorized } from "@/lib/cron-auth";
 
-const PUBLIC_API = ["/api/auth/login", "/api/auth/logout"];
+// Endpoint tanpa sesi: login/logout, masuk dengan Google, terima undangan, dan reset password.
+// Tiga yang terakhir dibuktikan dengan token/`state` sendiri dan dibatasi lajunya di handler.
+const PUBLIC_API = [
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/auth/google",
+  "/api/auth/google/callback",
+  "/api/auth/invite",
+  "/api/auth/reset",
+  "/api/auth/register",
+  // Daftar paket untuk halaman perkenalan (hanya paket aktif yang publik).
+  "/api/plans",
+  // Callback invoice Xendit: dicek dengan callback token, lalu status diverifikasi ulang ke API Xendit.
+  "/api/billing/webhook",
+];
+
+// Halaman yang dibuka dari tautan undangan/reset oleh orang yang belum punya sesi.
+const PUBLIC_PAGE_PREFIXES = ["/undangan/", "/reset-password/"];
+// Halaman pemasaran dan pendaftaran: terbuka untuk siapa pun.
+const LANDING_PATH = "/selamat-datang";
+const PUBLIC_PAGES = [LANDING_PATH, "/daftar"];
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isApi = pathname.startsWith("/api/");
 
   if (PUBLIC_API.includes(pathname)) return NextResponse.next();
+  if (PUBLIC_PAGE_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next();
+  if (PUBLIC_PAGES.includes(pathname)) return NextResponse.next();
+
+  // Endpoint terjadwal: dipanggil penjadwal (bukan browser) dengan rahasia, tanpa sesi.
+  if (CRON_PATHS.includes(pathname)) {
+    if (!cronSecretConfigured()) {
+      return NextResponse.json(
+        { success: false, error: "Penjadwal belum dikonfigurasi." },
+        { status: 503, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+    if (request.method !== "POST" || !isCronAuthorized(request)) {
+      return NextResponse.json(
+        { success: false, error: "Tidak diizinkan." },
+        { status: 401, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+    return NextResponse.next();
+  }
 
   const user = await getSessionUserId(
     request.cookies.get(SESSION_COOKIE)?.value
@@ -32,8 +72,10 @@ export async function proxy(request: NextRequest) {
         { status: 401, headers: { "Cache-Control": "no-store" } }
       );
     }
+    // Pengunjung tanpa sesi yang membuka beranda melihat halaman perkenalan, bukan form masuk.
+    if (pathname === "/") return NextResponse.redirect(new URL(LANDING_PATH, request.url));
     const url = new URL("/login", request.url);
-    if (pathname !== "/") url.searchParams.set("next", pathname + search);
+    url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
   }
 

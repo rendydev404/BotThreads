@@ -1,46 +1,180 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, CheckCircle2, LogOut } from "lucide-react";
+import { Building2, Check, ChevronDown, KeyRound, Loader2, LogOut, Settings } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { ROLE_LABELS, switchWorkspace } from "@/lib/team-client";
+import { cn } from "@/lib/utils";
+import { ChangePasswordModal } from "./change-password-modal";
+import { NotificationBell } from "./notification-bell";
+import { logout } from "./session-nav";
+import { useMe } from "./use-me";
+import { usePopover } from "./use-popover";
 
-const titleMap: Record<string, string> = {
-  "/": "Ringkasan Performa",
-  "/posts": "Postingan Cabang",
-  "/jadwal": "Jadwal Konten",
-  "/prompt-studio": "Studio AI",
-};
+const TITLES: [prefix: string, title: string][] = [
+  ["/posts", "Postingan Cabang"],
+  ["/jadwal", "Jadwal Konten"],
+  ["/autopilot", "Autopilot Konten"],
+  ["/radar", "Radar dan Ide"],
+  ["/prompt-studio", "Studio AI"],
+  ["/billing", "Billing & Paket Sewa"],
+  ["/pengaturan", "Pengaturan"],
+  ["/admin", "Panel Super Admin"],
+];
 
-export function Header() {
-  const pathname = usePathname();
-  const [hasNotifications, setHasNotifications] = useState(true);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const popRef = useRef<HTMLDivElement>(null);
+const titleOf = (pathname: string): string =>
+  pathname === "/"
+    ? "Ringkasan Performa"
+    : TITLES.find(([p]) => pathname === p || pathname.startsWith(`${p}/`))?.[1] ?? "Dashboard";
 
-  useEffect(() => {
-    if (!showNotifications) return;
-    const close = (e: MouseEvent) => {
-      if (popRef.current && !popRef.current.contains(e.target as Node)) {
-        setShowNotifications(false);
-      }
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [showNotifications]);
+/** Dua huruf awal untuk avatar: dari nama ("Rendy Dev" -> "RD") atau username. */
+function initials(name: string | null | undefined, username: string | undefined): string {
+  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  const base = words[0] ?? username ?? "";
+  return base.slice(0, 2).toUpperCase() || "··";
+}
 
-  const logout = async () => {
+const MENU_ITEM_CLS =
+  "w-full flex items-center gap-3 px-3 h-10 rounded-lg text-sm font-medium text-fg hover:bg-subtle transition-colors cursor-pointer text-left";
+
+function UserMenu() {
+  const { me, loading } = useMe();
+  const { open, setOpen, rootRef, triggerRef } = usePopover<HTMLDivElement>();
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [switching, setSwitching] = useState<string | null>(null);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+
+  const displayName = me?.user.name || me?.user.username || (loading ? "Memuat..." : "Akun");
+  const workspaces = me?.workspaces ?? [];
+
+  const pickWorkspace = async (workspaceId: string) => {
+    if (switching || workspaceId === me?.workspaceId) return;
+    setSwitching(workspaceId);
+    setSwitchError(null);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } finally {
-      window.location.assign("/login");
+      await switchWorkspace(workspaceId);
+      // Muat ulang penuh: semua data di layar milik workspace sebelumnya.
+      window.location.reload();
+    } catch (err) {
+      setSwitchError(err instanceof Error ? err.message : "Gagal pindah workspace.");
+      setSwitching(null);
     }
   };
 
-  const title =
-    titleMap[pathname] ??
-    (pathname.startsWith("/posts") ? titleMap["/posts"] : "Dashboard");
+  return (
+    <div ref={rootRef} className="relative ml-1 pl-2.5 border-l border-line">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Menu akun ${displayName}`}
+        className="flex items-center gap-2 h-10 pl-1 pr-1.5 rounded-lg hover:bg-subtle transition-colors cursor-pointer"
+      >
+        <span
+          className={cn(
+            "w-8 h-8 rounded-full bg-accent text-on-accent flex items-center justify-center font-bold text-xs shrink-0",
+            loading && "animate-pulse"
+          )}
+        >
+          {initials(me?.user.name, me?.user.username)}
+        </span>
+        <span className="hidden lg:block leading-tight text-left min-w-0 max-w-[140px]">
+          <span className="block text-sm font-semibold text-fg truncate">{displayName}</span>
+          {me && <span className="block text-[11px] text-muted truncate">{ROLE_LABELS[me.role]}</span>}
+        </span>
+        <ChevronDown className={cn("hidden sm:block w-4 h-4 text-muted transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          aria-label="Menu akun"
+          className="fixed inset-x-4 top-[4.5rem] sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-72 bg-surface rounded-xl p-1.5 shadow-pop border border-line z-50 animate-[pop-in_140ms_ease-out]"
+        >
+          <div className="px-3 py-2.5">
+            <p className="text-sm font-semibold text-fg truncate">{displayName}</p>
+            {me && (
+              <p className="text-xs text-muted truncate">
+                {me.user.email ?? `@${me.user.username}`} · {ROLE_LABELS[me.role]}
+              </p>
+            )}
+          </div>
+
+          {workspaces.length > 1 && (
+            <div className="border-t border-line pt-1.5 mt-0.5">
+              <p className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Workspace</p>
+              {workspaces.map((w) => {
+                const active = w.workspaceId === me?.workspaceId;
+                return (
+                  <button
+                    key={w.workspaceId}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={active}
+                    disabled={!!switching}
+                    onClick={() => pickWorkspace(w.workspaceId)}
+                    className={cn(MENU_ITEM_CLS, "h-11 disabled:opacity-60 disabled:cursor-default")}
+                  >
+                    <Building2 className="w-[18px] h-[18px] text-muted shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{w.nama}</span>
+                      <span className="block text-[11px] font-normal text-muted">{ROLE_LABELS[w.role]}</span>
+                    </span>
+                    {switching === w.workspaceId ? (
+                      <Loader2 className="w-4 h-4 text-muted animate-spin shrink-0" />
+                    ) : (
+                      active && <Check className="w-4 h-4 text-accent shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+              {switchError && (
+                <p role="alert" className="px-3 py-1.5 text-xs font-medium text-danger">
+                  {switchError}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="border-t border-line pt-1.5 mt-1.5">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setPasswordOpen(true);
+              }}
+              className={MENU_ITEM_CLS}
+            >
+              <KeyRound className="w-[18px] h-[18px] text-muted shrink-0" />
+              Ganti password
+            </button>
+            <Link href="/pengaturan" role="menuitem" onClick={() => setOpen(false)} className={MENU_ITEM_CLS}>
+              <Settings className="w-[18px] h-[18px] text-muted shrink-0" />
+              Pengaturan
+            </Link>
+            <button type="button" role="menuitem" onClick={logout} className={cn(MENU_ITEM_CLS, "text-danger hover:bg-danger-soft")}>
+              <LogOut className="w-[18px] h-[18px] shrink-0" />
+              Keluar
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ChangePasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} />
+    </div>
+  );
+}
+
+export function Header() {
+  const pathname = usePathname();
+  const title = titleOf(pathname);
   // Di layar kecil cukup kata pertama agar tidak terpotong ("Ringkasan Perfo…")
   const shortTitle = title.split(" ")[0];
 
@@ -49,7 +183,7 @@ export function Header() {
       <div className="flex items-center gap-2.5 min-w-0">
         <Image
           src="/logo.webp"
-          alt="Dashboard Analytics Threads"
+          alt="BotThreads"
           width={32}
           height={32}
           className="md:hidden w-8 h-8 rounded-lg shrink-0"
@@ -60,69 +194,10 @@ export function Header() {
         </h1>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 shrink-0">
         <ThemeToggle />
-
-        <div className="relative" ref={popRef}>
-          <button
-            type="button"
-            onClick={() => setShowNotifications((v) => !v)}
-            aria-label="Notifikasi"
-            className="relative w-9 h-9 rounded-lg text-muted hover:text-fg hover:bg-subtle flex items-center justify-center transition-colors cursor-pointer"
-          >
-            <Bell className="w-[18px] h-[18px]" />
-            {hasNotifications && (
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-danger ring-2 ring-surface" />
-            )}
-          </button>
-
-          {showNotifications && (
-            <div className="fixed inset-x-4 top-[4.5rem] sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-80 bg-surface rounded-xl p-4 shadow-pop border border-line z-50">
-              <div className="flex items-center justify-between pb-3 border-b border-line">
-                <h4 className="font-semibold text-sm text-fg">Notifikasi</h4>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHasNotifications(false);
-                    setShowNotifications(false);
-                  }}
-                  className="text-xs text-accent font-semibold hover:underline cursor-pointer"
-                >
-                  Tandai dibaca
-                </button>
-              </div>
-              <div className="pt-3 flex gap-3 items-start">
-                <CheckCircle2 className="w-4 h-4 text-success mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-fg">
-                    Data tersinkronisasi
-                  </p>
-                  <p className="text-xs text-muted mt-0.5">
-                    32 akun Threads dan seluruh postingannya sudah tersambung.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2.5 ml-2 pl-3 border-l border-line">
-          <div className="w-8 h-8 rounded-full bg-accent text-on-accent flex items-center justify-center font-bold text-xs">
-            SS
-          </div>
-          <div className="hidden lg:block leading-tight">
-            <p className="text-sm font-semibold text-fg">Admin</p>
-          </div>
-          <button
-            type="button"
-            onClick={logout}
-            title="Keluar"
-            aria-label="Keluar"
-            className="w-9 h-9 rounded-lg text-muted hover:text-danger hover:bg-danger-soft flex items-center justify-center transition-colors cursor-pointer"
-          >
-            <LogOut className="w-[18px] h-[18px]" />
-          </button>
-        </div>
+        <NotificationBell />
+        <UserMenu />
       </div>
     </header>
   );

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  Bot,
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
@@ -526,6 +527,12 @@ export default function JadwalPage() {
                           @{it.account.username ?? it.account.displayName}
                         </span>
                         <PostStatusChip status={it.status} />
+                        {it.autopilot && (
+                          <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-xs font-semibold whitespace-nowrap bg-subtle text-muted">
+                            <Bot className="w-3.5 h-3.5" />
+                            Autopilot
+                          </span>
+                        )}
                         {!it.mine && (
                           <span className="h-6 px-2 rounded-full bg-subtle text-muted text-xs font-semibold inline-flex items-center">SukaPost</span>
                         )}

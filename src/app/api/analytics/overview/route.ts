@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { buildOverview } from "@/lib/overview";
+import { withCtx } from "@/lib/request-ctx";
 
-export async function GET(request: NextRequest) {
+export const GET = withCtx("VIEWER", async (request) => {
   // Dibaca di luar try/catch: sinyal "route dinamis" dari Next tidak boleh tertelan
   const sp = request.nextUrl.searchParams;
   try {
@@ -19,4 +20,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

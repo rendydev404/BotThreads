@@ -5,7 +5,8 @@
  * Dashboard TIDAK memegang token Threads: kolom accessToken tidak pernah dibaca. Penerbitan
  * dikerjakan worker auto-suka; di sini hanya menilai kesiapan akun.
  */
-import { rpc, utc } from "@/lib/supabase";
+import { accountScope, rpc, tenantIdOf, utc } from "@/lib/supabase";
+import { currentScope } from "@/lib/tenant-scope";
 import { withoutExcluded } from "./account-visibility";
 import { publishTestAccounts } from "./content-config";
 import { REASON_LABEL, type PublishAccountDTO, type PublishReason } from "./content-types";
@@ -32,7 +33,10 @@ interface AccountRow {
 export interface PublishAccount extends PublishAccountDTO {
   socialAccountId: string | null;
   outletId: string | null;
+  /** Workspace auto-suka pemilik cabang akun ini (dipakai saat menulis ke antrean posting). */
   workspaceId: string | null;
+  /** Tenant dashboard (kelompok workspace); kunci pengaturan, peran, dan lingkup di dashboard. */
+  tenantId: string | null;
 }
 
 export const reasonText = (reason: PublishReason | undefined): string =>
@@ -46,6 +50,8 @@ async function load(): Promise<PublishAccount[]> {
 
   const now = new Date();
   const allow = publishTestAccounts();
+  const tenants = new Map<string, string | null>();
+  for (const w of new Set(rows.map((r) => r.workspaceId))) if (w) tenants.set(w, await tenantIdOf(w));
   return withoutExcluded(rows).map((r) => {
     const reason = evaluateReadiness({ ...r, accessExpiresAt: utc(r.accessExpiresAt) }, now, allow);
     return {
@@ -59,12 +65,17 @@ async function load(): Promise<PublishAccount[]> {
       socialAccountId: r.socialAccountId,
       outletId: r.outletId,
       workspaceId: r.workspaceId,
+      tenantId: r.workspaceId ? tenants.get(r.workspaceId) ?? r.workspaceId : null,
     };
   });
 }
 
-/** Semua akun Threads beserta status kesiapan (cache 60 detik, permintaan serentak digabung). */
-export async function listPublishAccounts(): Promise<PublishAccount[]> {
+/** Buang cache daftar akun (setelah tautan sumber akun berubah). */
+export function forgetPublishAccounts(): void {
+  cache = null;
+}
+
+async function loadAll(): Promise<PublishAccount[]> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.value;
   pending ??= load()
     .then((value) => {
@@ -75,6 +86,18 @@ export async function listPublishAccounts(): Promise<PublishAccount[]> {
       pending = null;
     });
   return pending;
+}
+
+/**
+ * Akun Threads beserta status kesiapan (cache 60 detik, permintaan serentak digabung). Bila permintaan
+ * dibatasi lingkup tenant, hanya akun dalam lingkup itu yang dikembalikan; daftar lengkapnya tetap
+ * di-cache sekali untuk semua.
+ */
+export async function listPublishAccounts(): Promise<PublishAccount[]> {
+  const all = await loadAll();
+  if (!currentScope()) return all;
+  const visible = new Set((await accountScope()).visibleIds);
+  return all.filter((a) => visible.has(a.id));
 }
 
 /** Peta id -> akun untuk id yang diminta (yang tidak ada dilewati). */

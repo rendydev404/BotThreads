@@ -13,8 +13,10 @@
  *   database, kolom eksplisit, paginasi kursor (tayangPada, id), tanpa N+1.
  */
 import { randomUUID } from "node:crypto";
-import { rpc, utc, utcOrNull } from "@/lib/supabase";
+import { accountScope, rpc, utc, utcOrNull } from "@/lib/supabase";
+import { currentScope } from "@/lib/tenant-scope";
 import { isExcludedUsername } from "./account-visibility";
+import { autopilotPostIds } from "./autopilot-store";
 import {
   DASHBOARD_SOURCE,
   DUPLICATE_WINDOW_MS,
@@ -135,6 +137,14 @@ const parseListRow = (r: RawListRow): ListRow => ({
   lockedAt: utcOrNull(r.lockedAt),
 });
 
+/**
+ * Id akun dalam lingkup tenant pengguna untuk filter RPC. Undefined bila permintaan tidak dibatasi,
+ * sehingga argumennya tidak dikirim sama sekali (fungsi lama tanpa parameter ini tetap bisa dipanggil).
+ */
+async function scopedAccountIds(): Promise<string[] | undefined> {
+  return currentScope() ? (await accountScope()).visibleIds : undefined;
+}
+
 /* ------------------------------------------------------------------ pemetaan baris -> DTO */
 
 interface ListRow {
@@ -230,6 +240,7 @@ export async function listPosts(
 ): Promise<ListResult> {
   const cursor = decodeCursor(opts.cursor);
   const dayStart = startOfWibDay(now);
+  const accountIds = await scopedAccountIds();
   const [raw, summary] = await Promise.all([
     rpc<RawListRow[]>("dash_post_list", {
       p_scope: opts.scope,
@@ -240,6 +251,7 @@ export async function listPosts(
       p_include_all: opts.includeAll,
       p_limit: LIST_PAGE_SIZE,
       p_now: now,
+      p_account_ids: accountIds,
     }),
     // Ringkasan hanya untuk halaman pertama; halaman berikutnya tidak perlu menghitung ulang.
     cursor
@@ -250,15 +262,20 @@ export async function listPosts(
           p_day_end: new Date(dayStart.getTime() + DAY_MS),
           p_week_ago: new Date(now.getTime() - 7 * DAY_MS),
           p_late_before: new Date(now.getTime() - WORKER_LATE_MS),
+          p_account_ids: accountIds,
         }),
   ]);
 
   const rows = raw.map(parseListRow);
   const page = rows.slice(0, LIST_PAGE_SIZE);
+  // Label "Autopilot": satu RPC ringan per halaman. Tanpa skema autopilot, daftar tetap tampil tanpa label.
+  const auto = await autopilotPostIds(page.filter((r) => r.source === DASHBOARD_SOURCE).map((r) => r.id)).catch(() => new Set<string>());
   // Kursor dari baris terakhir sebelum disaring, supaya halaman berikutnya tidak melompat.
   const last = page.at(-1);
   return {
-    items: page.filter((r) => !isExcludedUsername(r.username)).map((r) => toPostItem(r, now)),
+    items: page
+      .filter((r) => !isExcludedUsername(r.username))
+      .map((r) => ({ ...toPostItem(r, now), ...(auto.has(r.id) ? { autopilot: true } : {}) })),
     nextCursor: rows.length > LIST_PAGE_SIZE && last ? encodeCursor(last.tayangPada, last.dispatchId) : null,
     ...(summary ? { summary } : {}),
   };
@@ -266,7 +283,11 @@ export async function listPosts(
 
 /** Status ringkas untuk polling (maks 20 id). */
 export async function getPostsByIds(ids: string[], includeAll: boolean, now = new Date()): Promise<PostItemDTO[]> {
-  const rows = await rpc<RawListRow[]>("dash_posts_by_ids", { p_ids: ids, p_include_all: includeAll });
+  const rows = await rpc<RawListRow[]>("dash_posts_by_ids", {
+    p_ids: ids,
+    p_include_all: includeAll,
+    p_account_ids: await scopedAccountIds(),
+  });
   return rows.map((r) => toPostItem(parseListRow(r), now));
 }
 
@@ -559,6 +580,14 @@ async function loadPost(id: string): Promise<PostRecord | null> {
 
 const NOT_MINE = "Hanya postingan dari dashboard yang bisa diubah di sini. Kelola lainnya di SukaPost.";
 
+/** Muat posting hanya bila akunnya berada dalam lingkup tenant pengguna; selain itu dianggap tidak ada. */
+async function loadScopedPost(id: string): Promise<PostRecord | null> {
+  const post = await loadPost(id);
+  if (!post || !currentScope()) return post;
+  const accountId = post.dispatch?.threadsAccountId;
+  return accountId && (await accountScope()).visibleIds.includes(accountId) ? post : null;
+}
+
 export interface EditInput {
   userId: string;
   postId: string;
@@ -572,7 +601,7 @@ export async function editPost(
   input: EditInput,
   now = new Date()
 ): Promise<{ ok: true; post: PostItemDTO | null } | Failure> {
-  const post = await loadPost(input.postId);
+  const post = await loadScopedPost(input.postId);
   if (!post) return failure(404, "Postingan tidak ditemukan.");
   if (post.source !== DASHBOARD_SOURCE) return failure(403, NOT_MINE);
   if (!post.dispatch) return failure(409, "Postingan ini tidak punya tujuan Threads.");
@@ -674,7 +703,7 @@ export async function cancelPost(
   input: { userId: string; postId: string },
   now = new Date()
 ): Promise<{ ok: true } | Failure> {
-  const post = await loadPost(input.postId);
+  const post = await loadScopedPost(input.postId);
   if (!post) return failure(404, "Postingan tidak ditemukan.");
   if (post.source !== DASHBOARD_SOURCE) return failure(403, NOT_MINE);
 
@@ -701,7 +730,7 @@ export async function retryPost(
   input: { userId: string; postId: string },
   now = new Date()
 ): Promise<{ ok: true; post: PostItemDTO | null } | Failure> {
-  const post = await loadPost(input.postId);
+  const post = await loadScopedPost(input.postId);
   if (!post) return failure(404, "Postingan tidak ditemukan.");
   if (post.source !== DASHBOARD_SOURCE) return failure(403, NOT_MINE);
   if (!post.dispatch || post.dispatch.status !== "GAGAL" || post.status !== "GAGAL") {

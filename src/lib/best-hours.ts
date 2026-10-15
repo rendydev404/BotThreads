@@ -5,6 +5,7 @@
  * Cache 10 menit per akun.
  */
 import { rpc, scopedIds } from "@/lib/supabase";
+import { scopeKey } from "@/lib/tenant-scope";
 import {
   hourMultiplier,
   overallAverage,
@@ -17,7 +18,9 @@ import type { BestHourDTO } from "./content-types";
 const TTL_MS = 10 * 60 * 1000;
 /** Paruh waktu bobot: postingan 14 hari lalu berbobot 1/2, 28 hari 1/4. */
 const HALF_LIFE_DAYS = 14;
-const NETWORK_KEY = "__network__";
+const NETWORK_PREFIX = "__network__";
+/** Kunci cache pola jam jaringan, per lingkup tenant (jaringan = akun yang terlihat pengguna). */
+const networkKey = (): string => `${NETWORK_PREFIX}:${scopeKey()}`;
 /** Akun dianggap punya pola jam sendiri bila minimal sekian jam terbaik terdeteksi. */
 const MIN_OWN_HOURS = 2;
 
@@ -74,7 +77,7 @@ export async function bestHoursForAccounts(
   };
 
   const missing = ids.filter((id) => !fresh(id));
-  const needNetwork = !fresh(NETWORK_KEY);
+  const needNetwork = !fresh(networkKey());
   const [accountRows, networkRows] = await Promise.all([
     missing.length ? fetchRows(missing, now) : Promise.resolve([] as HourSqlRow[]),
     needNetwork ? fetchNetworkRows(now) : Promise.resolve(null),
@@ -86,13 +89,13 @@ export async function bestHoursForAccounts(
     for (const [id, rows] of grouped) cache.set(id, { at: now.getTime(), rows });
   }
   if (networkRows) {
-    cache.set(NETWORK_KEY, {
+    cache.set(networkKey(), {
       at: now.getTime(),
       rows: networkRows.map((r) => ({ hour: r.hour, n: r.n, avg: r.avg, w: r.w })),
     });
   }
 
-  const network = summarize(cache.get(NETWORK_KEY)?.rows ?? []);
+  const network = summarize(cache.get(networkKey())?.rows ?? []);
   const out = new Map<string, AccountHours>();
   for (const id of ids) {
     const own = summarize(cache.get(id)?.rows ?? []);
@@ -108,18 +111,33 @@ export async function bestHoursForAccounts(
   return out;
 }
 
+/**
+ * Ringkasan views per jam mentah (akun dan jaringan) untuk perencana slot autopilot, yang butuh
+ * seluruh jam terurut, bukan hanya tiga teratas. Memakai cache dan query yang sama.
+ */
+export async function hourRowsForAccounts(
+  ids: string[],
+  now = new Date()
+): Promise<{ own: Map<string, HourRow[]>; network: HourRow[] }> {
+  await bestHoursForAccounts(ids, now);
+  return {
+    own: new Map(ids.map((id) => [id, cache.get(id)?.rows ?? []])),
+    network: cache.get(networkKey())?.rows ?? [],
+  };
+}
+
 /** Jam terbaik seluruh jaringan (rata-rata views berbobot waktu per jam WIB), cache 10 menit. */
 export async function networkBestHours(
   now = new Date(),
   limit = 5
 ): Promise<{ best: BestHour[]; overall: number }> {
-  const hit = cache.get(NETWORK_KEY);
+  const hit = cache.get(networkKey());
   let rows: HourRow[];
   if (hit && now.getTime() - hit.at < TTL_MS) {
     rows = hit.rows;
   } else {
     rows = (await fetchNetworkRows(now)).map((r) => ({ hour: r.hour, n: r.n, avg: r.avg, w: r.w }));
-    cache.set(NETWORK_KEY, { at: now.getTime(), rows });
+    cache.set(networkKey(), { at: now.getTime(), rows });
   }
   return { best: rankBestHours(rows, limit), overall: overallAverage(rows) };
 }

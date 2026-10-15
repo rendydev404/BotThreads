@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { type NextRequest } from "next/server";
-import { PUBLISH_DISABLED, getRequestUserId, internalError, jsonError, readJson, UNAUTHORIZED } from "@/lib/api-auth";
+import { internalError, jsonError, PUBLISH_DISABLED, readJson } from "@/lib/api-auth";
 import { queueDraft } from "@/lib/auto-publish";
 import { isPublishEnabled } from "@/lib/content-config";
 import { runOrchestration } from "@/lib/content-orchestrator";
@@ -8,6 +7,7 @@ import type { OrchestrateEvent } from "@/lib/content-types";
 import { parseOrchestrateBody } from "@/lib/content-validation";
 import { listPublishAccounts, type PublishAccount } from "@/lib/publish-accounts";
 import { throttle } from "@/lib/throttle";
+import { FORBIDDEN, hasRole, withCtx } from "@/lib/request-ctx";
 
 /** Puluhan agen dengan konkurensi terbatas; satu putaran penuh bisa lebih dari satu menit. */
 export const maxDuration = 300;
@@ -17,18 +17,18 @@ const HEARTBEAT_MS = 15_000;
 
 /**
  * Multi-Agent Orchestrator: draf untuk banyak akun sekaligus, dialirkan sebagai SSE (satu peristiwa
- * per akun). TIDAK PERNAH menulis ke antrean posting; penjadwalan tetap lewat /api/content/posts
- * setelah pengguna menyetujui.
+ * per akun). Tanpa `publish` hanya menghasilkan draf. Dengan `publish` (perintah eksplisit pengguna,
+ * peran minimal Editor) tiap draf langsung dimasukkan ke antrean lewat `queueDraft`.
  */
-export async function POST(request: NextRequest) {
-  const userId = await getRequestUserId(request);
-  if (!userId) return UNAUTHORIZED();
+export const POST = withCtx("VIEWER", async (request, ctx) => {
+  const userId = ctx.userId;
 
   const parsed = parseOrchestrateBody(await readJson(request));
   if (!parsed.ok) return jsonError(400, parsed.error);
   const input = parsed.value;
   // Posting otomatis hanya untuk putaran penuh dan hanya bila saklar posting menyala.
   const publish = input.accountIds?.length === 1 && input.avoid ? null : input.publish;
+  if (publish && !hasRole(ctx, "EDITOR")) return FORBIDDEN();
   if (publish && !isPublishEnabled()) return PUBLISH_DISABLED();
 
   // Buat ulang satu akun jauh lebih murah daripada satu putaran penuh, jadi kuotanya dipisah.
@@ -137,4 +137,4 @@ export async function POST(request: NextRequest) {
       "X-Accel-Buffering": "no",
     },
   });
-}
+});

@@ -1,5 +1,5 @@
-import { agg, db, must } from "@/lib/supabase";
-import { withoutExcluded } from "@/lib/account-visibility";
+import { agg, db, must, onlyVisible } from "@/lib/supabase";
+import { scopeKey } from "@/lib/tenant-scope";
 
 /**
  * Laporan periodik jaringan (mirip laporan bot Telegram):
@@ -63,7 +63,7 @@ export async function buildReport(
   scopeSlug: string = DEFAULT_SCOPE
 ): Promise<Report | null> {
   const days = Math.min(60, Math.max(1, Math.round(rawDays) || 7));
-  const cacheKey = `${days}:${scopeSlug}`;
+  const cacheKey = `${days}:${scopeSlug}:${scopeKey()}`;
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
 
@@ -75,7 +75,7 @@ export async function buildReport(
       Workspace: { slug: string; nama: string } | null;
     }[]
   >(db().from("ThreadsAccount").select("id, username, displayName, Workspace(slug, nama)"));
-  const accounts = withoutExcluded(rawAccounts)
+  const accounts = (await onlyVisible(rawAccounts))
     .filter((a) => a.Workspace)
     .map((a) => ({ ...a, workspace: a.Workspace as { slug: string; nama: string } }));
 

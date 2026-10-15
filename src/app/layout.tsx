@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
@@ -11,9 +12,9 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Dashboard Analytics Threads",
+  title: "BotThreads",
   description:
-    "Enterprise Telegram Bot Management & Threads Performance Analytics Dashboard",
+    "Autopilot konten dan analitik untuk akun Threads: ide, tulisan, dan jadwal dikerjakan AI.",
 };
 
 export default function RootLayout({
@@ -36,7 +37,11 @@ export default function RootLayout({
       </head>
       <body suppressHydrationWarning className="min-h-full flex bg-canvas text-fg font-sans">
         <ThemeProvider>
-          <AppShell>{children}</AppShell>
+          {/* AppShell membaca pathname; pada rute ber-parameter (tautan undangan/reset) nilainya baru
+              diketahui saat permintaan datang, jadi butuh batas Suspense agar bisa di-prerender. */}
+          <Suspense fallback={null}>
+            <AppShell>{children}</AppShell>
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>

@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { DEFAULT_SCOPE, buildReport } from "@/lib/report";
+import { withCtx } from "@/lib/request-ctx";
 
 /** Laporan periodik ringan (tanpa AI), dipakai kartu laporan di chat. */
-export async function GET(request: NextRequest) {
+export const GET = withCtx("VIEWER", async (request) => {
   const sp = request.nextUrl.searchParams;
   const days = Number(sp.get("days") ?? 7);
   const scope = (sp.get("scope") ?? DEFAULT_SCOPE).slice(0, 80);
@@ -26,4 +27,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

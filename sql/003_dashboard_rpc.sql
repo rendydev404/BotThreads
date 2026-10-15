@@ -189,10 +189,17 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   ) t
 $$;
 
+-- Versi berparameter p_account_ids (default NULL = tanpa filter). Tanda tangan lama dibuang dulu supaya
+-- tidak ada dua fungsi bernama sama; definisi ini identik dengan yang ada di sql/008_multiuser.sql.
+DROP FUNCTION IF EXISTS dash_post_list(text, text, text, timestamp, text, boolean, int, timestamp);
+DROP FUNCTION IF EXISTS dash_posts_by_ids(text[], boolean);
+DROP FUNCTION IF EXISTS dash_post_summary(boolean, timestamp, timestamp, timestamp, timestamp);
+
 CREATE OR REPLACE FUNCTION dash_post_list(
   p_scope text, p_username text, p_status text,
   p_cursor_at timestamp, p_cursor_id text,
-  p_include_all boolean, p_limit int, p_now timestamp
+  p_include_all boolean, p_limit int, p_now timestamp,
+  p_account_ids text[] DEFAULT NULL
 ) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE v jsonb;
@@ -211,6 +218,7 @@ BEGIN
       WHERE (p_include_all OR p.source = 'DASHBOARD_AI')
         AND d.status = 'MENUNGGU'
         AND (p_username IS NULL OR lower(ta.username) = lower(p_username))
+        AND (p_account_ids IS NULL OR ta.id = ANY(p_account_ids))
         AND dash_status_match(p_status, d.status::text, d."platformContainerId", d."lockedAt", p.status::text, p."tayangPada", p_now)
         AND (p_cursor_at IS NULL OR (p."tayangPada", d.id) > (p_cursor_at, p_cursor_id))
       ORDER BY p."tayangPada" ASC, d.id ASC
@@ -230,6 +238,7 @@ BEGIN
       WHERE (p_include_all OR p.source = 'DASHBOARD_AI')
         AND d.status IN ('TERBIT', 'GAGAL')
         AND (p_username IS NULL OR lower(ta.username) = lower(p_username))
+        AND (p_account_ids IS NULL OR ta.id = ANY(p_account_ids))
         AND dash_status_match(p_status, d.status::text, d."platformContainerId", d."lockedAt", p.status::text, p."tayangPada", p_now)
         AND (p_cursor_at IS NULL OR (p."tayangPada", d.id) < (p_cursor_at, p_cursor_id))
       ORDER BY p."tayangPada" DESC, d.id DESC
@@ -240,7 +249,8 @@ BEGIN
 END
 $$;
 
-CREATE OR REPLACE FUNCTION dash_posts_by_ids(p_ids text[], p_include_all boolean) RETURNS jsonb
+CREATE OR REPLACE FUNCTION dash_posts_by_ids(p_ids text[], p_include_all boolean, p_account_ids text[] DEFAULT NULL)
+RETURNS jsonb
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT COALESCE(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM (
     SELECT p.id, d.id AS "dispatchId", p.caption, p.hashtags, p."tayangPada", p.source,
@@ -253,6 +263,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
     LEFT JOIN "ThreadsAccount" ta ON ta.id = sa."threadsAccountId"
     LEFT JOIN "Outlet" o ON o.id = d."outletId"
     WHERE p.id = ANY(p_ids) AND (p_include_all OR p.source = 'DASHBOARD_AI')
+      AND (p_account_ids IS NULL OR ta.id = ANY(p_account_ids))
     ORDER BY p."tayangPada" ASC, d.id ASC
     LIMIT 100
   ) t
@@ -260,7 +271,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION dash_post_summary(
   p_include_all boolean, p_day_start timestamp, p_day_end timestamp,
-  p_week_ago timestamp, p_late_before timestamp
+  p_week_ago timestamp, p_late_before timestamp, p_account_ids text[] DEFAULT NULL
 ) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT jsonb_build_object(
@@ -272,8 +283,10 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   )
   FROM "PostDispatch" d
   JOIN "ScheduledPost" p ON p.id = d."postId"
+  LEFT JOIN "SocialAccount" sa ON sa.id = d."socialAccountId"
   WHERE d.publisher = 'THREADS' AND (p_include_all OR p.source = 'DASHBOARD_AI')
     AND (p."tayangPada" >= p_week_ago OR d.status = 'MENUNGGU')
+    AND (p_account_ids IS NULL OR sa."threadsAccountId" = ANY(p_account_ids))
 $$;
 
 CREATE OR REPLACE FUNCTION dash_load_post(p_id text) RETURNS jsonb

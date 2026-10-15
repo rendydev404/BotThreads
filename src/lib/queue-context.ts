@@ -1,6 +1,7 @@
 import { listPosts } from "@/lib/threads-publish";
 import { formatWibFull } from "@/lib/scheduling";
 import type { PostItemDTO } from "@/lib/content-types";
+import { scopeKey } from "@/lib/tenant-scope";
 
 /**
  * Antrean posting dashboard (dibuat lewat dashboard ini) sebagai konteks AI: jadwal terdekat dan hasil
@@ -12,7 +13,8 @@ const TTL_MS = 20_000;
 const MAX_UPCOMING = 15;
 const MAX_HISTORY = 10;
 
-let cache: { at: number; text: string } | null = null;
+// Per lingkup tenant: antrean satu workspace tidak boleh masuk ke konteks AI workspace lain.
+const cache = new Map<string, { at: number; text: string }>();
 
 const clip = (s: string, n: number) => {
   const t = s.replace(/\s+/g, " ").trim();
@@ -33,13 +35,15 @@ export function queueText(upcoming: PostItemDTO[], history: PostItemDTO[]): stri
 
 /** Teks antrean untuk konteks AI; cache 20 detik. Gagal membaca tidak boleh menggagalkan chat. */
 export async function getQueueContext(): Promise<string> {
-  if (cache && Date.now() - cache.at < TTL_MS) return cache.text;
+  const key = scopeKey();
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.text;
   const base = { accountUsername: null, status: null, cursor: null, includeAll: false } as const;
   const [upcoming, history] = await Promise.all([
     listPosts({ ...base, scope: "upcoming" }),
     listPosts({ ...base, scope: "history" }),
   ]);
   const text = queueText(upcoming.items, history.items);
-  cache = { at: Date.now(), text };
+  cache.set(key, { at: Date.now(), text });
   return text;
 }

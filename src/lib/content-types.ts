@@ -109,6 +109,8 @@ export interface PostItemDTO {
   outletNama: string | null;
   /** Dibuat dari dashboard ini (boleh diubah). Selain itu hanya baca. */
   mine: boolean;
+  /** Ditulis dan dijadwalkan autopilot (tetap bisa diubah atau dibatalkan). */
+  autopilot?: boolean;
   editable: boolean;
   cancellable: boolean;
   retryable: boolean;

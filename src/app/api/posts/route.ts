@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
-import { agg, db, excludedIdList, likeEscape, must, toDate } from "@/lib/supabase";
-import { isExcludedUsername, withoutExcluded } from "@/lib/account-visibility";
+import { NextResponse } from "next/server";
+import { accountScope, agg, db, excludedIdList, likeEscape, must, onlyVisible, toDate } from "@/lib/supabase";
+import { audit } from "@/lib/team-store";
+import { isExcludedUsername } from "@/lib/account-visibility";
 import { cleanPostText } from "@/lib/utils";
+import { withCtx } from "@/lib/request-ctx";
 
-export async function GET(request: NextRequest) {
+export const GET = withCtx("VIEWER", async (request) => {
   // Dibaca di luar try/catch: sinyal "route dinamis" dari Next tidak boleh tertelan
   const searchParams = request.nextUrl.searchParams;
   try {
@@ -23,8 +25,8 @@ export async function GET(request: NextRequest) {
       accountIds = isExcludedUsername(accountFilter)
         ? []
         : (
-            await must<{ id: string }[]>(
-              db().from("ThreadsAccount").select("id").eq("username", accountFilter)
+            await onlyVisible(
+              await must<{ id: string }[]>(db().from("ThreadsAccount").select("id").eq("username", accountFilter))
             )
           ).map((r) => r.id);
     }
@@ -85,7 +87,7 @@ export async function GET(request: NextRequest) {
       postsQuery,
       must<{ id: string; username: string | null; displayName: string }[]>(
         db().from("ThreadsAccount").select("id, username, displayName")
-      ).then(withoutExcluded),
+      ).then(onlyVisible),
       agg.postsByAccount(),
       agg.postsByMedia(),
     ]);
@@ -153,8 +155,8 @@ export async function GET(request: NextRequest) {
         reposts: post.reposts,
         er: er,
         isPositive,
-        account: post.threadsAccount?.username || "sukashawarma",
-        accountName: post.threadsAccount?.displayName || "Suka Shawarma",
+        account: post.threadsAccount?.username || "akun",
+        accountName: post.threadsAccount?.displayName || "Akun tidak dikenal",
         accountAvatar: post.threadsAccount?.avatarUrl,
       };
     });
@@ -180,22 +182,34 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(totalCount / limit) || 1,
       },
     });
-  } catch (error: any) {
-    console.error("Error in /api/posts:", error);
+  } catch (error) {
+    console.error("Error in /api/posts:", error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: "Terjadi kesalahan pada server. Coba lagi sebentar lagi." },
       { status: 500 }
     );
   }
-}
+});
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withCtx("OWNER", async (request, ctx) => {
   try {
-    const { id } = await request.json();
-    if (!id) {
+    const { id } = (await request.json()) as { id?: unknown };
+    if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
       return NextResponse.json(
         { success: false, error: "ID post wajib disertakan" },
         { status: 400 }
+      );
+    }
+
+    // Baris statistik milik akun di luar lingkup pengguna diperlakukan seperti tidak ada.
+    const row = await must<{ id: string; threadsAccountId: string } | null>(
+      db().from("ThreadsPostStat").select("id, threadsAccountId").eq("id", id).maybeSingle()
+    );
+    const allowed = row ? (await accountScope()).visibleIds.includes(row.threadsAccountId) : false;
+    if (!row || !allowed) {
+      return NextResponse.json(
+        { success: false, error: "Post tidak ditemukan" },
+        { status: 404 }
       );
     }
 
@@ -208,16 +222,17 @@ export async function DELETE(request: NextRequest) {
         { status: 404 }
       );
     }
+    await audit(ctx, "STATISTIK_HAPUS", id, { accountId: row.threadsAccountId });
 
     return NextResponse.json({
       success: true,
       message: `Post ${id} berhasil dihapus dari database`,
     });
-  } catch (error: any) {
-    console.error("Error deleting post:", error);
+  } catch (error) {
+    console.error("Error deleting post:", error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: "Terjadi kesalahan pada server. Coba lagi sebentar lagi." },
       { status: 500 }
     );
   }
-}
+});

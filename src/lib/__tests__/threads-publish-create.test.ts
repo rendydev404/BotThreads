@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/supabase", async (original) => ({
   ...(await original<typeof import("@/lib/supabase")>()),
   rpc: vi.fn(),
+  tenantIdOf: async (w: string | null) => w,
 }));
 
 import { rpc } from "@/lib/supabase";

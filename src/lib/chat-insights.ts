@@ -2,6 +2,7 @@ import {
   agg,
   db,
   excludedIdList,
+  onlyVisible,
   must,
   rpc,
   scopedIds,
@@ -10,6 +11,7 @@ import {
   type PostsByAccount,
   type PostsByMedia,
 } from "@/lib/supabase";
+import { scopeKey } from "@/lib/tenant-scope";
 import { networkBestHours } from "@/lib/best-hours";
 import { hourMultiplier, type BestHour } from "@/lib/scheduling";
 
@@ -235,8 +237,9 @@ export function buildInsightsText(i: InsightInput): string {
   return out.join("\n\n");
 }
 
-let cache: { at: number; text: string } | null = null;
-let pending: Promise<string> | null = null;
+// Per lingkup tenant (lihat tenant-scope.ts).
+const cache = new Map<string, { at: number; text: string }>();
+const pending = new Map<string, Promise<string>>();
 
 async function loadInsights(): Promise<string> {
   const to = await agg.dailyMaxDate();
@@ -252,7 +255,7 @@ async function loadInsights(): Promise<string> {
     await Promise.all([
       must<{ id: string; username: string | null; displayName: string }[]>(
         db().from("ThreadsAccount").select("id, username, displayName")
-      ),
+      ).then(onlyVisible),
       agg.dailyByAccount({ from, to }),
       agg.dailyByAccount({ from: prevFrom, to: prevTo }),
       agg.dailyByDate({ from: prevFrom, to: prevTo }),
@@ -288,14 +291,20 @@ async function loadInsights(): Promise<string> {
 
 /** Teks insight jaringan; cache 5 menit dan permintaan serentak digabung. */
 export async function getNetworkInsights(): Promise<string> {
-  if (cache && Date.now() - cache.at < TTL_MS) return cache.text;
-  pending ??= loadInsights()
-    .then((text) => {
-      cache = { at: Date.now(), text };
-      return text;
-    })
-    .finally(() => {
-      pending = null;
-    });
-  return pending;
+  const key = scopeKey();
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.text;
+  let job = pending.get(key);
+  if (!job) {
+    job = loadInsights()
+      .then((text) => {
+        cache.set(key, { at: Date.now(), text });
+        return text;
+      })
+      .finally(() => {
+        pending.delete(key);
+      });
+    pending.set(key, job);
+  }
+  return job;
 }

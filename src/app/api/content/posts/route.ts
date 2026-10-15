@@ -1,17 +1,11 @@
-import { NextResponse, type NextRequest } from "next/server";
-import {
-  PUBLISH_DISABLED,
-  getRequestUserId,
-  internalError,
-  jsonError,
-  readJson,
-  UNAUTHORIZED,
-} from "@/lib/api-auth";
+import { NextResponse } from "next/server";
+import { internalError, jsonError, PUBLISH_DISABLED, readJson } from "@/lib/api-auth";
 import { isPublishEnabled } from "@/lib/content-config";
 import type { CreatePostsResponse, PostStatusKey, PostsResponse } from "@/lib/content-types";
 import { parseCreateBody, parseIdList } from "@/lib/content-validation";
 import { throttle } from "@/lib/throttle";
 import { createPosts, getPostsByIds, listPosts } from "@/lib/threads-publish";
+import { withCtx } from "@/lib/request-ctx";
 
 const STATUS_KEYS: PostStatusKey[] = ["SCHEDULED", "QUEUED", "PROCESSING", "PUBLISHED", "FAILED"];
 
@@ -20,8 +14,7 @@ const STATUS_KEYS: PostStatusKey[] = ["SCHEDULED", "QUEUED", "PROCESSING", "PUBL
  * Query: `scope` (upcoming|history), `account` (username), `status`, `cursor`, `all=1` (semua sumber,
  * baca-saja), atau `ids=a,b,c` untuk polling status ringkas.
  */
-export async function GET(request: NextRequest) {
-  if (!(await getRequestUserId(request))) return UNAUTHORIZED();
+export const GET = withCtx("VIEWER", async (request) => {
   const q = request.nextUrl.searchParams;
   const includeAll = q.get("all") === "1" || q.get("includeAll") === "1";
 
@@ -54,15 +47,14 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     return internalError("content/posts:GET", err);
   }
-}
+});
 
 /**
  * Masukkan posting/jadwal ke antrean bersama (ScheduledPost + PostDispatch). Penerbitan dikerjakan
  * worker threads-publisher; dashboard tidak memegang token dan tidak memanggil Threads.
  */
-export async function POST(request: NextRequest) {
-  const userId = await getRequestUserId(request);
-  if (!userId) return UNAUTHORIZED();
+export const POST = withCtx("EDITOR", async (request, ctx) => {
+  const userId = ctx.userId;
   if (!isPublishEnabled()) return PUBLISH_DISABLED();
 
   const limit = throttle(`create:${userId}`, 30, 60_000);
@@ -94,14 +86,13 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     return internalError("content/posts:POST", err);
   }
-}
+});
 
 /**
  * Batalkan banyak postingan sekaligus (bulk cancel).
  */
-export async function DELETE(request: NextRequest) {
-  const userId = await getRequestUserId(request);
-  if (!userId) return UNAUTHORIZED();
+export const DELETE = withCtx("EDITOR", async (request, ctx) => {
+  const userId = ctx.userId;
   if (!isPublishEnabled()) return PUBLISH_DISABLED();
 
   try {
@@ -129,11 +120,10 @@ export async function DELETE(request: NextRequest) {
     // Untuk bulk hapus/batal kita bisa jalankan secara berurutan atau Promise.all 
     // karena memanggil operasi RPC cancelPost masing-masing.
     let failedCount = 0;
-    const results = await Promise.all(
+    await Promise.all(
       body.ids.map(async (id: string) => {
         const res = await cancelPost({ userId, postId: id });
         if (!res.ok) failedCount++;
-        return res;
       })
     );
 
@@ -145,4 +135,4 @@ export async function DELETE(request: NextRequest) {
   } catch (err) {
     return internalError("content/posts:DELETE", err);
   }
-}
+});

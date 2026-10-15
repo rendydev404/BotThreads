@@ -1,0 +1,281 @@
+"use client";
+
+import React, { useId, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { ArrowRight, Bot, CheckCircle2, Link2, Loader2, Sparkles, UserCheck } from "lucide-react";
+import { connectWorkspaceThreadsAccount, fetchConnectedThreadsAccounts } from "@/lib/team-client";
+import type { ConnectedThreadsAccountDTO, WorkspaceThreadsAccountsResponse } from "@/lib/threads-connect";
+import { Banner } from "@/components/autopilot/shared";
+import { ThreadsMark } from "@/components/landing/threads-mark";
+import { ModalButton, ModalShell } from "@/components/content/modal-shell";
+import { FormError, TextAreaField } from "./fields";
+import { errorText, formatDateWib, formatInt } from "./format";
+import { BTN_OUTLINE, BTN_PRIMARY, EmptyState, LoadError, Pill, RefreshButton } from "./states";
+import { useRemote } from "./use-remote";
+
+export function AccountsTab({
+  canManage,
+  onAccountConnected,
+  onOpenSubscription,
+}: {
+  canManage: boolean;
+  onAccountConnected?: () => void;
+  onOpenSubscription?: () => void;
+}) {
+  const searchParams = useSearchParams();
+  const oauthConnected = searchParams.get("threads_connected");
+  const oauthError = searchParams.get("threads_error");
+
+  const { data, error, status, loading, refreshing, reload, mutate } = useRemote<WorkspaceThreadsAccountsResponse>(
+    "akun-threads-ws",
+    fetchConnectedThreadsAccounts,
+    "Gagal memuat daftar akun Threads."
+  );
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [accessToken, setAccessToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(() =>
+    oauthConnected ? `Akun Threads @${oauthConnected} berhasil dihubungkan.` : null
+  );
+  const formId = useId();
+
+  if (loading && !data) {
+    return (
+      <div className="card p-6 space-y-4 animate-pulse" aria-busy="true">
+        <div className="h-5 w-48 rounded bg-subtle" />
+        <div className="h-24 rounded-xl bg-subtle" />
+      </div>
+    );
+  }
+
+  if (error && !data) {
+    return <LoadError message={error} status={status} onRetry={reload} />;
+  }
+
+  const accounts = data?.accounts ?? [];
+  const quota = data?.quota ?? { used: 0, max: 1, planNama: null, expired: false };
+  const quotaFull = quota.max !== null && quota.used >= quota.max;
+  // Satu klik: ke halaman izin Threads lalu kembali dalam keadaan terhubung (perlu App ID Threads + kunci token di server).
+  const oneClickReady = !!data?.oauthConfigured && !!data.connectReady;
+  // Tempel Access Token hanya cadangan untuk pengembang (mis. localhost, yang tidak bisa memakai login Threads).
+  const manualAllowed = !!data?.connectReady && !data.oauthConfigured;
+
+  const connectButton = (label: string) =>
+    oneClickReady ? (
+      <a href="/api/threads/oauth" className={BTN_PRIMARY}>
+        <ThreadsMark className="w-4 h-4" />
+        {label}
+      </a>
+    ) : (
+      <button type="button" disabled className={BTN_PRIMARY} title="Belum diaktifkan oleh pengelola platform">
+        <ThreadsMark className="w-4 h-4" />
+        {label}
+      </button>
+    );
+  const openManual = () => {
+    setFormError(null);
+    setModalOpen(true);
+  };
+
+  const submitConnect = async () => {
+    if (busy) return;
+    setBusy(true);
+    setFormError(null);
+    try {
+      const res = await connectWorkspaceThreadsAccount({ accessToken: accessToken.trim() });
+      mutate((prev) => {
+        const filtered = prev.accounts.filter((a) => a.id !== res.account.id);
+        const nextAccounts = [...filtered, res.account];
+        return {
+          ...prev,
+          accounts: nextAccounts,
+          quota: { ...prev.quota, used: nextAccounts.length },
+        };
+      });
+      setModalOpen(false);
+      setAccessToken("");
+      setNotice(`Akun Threads @${res.account.username} berhasil dihubungkan dan siap dipakai untuk Autopilot.`);
+      onAccountConnected?.();
+    } catch (e) {
+      setFormError(errorText(e, "Gagal menghubungkan akun Threads."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {notice && (
+        <Banner tone="success" onClose={() => setNotice(null)}>
+          {notice}
+        </Banner>
+      )}
+      {oauthError && (
+        <Banner tone="warning">
+          {oauthError === "threads_oauth_off" || oauthError === "threads_key_off"
+            ? "Fitur hubungkan akun Threads belum diaktifkan oleh pengelola platform. Silakan coba lagi nanti atau hubungi admin."
+            : oauthError}
+        </Banner>
+      )}
+      {data && !oneClickReady && canManage && (
+        <Banner tone="info">
+          Hubungkan akun Threads sekali klik belum diaktifkan oleh pengelola platform.{" "}
+          <span className="text-muted">
+            (Pengelola: isi Threads App ID &amp; App Secret di Super Admin &gt; Integrasi
+            {data.connectReady ? "" : ", dan TOKEN_ENCRYPTION_KEY di server"}.)
+          </span>
+        </Banner>
+      )}
+
+      {/* Ringkasan Kuota Akun Threads */}
+      <div className="card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-bold text-fg">Akun Threads Terhubung</h3>
+            <Pill tone={quotaFull ? "warning" : "accent"}>
+              {formatInt(quota.used)} / {quota.max !== null ? formatInt(quota.max) : "Tanpa batas"} Akun
+            </Pill>
+          </div>
+          <p className="text-xs text-muted">
+            {quota.planNama
+              ? `Paket aktif: ${quota.planNama}. Setiap akun yang terhubung dapat dijadwalkan dan dijalankan otomatis oleh AI.`
+              : "Hubungkan akun Threads Anda untuk mulai menulis dan menerbitkan posting otomatis."}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <RefreshButton onClick={reload} busy={refreshing} />
+          {canManage && (
+            <>
+              {quotaFull || quota.expired ? (
+                <button type="button" onClick={onOpenSubscription} className={BTN_PRIMARY}>
+                  <Sparkles className="w-4 h-4" />
+                  {quota.expired ? "Perpanjang Paket" : "Upgrade Kuota Akun"}
+                </button>
+              ) : (
+                accounts.length > 0 && connectButton("Tambah Akun Threads")
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Daftar Akun */}
+      {accounts.length === 0 ? (
+        <EmptyState
+          icon={<Link2 className="w-6 h-6" />}
+          title="Belum ada akun Threads yang terhubung"
+          action={
+            canManage && !quota.expired ? (
+              <div className="flex flex-col items-center gap-3">
+                {connectButton("Hubungkan Akun Threads")}
+                {manualAllowed && (
+                  <button type="button" onClick={openManual} className="text-xs text-muted underline hover:text-fg cursor-pointer">
+                    Untuk developer: hubungkan dengan Access Token
+                  </button>
+                )}
+              </div>
+            ) : undefined
+          }
+        >
+          <span className="block">Hubungkan akun Threads brand Anda untuk mengaktifkan penjadwalan dan Autopilot AI.</span>
+          <span className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted">
+            <span>1. Klik tombol di bawah</span>
+            <span>2. Masuk ke akun Threads Anda</span>
+            <span>3. Tekan &quot;Izinkan&quot;, selesai</span>
+          </span>
+        </EmptyState>
+      ) : (
+        <ul className="card divide-y divide-line">
+          {accounts.map((acc: ConnectedThreadsAccountDTO) => (
+            <li key={acc.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-accent-soft text-accent font-bold text-sm flex items-center justify-center shrink-0">
+                  {acc.username.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-bold text-fg truncate">{acc.displayName}</span>
+                    <span className="text-xs font-mono text-muted">@{acc.username}</span>
+                    <Pill tone={acc.needsReconnect ? "danger" : "success"} icon={<CheckCircle2 className="w-3 h-3" />}>
+                      {acc.needsReconnect ? "Perlu Hubungkan Ulang" : "Terhubung & Siap"}
+                    </Pill>
+                    <Pill tone={acc.autopilotMode !== "MATI" ? "accent" : "neutral"}>
+                      Autopilot: {acc.autopilotMode}
+                    </Pill>
+                  </div>
+                  <p className="text-xs text-muted">
+                    Token berlaku s/d {formatDateWib(acc.accessExpiresAt)} · Target {acc.postsPerDay} posting/hari
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {acc.needsReconnect && canManage && oneClickReady && (
+                  <a href="/api/threads/oauth" className={BTN_PRIMARY}>
+                    <Link2 className="w-3.5 h-3.5" />
+                    Hubungkan ulang
+                  </a>
+                )}
+                <Link href="/autopilot" className={BTN_OUTLINE}>
+                  <Bot className="w-3.5 h-3.5" />
+                  Atur Autopilot
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Modal Hubungkan Akun Threads */}
+      {modalOpen && (
+        <ModalShell
+          open
+          onClose={() => !busy && setModalOpen(false)}
+          busy={busy}
+          title="Hubungkan dengan Access Token"
+          description="Cara manual untuk developer. Pengguna biasa cukup memakai tombol Hubungkan Akun Threads."
+          footer={
+            <>
+              <ModalButton onClick={() => setModalOpen(false)} disabled={busy}>
+                Batal
+              </ModalButton>
+              <ModalButton variant="primary" type="submit" form={formId} disabled={busy}>
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+                {busy ? "Menghubungkan..." : "Verifikasi & Hubungkan"}
+              </ModalButton>
+            </>
+          }
+        >
+          <form
+            id={formId}
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submitConnect();
+            }}
+            className="space-y-4"
+          >
+            <TextAreaField
+              label="Access Token Threads"
+              rows={3}
+              value={accessToken}
+              onChange={(v) => {
+                setAccessToken(v);
+                setFormError(null);
+              }}
+              placeholder="Tempel token akses Threads Anda (diawali TH...)"
+              hint="Buat token di Meta for Developers > aplikasi Anda > Threads > Access Token (izin threads_basic dan threads_content_publish). Token dicek ke Threads lalu disimpan terenkripsi."
+              disabled={busy}
+            />
+            <FormError message={formError} />
+          </form>
+        </ModalShell>
+      )}
+    </div>
+  );
+}

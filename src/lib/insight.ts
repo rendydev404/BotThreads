@@ -2,6 +2,8 @@ import { generateWithFailover } from "@/lib/gemini";
 import { getFleetContext } from "@/lib/chat-context";
 import { buildOverview, type OverviewParams } from "@/lib/overview";
 import type { Delta } from "@/lib/report";
+import { scopeKey } from "@/lib/tenant-scope";
+import { applyBrand, currentBrand } from "@/lib/brand";
 
 /**
  * Analitik + saran AI untuk periode dan akun yang sedang dilihat di dasbor.
@@ -141,7 +143,7 @@ export async function getInsight(
   params: OverviewParams,
   force = false
 ): Promise<InsightResult> {
-  const key = JSON.stringify([params.account, params.period, params.from, params.to]);
+  const key = JSON.stringify([scopeKey(), params.account, params.period, params.from, params.to]);
   const hit = cache.get(key);
   if (!force && hit && Date.now() - hit.at < TTL_MS) return hit.value;
 
@@ -155,7 +157,7 @@ export async function getInsight(
     : periodContext(overview);
 
   const result = await generateWithFailover({
-    system: SYSTEM(data),
+    system: applyBrand(SYSTEM(data), await currentBrand()),
     contents: [
       {
         role: "user",

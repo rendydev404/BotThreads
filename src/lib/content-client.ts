@@ -23,7 +23,7 @@ export class ContentApiError extends Error {
   }
 }
 
-async function call<T>(url: string, init?: RequestInit): Promise<T> {
+export async function call<T>(url: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(url, {

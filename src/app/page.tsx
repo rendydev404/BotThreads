@@ -103,7 +103,7 @@ export default function DashboardPage() {
           <h2 className="text-2xl font-bold text-fg">Performa Threads</h2>
           <p className="text-sm text-muted mt-1">
             {isAll
-              ? `Gabungan dari ${accountCount} akun cabang Suka Shawarma.`
+              ? `Gabungan dari ${accountCount} akun yang Anda kelola.`
               : `Menampilkan satu akun: @${currentAccount.username}.`}
           </p>
         </div>

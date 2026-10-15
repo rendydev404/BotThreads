@@ -8,6 +8,7 @@
  */
 import { db, excludedIdList, must } from "@/lib/supabase";
 import { SENTENCE_BREAK } from "./threads-text";
+import { scopeKey } from "@/lib/tenant-scope";
 
 const TTL_MS = 10 * 60_000;
 const PER_ACCOUNT = 4;
@@ -37,8 +38,9 @@ export function factSentences(text: string): string[] {
     .map((s) => (s.length > CLIP ? `${s.slice(0, CLIP - 1)}…` : s));
 }
 
-let cache: { at: number; value: Map<string, string[]> } | null = null;
-let pending: Promise<Map<string, string[]>> | null = null;
+// Per lingkup tenant: isinya dimuat dengan daftar akun yang terlihat pengguna.
+const cache = new Map<string, { at: number; value: Map<string, string[]> }>();
+const pending = new Map<string, Promise<Map<string, string[]>>>();
 
 async function load(): Promise<Map<string, string[]>> {
   const hidden = await excludedIdList();
@@ -72,16 +74,22 @@ async function load(): Promise<Map<string, string[]>> {
 
 /** Peta id akun -> kalimat fakta terbaru (cache 10 menit, permintaan serentak digabung). */
 export async function getAccountFacts(): Promise<Map<string, string[]>> {
-  if (cache && Date.now() - cache.at < TTL_MS) return cache.value;
-  pending ??= load()
-    .then((value) => {
-      cache = { at: Date.now(), value };
-      return value;
-    })
-    .finally(() => {
-      pending = null;
-    });
-  return pending;
+  const key = scopeKey();
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
+  let job = pending.get(key);
+  if (!job) {
+    job = load()
+      .then((value) => {
+        cache.set(key, { at: Date.now(), value });
+        return value;
+      })
+      .finally(() => {
+        pending.delete(key);
+      });
+    pending.set(key, job);
+  }
+  return job;
 }
 
 interface FactAccount {

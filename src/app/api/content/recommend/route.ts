@@ -1,10 +1,11 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { getRequestUserId, internalError, jsonError, readJson, UNAUTHORIZED } from "@/lib/api-auth";
+import { NextResponse } from "next/server";
+import { internalError, jsonError, readJson } from "@/lib/api-auth";
 import { parseRecommendBody } from "@/lib/content-validation";
 import { recommendDrafts } from "@/lib/content-ai";
 import type { RecommendResponse } from "@/lib/content-types";
 import { getPublishAccountMap, reasonText } from "@/lib/publish-accounts";
 import { throttle } from "@/lib/throttle";
+import { withCtx } from "@/lib/request-ctx";
 
 /** Panggilan AI bisa memakan puluhan detik pada failover antar-model. */
 export const maxDuration = 60;
@@ -12,9 +13,8 @@ export const maxDuration = 60;
 /**
  * Rekomendasi draf. TIDAK PERNAH menulis ke antrean posting: hanya membaca data dan memanggil AI.
  */
-export async function POST(request: NextRequest) {
-  const userId = await getRequestUserId(request);
-  if (!userId) return UNAUTHORIZED();
+export const POST = withCtx("VIEWER", async (request, ctx) => {
+  const userId = ctx.userId;
 
   const limit = throttle(`recommend:${userId}`, 20, 5 * 60_000);
   if (!limit.ok) {
@@ -60,4 +60,4 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     return internalError("content/recommend", err);
   }
-}
+});

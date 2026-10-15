@@ -32,6 +32,26 @@ const KEYS = [
   "HERMES_BASE_URL",
   "HERMES_MODELS",
   "ORCHESTRATE_CONCURRENCY",
+  // Saklar posting (CONTENT_PUBLISH_ENABLED, CONTENT_PUBLISH_TEST_ACCOUNTS) sengaja TIDAK ikut didorong:
+  // nilainya khusus tiap lingkungan dan harus diubah dengan sadar di Coolify.
+  "CONTENT_MAX_POSTS_PER_DAY",
+  "CONTENT_MIN_GAP_MINUTES",
+  "EXCLUDED_THREADS_ACCOUNTS",
+  "AUTOPILOT_CRON_SECRET",
+  "AUTOPILOT_MAX_PER_TICK",
+  "AUTOPILOT_CONCURRENCY",
+  "AUTOPILOT_CRITIC",
+  "AUTOPILOT_BANNED_TERMS",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+  "APP_URL",
+  // Pembayaran (Xendit) dan hubungkan akun Threads; bisa juga diisi dari panel Super Admin > Integrasi.
+  "XENDIT_SECRET_KEY",
+  "XENDIT_CALLBACK_TOKEN",
+  "THREADS_APP_ID",
+  "THREADS_APP_SECRET",
+  // Wajib SAMA dengan worker auto-suka: kunci enkripsi token Threads.
+  "TOKEN_ENCRYPTION_KEY",
 ];
 
 if (!TOKEN && !dry) {

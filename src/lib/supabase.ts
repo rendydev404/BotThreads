@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { isExcludedUsername } from "@/lib/account-visibility";
+import { inScope } from "@/lib/tenant-scope";
 
 /**
  * Akses database lewat Supabase REST memakai service role key.
@@ -144,26 +145,95 @@ interface AccountScope {
   excludedIds: string[];
 }
 
-const SCOPE_TTL_MS = 60_000;
-let scopeCache: { at: number; value: AccountScope } | null = null;
-let scopePending: Promise<AccountScope> | null = null;
+interface AccountRef {
+  id: string;
+  username: string | null;
+  workspaceId: string | null;
+  /** Tenant dashboard: pemimpin kelompok workspace-nya, atau workspace itu sendiri. */
+  tenantId: string | null;
+}
 
-/** Id akun yang tampil dan yang dikecualikan (cache 60 detik, permintaan serentak digabung). */
-export async function accountScope(): Promise<AccountScope> {
-  if (scopeCache && Date.now() - scopeCache.at < SCOPE_TTL_MS) return scopeCache.value;
-  scopePending ??= must<{ id: string; username: string | null }[]>(
-    db().from("ThreadsAccount").select("id, username")
-  )
-    .then((rows) => {
-      const value: AccountScope = { visibleIds: [], excludedIds: [] };
-      for (const r of rows) (isExcludedUsername(r.username) ? value.excludedIds : value.visibleIds).push(r.id);
-      scopeCache = { at: Date.now(), value };
-      return value;
+/* ---------- Tenant: beberapa workspace auto-suka bisa dikelola sebagai satu tenant ---------- */
+
+const TENANT_TTL_MS = 60_000;
+let tenantCache: { at: number; map: Map<string, string> } | null = null;
+let tenantPending: Promise<Map<string, string>> | null = null;
+
+/**
+ * Peta workspace -> tenant (tabel DashboardWorkspaceGroup, sql/005). Workspace yang tidak terdaftar
+ * adalah tenant sendiri. Sebelum sql/005 dipasang petanya kosong.
+ */
+async function tenantMap(): Promise<Map<string, string>> {
+  if (tenantCache && Date.now() - tenantCache.at < TENANT_TTL_MS) return tenantCache.map;
+  tenantPending ??= rpc<{ workspaceId: string; groupId: string }[]>("dash_ap_tenant_map")
+    .then((rows) => new Map(rows.map((r) => [r.workspaceId, r.groupId])))
+    .catch((err: unknown) => {
+      // Fungsi belum ada (skema autopilot belum dipasang): tanpa pengelompokan.
+      if (err instanceof Error && /PGRST202|42883/.test(err.message)) return new Map<string, string>();
+      throw err;
+    })
+    .then((map) => {
+      tenantCache = { at: Date.now(), map };
+      return map;
+    })
+    .finally(() => {
+      tenantPending = null;
+    });
+  return tenantPending;
+}
+
+/** Buang cache peta tenant dan daftar akun (setelah super admin mengubah tautan sumber akun). */
+export function forgetAccountCaches(): void {
+  tenantCache = null;
+  scopeCache = null;
+}
+
+/** Id tenant untuk sebuah workspace auto-suka (null tetap null). */
+export async function tenantIdOf(workspaceId: string | null): Promise<string | null> {
+  if (!workspaceId) return null;
+  return (await tenantMap()).get(workspaceId) ?? workspaceId;
+}
+
+const SCOPE_TTL_MS = 60_000;
+let scopeCache: { at: number; rows: AccountRef[] } | null = null;
+let scopePending: Promise<AccountRef[]> | null = null;
+
+/** Semua akun Threads (id, username, workspace); cache 60 detik, permintaan serentak digabung. */
+async function allAccounts(): Promise<AccountRef[]> {
+  if (scopeCache && Date.now() - scopeCache.at < SCOPE_TTL_MS) return scopeCache.rows;
+  scopePending ??= Promise.all([
+    must<Omit<AccountRef, "tenantId">[]>(db().from("ThreadsAccount").select("id, username, workspaceId")),
+    tenantMap(),
+  ])
+    .then(([raw, tenants]) => {
+      const rows = raw.map((r) => ({ ...r, tenantId: r.workspaceId ? tenants.get(r.workspaceId) ?? r.workspaceId : null }));
+      scopeCache = { at: Date.now(), rows };
+      return rows;
     })
     .finally(() => {
       scopePending = null;
     });
   return scopePending;
+}
+
+/**
+ * Id akun yang tampil dan yang dikecualikan untuk permintaan ini. Akun dikecualikan bila username-nya
+ * ada di daftar pengecualian ATAU berada di luar lingkup tenant pengguna (tenant/akun); keduanya
+ * diperlakukan sama oleh seluruh query: tidak ikut agregasi, daftar, maupun konteks AI.
+ */
+export async function accountScope(): Promise<AccountScope> {
+  const value: AccountScope = { visibleIds: [], excludedIds: [] };
+  for (const r of await allAccounts()) {
+    const visible = !isExcludedUsername(r.username) && inScope(r.id, r.tenantId);
+    (visible ? value.visibleIds : value.excludedIds).push(r.id);
+  }
+  return value;
+}
+
+/** Saring baris ber-id akun menurut lingkup permintaan ini (untuk query yang membaca ThreadsAccount langsung). */
+export async function onlyVisible<T extends { id: string }>(rows: T[]): Promise<T[]> {
+  const visible = new Set((await accountScope()).visibleIds);
+  return rows.filter((r) => visible.has(r.id));
 }
 
 /**

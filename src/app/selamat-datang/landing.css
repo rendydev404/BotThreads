@@ -1,0 +1,163 @@
+/*
+ * Gaya khusus halaman perkenalan ("papan jadwal siaran"). Semua dibatasi ke .lp supaya tidak bocor ke
+ * dashboard. Warna tetap dari token (--c-*), jadi mode gelap ikut dengan sendirinya.
+ * Gerak hanya memakai transform/opacity; nilai geraknya ditulis JS ke variabel CSS (lihat motion.tsx).
+ */
+.lp {
+  /* Titik latar harus terlihat di mode terang: diturunkan dari warna teks, bukan dari warna garis. */
+  --lp-dot: color-mix(in srgb, var(--c-fg) 22%, transparent);
+  --lp-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.lp-display {
+  font-family: var(--font-bricolage), var(--font-sans);
+  letter-spacing: -0.035em;
+}
+.lp-mono {
+  font-family: var(--font-jetbrains), ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-feature-settings: "zero" 1;
+}
+
+/* ---------- latar titik: lapisan dasar + lapisan aksen yang mengikuti kursor ---------- */
+.lp-dots,
+.lp-dots-accent {
+  position: absolute;
+  inset: -80px 0 0 0;
+  background-size: 24px 24px;
+  background-position: center top;
+  pointer-events: none;
+}
+.lp-dots {
+  background-image: radial-gradient(var(--lp-dot) 1.3px, transparent 1.7px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 50%, transparent 96%);
+  mask-image: linear-gradient(to bottom, #000 50%, transparent 96%);
+}
+.lp-dots-accent {
+  background-image: radial-gradient(var(--c-accent) 1.7px, transparent 2.1px);
+  -webkit-mask-image: radial-gradient(280px circle at var(--mx, 72%) var(--my, 34%), #000, transparent 72%);
+  mask-image: radial-gradient(280px circle at var(--mx, 72%) var(--my, 34%), #000, transparent 72%);
+}
+/* Cahaya tipis di belakang papan jadwal, supaya papan terasa "menyala". */
+.lp-halo {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(560px circle at 76% 42%, color-mix(in srgb, var(--c-accent) 13%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+/* ---------- gerak ---------- */
+@keyframes lp-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lp-rise {
+  animation: lp-rise 0.85s var(--lp-ease) both;
+  animation-delay: calc(var(--i, 0) * 95ms);
+}
+
+/* Muncul saat masuk layar. Keadaan tersembunyi hanya berlaku setelah JS aktif (data-anim), jadi tanpa JS isi tetap terlihat. */
+.lp[data-anim="on"] [data-reveal] {
+  opacity: 0;
+  transform: translate3d(0, 30px, 0);
+  transition:
+    opacity 0.7s ease-out,
+    transform 0.8s var(--lp-ease);
+  transition-delay: calc(var(--i, 0) * 85ms);
+}
+.lp[data-anim="on"] [data-reveal][data-in] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Paralaks: JS menulis --p (px). Elemen ber-paralaks tidak boleh sekaligus memakai data-reveal. */
+.lp [data-drift],
+.lp [data-parallax] {
+  transform: translate3d(var(--px, 0px), var(--p, 0px), 0);
+  will-change: transform;
+}
+
+.lp-tilt {
+  transform: perspective(1300px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.35s var(--lp-ease);
+}
+
+/* ---------- pita kata alur kerja ---------- */
+.lp-band {
+  font-size: clamp(3.2rem, 9.5vw, 7.5rem);
+  line-height: 1;
+  white-space: nowrap;
+}
+.lp-band span {
+  color: transparent;
+  -webkit-text-stroke: 1.2px var(--c-line-strong);
+}
+.lp-band .is-on {
+  color: var(--c-accent);
+  -webkit-text-stroke: 0;
+}
+
+/* ---------- header mengambang ---------- */
+.lp-nav {
+  transition:
+    box-shadow 0.3s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease;
+  border-color: transparent;
+}
+.lp[data-scrolled] .lp-nav {
+  background-color: color-mix(in srgb, var(--c-surface) 88%, transparent);
+  border-color: var(--c-line);
+  box-shadow: var(--shadow-pop);
+}
+.lp-progress {
+  transform: scaleX(var(--progress, 0));
+  transform-origin: left center;
+}
+
+/* ---------- detail kecil ---------- */
+.lp-cta .lp-arrow {
+  transition: transform 0.25s var(--lp-ease);
+}
+.lp-cta:hover .lp-arrow {
+  transform: translateX(4px);
+}
+.lp-lift {
+  transition:
+    transform 0.3s var(--lp-ease),
+    border-color 0.25s ease,
+    box-shadow 0.3s ease;
+}
+.lp-lift:hover {
+  transform: translate3d(0, -4px, 0);
+  border-color: color-mix(in srgb, var(--c-accent) 55%, var(--c-line));
+  box-shadow: var(--shadow-pop);
+}
+@keyframes lp-live {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.lp-live {
+  animation: lp-live 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp[data-anim="on"] [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+  .lp [data-drift],
+  .lp [data-parallax],
+  .lp-tilt {
+    transform: none;
+  }
+}

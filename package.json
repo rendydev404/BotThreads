@@ -23,6 +23,7 @@
     "tailwind-merge": "^3.0.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
