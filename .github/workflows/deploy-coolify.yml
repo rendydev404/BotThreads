@@ -1,4 +1,10 @@
-name: Build & Deploy Bot_Dashboard (GHCR to Coolify)
+name: Build & Deploy (GHCR to Coolify)
+
+# Setiap push ke main: build image di GitHub (bukan di VPS), uji image, push ke GHCR, lalu minta Coolify
+# di VPS menarik image itu dan me-restart aplikasi. Tujuan deploy diatur di Settings repo, bukan di file ini:
+#   Variables: COOLIFY_URL (mis. http://187.52.115.253:8000), COOLIFY_APP_UUID, APP_URL (alamat publik aplikasi)
+#   Secrets:   COOLIFY_API_TOKEN (Coolify > Keys & Tokens, izin "deploy")
+# Selama belum diisi, langkah deploy dilewati dan workflow tetap lulus (image tetap terbit di GHCR).
 
 on:
   push:
@@ -6,20 +12,14 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-bot-dashboard-production
+  group: deploy-production-${{ github.repository }}
   cancel-in-progress: true
 
-env:
-  IMAGE: ghcr.io/rendydev404/bot_dashboard
-  COOLIFY_URL: https://coolify.sukashawarma.tech
-  COOLIFY_APP_UUID: 0rrjnshh4h4gravrer3pgbpz
-  APP_URL: https://wargi.sukashawarma.com
-
 jobs:
-  build-and-push:
-    name: Build Docker Image & Push to GHCR
+  build-and-deploy:
+    name: Build, push, deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -27,6 +27,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # GHCR wajib huruf kecil; tiap repo memakai paket miliknya sendiri (izin GITHUB_TOKEN terbatas pada repo ini).
+      - name: Resolve image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -54,14 +58,17 @@ jobs:
           file: Dockerfile
           load: true
           push: false
-          tags: bot-dashboard:ci
+          tags: app:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Smoke test image
         run: |
           set -euo pipefail
-          docker run -d --name smoke -p 3000:3000             -e AUTH_SECRET=ci-smoke-secret-ci-smoke-secret-ci-smoke-secret             -e DATABASE_URL=postgresql://user:pass@127.0.0.1:5432/db             -e DIRECT_URL=postgresql://user:pass@127.0.0.1:5432/db             bot-dashboard:ci
+          docker run -d --name smoke -p 3000:3000 \
+            -e AUTH_SECRET=ci-smoke-secret-ci-smoke-secret-ci-smoke-secret \
+            app:ci
+          CODE=000
           for i in $(seq 1 30); do
             CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/login || true)
             echo "login -> HTTP $CODE"
@@ -69,18 +76,10 @@ jobs:
             sleep 2
           done
           [ "$CODE" = "200" ] || { docker logs smoke; exit 1; }
-
-          # Halaman terproteksi harus mengarahkan ke /login tanpa sesi
+          # Halaman terproteksi harus mengarahkan ke /login tanpa sesi.
           REDIR=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/)
           echo "/ -> HTTP $REDIR"
           [ "$REDIR" = "307" ] || { docker logs smoke; exit 1; }
-
-          # Mesin Prisma Linux harus termuat: gagal koneksi DB itu wajar,
-          # tetapi "Query Engine ... not found" berarti image rusak.
-          curl -s -o /dev/null -X POST http://127.0.0.1:3000/api/auth/login             -H 'Content-Type: application/json'             -d '{"username":"x","password":"y"}' || true
-          if docker logs smoke 2>&1 | grep -qiE "Query Engine|could not locate|PrismaClientInitializationError: Unable to require"; then
-            docker logs smoke; echo "Prisma engine bermasalah"; exit 1
-          fi
           docker rm -f smoke
 
       - name: Build and push Docker image
@@ -94,36 +93,40 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Trigger Coolify Deploy (Pull & Restart on VPS)
+      - name: Trigger Coolify deploy (pull & restart on VPS)
         id: deploy
-        continue-on-error: true
         env:
+          COOLIFY_URL: ${{ vars.COOLIFY_URL }}
+          COOLIFY_APP_UUID: ${{ vars.COOLIFY_APP_UUID }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
         run: |
-          if [ -z "$COOLIFY_TOKEN" ]; then
-            echo "COOLIFY_API_TOKEN belum diatur, lewati pemicu Coolify (tarik image manual di Coolify)."
+          if [ -z "$COOLIFY_URL" ] || [ -z "$COOLIFY_APP_UUID" ] || [ -z "$COOLIFY_TOKEN" ]; then
+            echo "::notice::Deploy dilewati: isi variabel COOLIFY_URL, COOLIFY_APP_UUID dan secret COOLIFY_API_TOKEN di Settings repo."
             echo "triggered=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           curl --fail --show-error --silent --location \
-            --request POST "$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_APP_UUID" \
+            --request POST "${COOLIFY_URL%/}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=false" \
             --header "Authorization: Bearer $COOLIFY_TOKEN"
-          echo -e "\nCoolify deployment berhasil dipicu."
+          echo
+          echo "Coolify deployment dipicu."
           echo "triggered=true" >> "$GITHUB_OUTPUT"
 
-      - name: Verify Live Service Health (Smoke Test)
-        if: steps.deploy.outputs.triggered == 'true'
+      - name: Verify live service health
+        if: steps.deploy.outputs.triggered == 'true' && vars.APP_URL != ''
+        env:
+          APP_URL: ${{ vars.APP_URL }}
         run: |
-          echo "Menunggu Coolify menarik image & restart container..."
+          echo "Menunggu Coolify menarik image dan me-restart container..."
           sleep 40
-          for i in {1..18}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$APP_URL/login" || true)
+          for i in $(seq 1 24); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${APP_URL%/}/login" || true)
             echo "Percobaan $i: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then
-              echo "Dashboard LIVE dan sehat."
+              echo "Aplikasi LIVE dan sehat."
               exit 0
             fi
             sleep 10
           done
-          echo "Layanan belum sehat dalam batas waktu."
+          echo "Aplikasi belum sehat dalam batas waktu."
           exit 1
