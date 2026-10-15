@@ -89,6 +89,9 @@ function lastCaptureText(last: SignalListResponse["lastCapture"], source: Source
     : `${SIGNAL_SOURCE_LABEL[source]} belum pernah diperbarui.`;
 }
 
+/** Halaman pencarian Threads untuk satu topik (dibuka di peramban pengguna, tidak lewat API). */
+const threadsSearchUrl = (topic: string): string => `https://www.threads.com/search?q=${encodeURIComponent(topic)}&serp_type=default`;
+
 const hostOf = (url: string): string => {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -303,6 +306,22 @@ const SignalRow = memo(function SignalRow({ signal, canDelete, onDelete }: Signa
               <ExternalLink className="w-3.5 h-3.5 shrink-0" />
               <span className="min-w-0 truncate">{signal.source === "JARINGAN" ? "Lihat posting" : hostOf(href)}</span>
               <span className="sr-only"> (tab baru)</span>
+            </a>
+          </div>
+        )}
+
+        {/* Topik yang lagi ramai: buka pencarian Threads untuk melihat apa yang sedang dibahas orang (tanpa izin API). */}
+        {signal.source === "GTRENDS" && (
+          <div className="min-w-0">
+            <a
+              href={threadsSearchUrl(signal.title)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="-my-2 h-10 inline-flex items-center gap-1.5 text-[13px] font-semibold text-fg hover:underline"
+            >
+              <ThreadsMark className="w-3.5 h-3.5 shrink-0" />
+              Lihat di Threads
+              <span className="sr-only"> (pencarian &quot;{signal.title}&quot; di Threads, tab baru)</span>
             </a>
           </div>
         )}
