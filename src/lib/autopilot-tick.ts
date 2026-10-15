@@ -414,11 +414,13 @@ export async function runTick(opts: { now?: Date; budgetMs?: number } = {}): Pro
     if (!stopped) bump(counts, "direncanakan", await planMissingSlots(state, accounts, now));
 
     // Riset dan bank ide bersifat tambahan: kegagalannya tidak boleh menahan penulisan.
-    if (isPublishEnabled() && !stopped) {
+    // Riset tren (tanpa AI, tanpa posting) tetap jalan walau saklar posting mati, supaya Radar > Tren Viral
+    // selalu segar; bank ide memanggil AI, jadi hanya diisi bila posting memang menyala.
+    if (!stopped) {
       try {
         const radar = await loadRadarState(now);
         await runResearch(radar, now, counts);
-        await refillIdeas(state, accounts, radar, now, deadline, counts);
+        if (isPublishEnabled()) await refillIdeas(state, accounts, radar, now, deadline, counts);
       } catch (err) {
         if (isMissingAutopilotSchema(err)) bump(counts, "radarBelumDipasang");
         else {

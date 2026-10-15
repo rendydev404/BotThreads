@@ -115,8 +115,10 @@ Autopilot digerakkan satu endpoint yang dipanggil tiap 5 menit. Di Coolify, buka
 - Command:
 
 ```bash
-node -e "fetch('http://127.0.0.1:3000/api/internal/autopilot/tick',{method:'POST',headers:{'x-cron-secret':process.env.AUTOPILOT_CRON_SECRET}}).then(async r=>{console.log(r.status,await r.text());process.exit(r.ok?0:1)}).catch(e=>{console.error(e.message);process.exit(1)})"
+node -e "fetch('http://127.0.0.1:3000/api/internal/autopilot/tick',{method:'POST',headers:{'x-cron-secret':process.env.AUTOPILOT_CRON_SECRET}}).then(async r=>{console.log(r.status,(await r.text()).slice(0,300));process.exit(r.ok?0:1)})"
 ```
+
+Coolify membatasi perintah tugas terjadwal maksimal 255 karakter; perintah di atas 236 karakter. Riset tren (Radar > Tren Viral) tetap berjalan walau `CONTENT_PUBLISH_ENABLED` mati; bank ide (memakai AI) hanya diisi saat posting menyala.
 
 Endpoint itu hanya menerima `POST` dengan rahasia yang benar (401 bila salah, 503 bila `AUTOPILOT_CRON_SECRET` belum dipasang). Aman dipanggil ganda: tick kedua langsung selesai. Halaman Autopilot menampilkan peringatan bila tick terakhir lebih dari 15 menit yang lalu.
 
