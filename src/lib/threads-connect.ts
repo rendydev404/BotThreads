@@ -167,50 +167,22 @@ async function ensureWorkspaceRow(workspaceId: string): Promise<void> {
 }
 
 /**
- * Petakan akun ke cabang (Outlet) + SocialAccount THREADS seperti yang dibuat worker saat OAuth.
- * Akun yang sudah punya pemetaan (mis. dihubungkan dari auto-suka) dibiarkan apa adanya.
+ * Pastikan akun punya "cabang" tersembunyi (Outlet) + penghubung (SocialAccount, THREADS) supaya worker
+ * penerbit auto-suka bisa memposting lewatnya. Tabel itu milik worker dan tidak bisa ditulis service_role,
+ * jadi lewat fungsi SECURITY DEFINER yang sempit (sql/016_threads_publish_map.sql). Idempoten.
  */
-async function ensurePublishMapping(account: { id: string; workspaceId: string; username: string; displayName: string }): Promise<void> {
-  const { data: mapped } = await db().from("SocialAccount").select("id").eq("threadsAccountId", account.id).maybeSingle();
-  if (mapped) return;
-
-  const stamp = nowTs();
-  const kode = `TH-${account.username}`.slice(0, 40).toUpperCase();
-  let outletId: string;
-  const { data: outlet } = await db()
-    .from("Outlet")
-    .select("id")
-    .eq("workspaceId", account.workspaceId)
-    .eq("kode", kode)
-    .maybeSingle();
-  if (outlet) {
-    outletId = (outlet as { id: string }).id;
-  } else {
-    outletId = randomUUID();
-    const { error } = await db().from("Outlet").insert({
-      id: outletId,
-      workspaceId: account.workspaceId,
-      nama: account.displayName.slice(0, 80),
-      kode,
-      cluster: "Threads",
-      isActive: true,
-      createdAt: stamp,
-      updatedAt: stamp,
-    });
-    if (error) throw new Error(`Gagal membuat cabang untuk akun: ${error.message}`);
+async function ensurePublishMapping(accountId: string, now = new Date()): Promise<void> {
+  let res: { status: string };
+  try {
+    res = await rpc<{ status: string }>("dash_tc_publish_map", { p_account: accountId, p_now: now });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/PGRST202|42883|dash_tc_publish_map/.test(msg)) {
+      throw new Error("Akun Threads terhubung, tetapi belum bisa dipakai posting: server belum siap (sql/016_threads_publish_map.sql). Hubungi pengelola platform.");
+    }
+    throw new Error("Akun Threads terhubung, tetapi gagal disiapkan untuk posting. Coba hubungkan ulang sebentar lagi.");
   }
-
-  const { error } = await db().from("SocialAccount").insert({
-    id: randomUUID(),
-    outletId,
-    platform: "THREADS",
-    handle: `@${account.username}`,
-    threadsAccountId: account.id,
-    isConnected: true,
-    createdAt: stamp,
-    updatedAt: stamp,
-  });
-  if (error) throw new Error(`Gagal memetakan akun untuk posting: ${error.message}`);
+  if (res.status !== "OK") throw new Error("Akun Threads tidak ditemukan saat disiapkan untuk posting. Coba hubungkan ulang.");
 }
 
 /* ------------------------------------------------------------------ Graph API */
@@ -356,7 +328,7 @@ export async function connectThreadsAccount(
   }
 
   try {
-    await ensurePublishMapping({ id: accountId, workspaceId, username: profile.username, displayName: profile.displayName });
+    await ensurePublishMapping(accountId, now);
   } catch (err) {
     console.error("[threads-connect] pemetaan posting gagal:", err);
     return failure(500, err instanceof Error ? err.message : "Gagal memetakan akun untuk posting.");
