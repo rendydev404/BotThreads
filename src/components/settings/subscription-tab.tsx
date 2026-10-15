@@ -7,7 +7,6 @@ import {
   Check,
   CheckCircle2,
   CreditCard,
-  ExternalLink,
   Gem,
   Loader2,
   Receipt,
@@ -23,6 +22,7 @@ import {
   type BillingCycleMonths,
   type InvoiceDTO,
   type InvoiceStatus,
+  type PaymentMethodId,
   type WorkspaceBillingResponse,
 } from "@/lib/billing-types";
 import { formatRupiah, type PublicPlansResponse, type WorkspacePlanResponse } from "@/lib/plan-types";
@@ -32,12 +32,14 @@ import {
   fetchPublicPlans,
   fetchWorkspaceBilling,
   fetchWorkspacePlan,
+  payBillingInvoice,
   syncBillingInvoice,
 } from "@/lib/team-client";
 import { cn } from "@/lib/utils";
 import { Banner } from "@/components/autopilot/shared";
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { FormError } from "./fields";
+import { MethodPicker, PaymentPanel } from "./payment-panel";
 import { errorText, formatDateWib, formatInt } from "./format";
 import { BTN_OUTLINE, BTN_PRIMARY, EmptyState, LoadError, Pill, RefreshButton, type PillTone } from "./states";
 import { useRemote } from "./use-remote";
@@ -59,6 +61,9 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
 
   const [cycle, setCycle] = useState<BillingCycleMonths>(1);
   const [checkoutPlan, setCheckoutPlan] = useState<PlanItem | null>(null);
+  const [method, setMethod] = useState<PaymentMethodId | null>(null);
+  /** Tagihan yang sedang dibayar di layar bayar. */
+  const [payTarget, setPayTarget] = useState<InvoiceDTO | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "info"; text: string } | null>(null);
@@ -78,20 +83,21 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
         }.`,
       });
     } else if (inv.status === "PENDING") {
-      setNotice({ tone: "info", text: `Tagihan ${inv.id} belum dibayar. Selesaikan pembayaran di halaman Xendit.` });
+      setNotice({ tone: "info", text: `Tagihan ${inv.id} belum dibayar. Klik Bayar untuk melihat kode pembayarannya.` });
     } else {
       setNotice({ tone: "info", text: `Tagihan ${inv.id} ${INVOICE_STATUS_LABEL[inv.status].toLowerCase()}.` });
     }
   };
 
-  // Kembali dari halaman bayar Xendit (?invoice=ID): langsung cek statusnya sekali.
+  // Kembali dari aplikasi e-wallet (?invoice=ID): cek statusnya sekali, buka layar bayar bila belum lunas.
   const checkedReturn = useRef(false);
   useEffect(() => {
     if (!returnedInvoice || checkedReturn.current || !canManage) return;
     checkedReturn.current = true;
     void syncBillingInvoice(returnedInvoice)
       .then((res) => {
-        reportStatus(res.invoice);
+        if (res.invoice.status === "PENDING") setPayTarget(res.invoice);
+        else reportStatus(res.invoice);
         if (res.invoice.status === "PAID") {
           wsPlan.reload();
           billing.reload();
@@ -117,6 +123,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
   const openCheckout = (plan: PlanItem) => {
     setActionError(null);
     setCheckoutPlan(plan);
+    setMethod((m) => m ?? billing.data?.methods[0] ?? null);
   };
 
   const handleCheckout = () =>
@@ -124,20 +131,59 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
       "checkout",
       async () => {
         if (!checkoutPlan) return;
-        const res = await createBillingCheckout({ planId: checkoutPlan.id, months: cycle });
+        const free = calculateCyclePrice(checkoutPlan.hargaBulanan, cycle).total === 0;
+        if (!free && !method) throw new Error("Pilih metode pembayaran dulu.");
+        const res = await createBillingCheckout({ planId: checkoutPlan.id, months: cycle, method: method ?? "qris" });
+        setCheckoutPlan(null);
         if (res.invoice.status === "PAID") {
-          setCheckoutPlan(null);
           reloadAll();
           reportStatus(res.invoice);
-        } else if (res.invoice.paymentUrl) {
-          // Ke halaman bayar Xendit; Xendit mengembalikan pengguna ke tab ini dengan ?invoice=ID.
-          window.location.assign(res.invoice.paymentUrl);
         } else {
-          setCheckoutPlan(null);
+          // Layar bayar sendiri: nomor VA / QR / tombol e-wallet langsung tampil.
+          setPayTarget(res.invoice);
           billing.reload();
         }
       },
       "Gagal membuat tagihan langganan."
+    );
+
+  /** Cek status dari layar bayar. silent = polling otomatis: tanpa indikator sibuk dan tanpa pesan galat. */
+  const checkPayment = async (silent: boolean) => {
+    const inv = payTarget;
+    if (!inv || (!silent && busy)) return;
+    if (!silent) {
+      setBusy("check");
+      setActionError(null);
+    }
+    try {
+      const res = await syncBillingInvoice(inv.id);
+      setPayTarget((cur) => (cur && cur.id === res.invoice.id ? res.invoice : cur));
+      if (res.invoice.status === "PAID") {
+        reloadAll();
+        reportStatus(res.invoice);
+      } else if (!silent && res.invoice.status === "PENDING") {
+        setActionError("Pembayaran belum diterima. Bila baru saja membayar, tunggu sebentar; status diperbarui otomatis.");
+      }
+    } catch (e) {
+      if (!silent) setActionError(errorText(e, "Gagal mengecek status pembayaran."));
+    } finally {
+      if (!silent) setBusy(null);
+    }
+  };
+
+  const changeMethod = (m: PaymentMethodId) =>
+    run(
+      "pay",
+      async () => {
+        if (!payTarget) return;
+        const res = await payBillingInvoice(payTarget.id, m);
+        setPayTarget(res.invoice);
+        if (res.invoice.status === "PAID") {
+          reloadAll();
+          reportStatus(res.invoice);
+        } else billing.reload();
+      },
+      "Gagal membuat kode pembayaran."
     );
 
   const handleSync = (inv: InvoiceDTO) =>
@@ -185,6 +231,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
   const invoices = billing.data?.invoices ?? [];
   const paymentReady = billing.data?.paymentReady ?? false;
   const testMode = billing.data?.testMode ?? false;
+  const methods = billing.data?.methods ?? [];
 
   return (
     <div className="space-y-6">
@@ -193,7 +240,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
           {notice.text}
         </Banner>
       )}
-      {actionError && !checkoutPlan && (
+      {actionError && !checkoutPlan && !payTarget && (
         <Banner tone="danger" onClose={() => setActionError(null)}>
           {actionError}
         </Banner>
@@ -359,7 +406,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
       <section className="space-y-3" aria-label="Riwayat tagihan">
         <div>
           <h3 className="text-base font-bold text-fg">Riwayat Tagihan & Pembayaran</h3>
-          <p className="text-xs text-muted">Daftar invoice langganan workspace ini. Status lunas diperbarui otomatis dari Xendit.</p>
+          <p className="text-xs text-muted">Daftar invoice langganan workspace ini. Status lunas diperbarui otomatis dari Midtrans.</p>
         </div>
 
         {invoices.length === 0 ? (
@@ -394,12 +441,19 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
 
                   {inv.status === "PENDING" && canManage && (
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      {inv.paymentUrl && (
-                        <a href={inv.paymentUrl} className={BTN_PRIMARY}>
+                      {inv.provider === "MIDTRANS" && paymentReady && (
+                        <button
+                          type="button"
+                          disabled={!!busy}
+                          onClick={() => {
+                            setActionError(null);
+                            setPayTarget(inv);
+                          }}
+                          className={BTN_PRIMARY}
+                        >
                           <CreditCard className="w-3.5 h-3.5" />
                           Bayar
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
+                        </button>
                       )}
                       <button
                         type="button"
@@ -432,7 +486,48 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
         )}
       </section>
 
-      {/* Ringkasan sebelum ke halaman bayar Xendit */}
+      {/* Layar bayar (Midtrans Core API, tanpa Snap) */}
+      {payTarget && (
+        <ModalShell
+          open
+          onClose={() => {
+            if (busy === "pay") return;
+            setPayTarget(null);
+            setActionError(null);
+            billing.reload();
+          }}
+          busy={busy === "pay"}
+          title={payTarget.status === "PAID" ? "Pembayaran Diterima" : `Bayar Paket ${payTarget.planNama}`}
+          description={payTarget.status === "PAID" ? undefined : `${payTarget.months} bulan · ${payTarget.id}`}
+          footer={
+            <ModalButton
+              onClick={() => {
+                setPayTarget(null);
+                setActionError(null);
+                billing.reload();
+              }}
+              disabled={busy === "pay"}
+            >
+              {payTarget.status === "PAID" ? "Selesai" : "Tutup, bayar nanti"}
+            </ModalButton>
+          }
+        >
+          <div className="space-y-4">
+            <PaymentPanel
+              key={payTarget.id}
+              invoice={payTarget}
+              testMode={testMode}
+              methods={methods}
+              busy={busy}
+              onCheck={(silent) => void checkPayment(silent)}
+              onChangeMethod={(m) => void changeMethod(m)}
+            />
+            <FormError message={actionError} />
+          </div>
+        </ModalShell>
+      )}
+
+      {/* Ringkasan + pilih metode sebelum layar bayar */}
       {checkoutPlan && (
         <ModalShell
           open
@@ -448,14 +543,14 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
               <ModalButton
                 variant="primary"
                 onClick={() => void handleCheckout()}
-                disabled={!!busy || (checkoutPlan.hargaBulanan > 0 && !paymentReady)}
+                disabled={!!busy || (checkoutPlan.hargaBulanan > 0 && (!paymentReady || !method))}
               >
                 {busy === "checkout" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                 {busy === "checkout"
                   ? "Menyiapkan pembayaran..."
                   : checkoutPlan.hargaBulanan === 0
                     ? "Aktifkan Paket Gratis"
-                    : "Lanjut Bayar"}
+                    : `Bayar ${formatRupiah(calculateCyclePrice(checkoutPlan.hargaBulanan, cycle).total)}`}
               </ModalButton>
             </>
           }
@@ -489,17 +584,16 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
 
                 {p.total > 0 &&
                   (paymentReady ? (
-                    <div className="rounded-xl border border-line p-3.5 flex items-start gap-3">
-                      <ShieldCheck className="w-5 h-5 text-accent shrink-0 mt-0.5" />
-                      <div className="text-xs text-muted leading-relaxed">
-                        <p className="font-bold text-fg">
-                          Dibayar lewat Xendit {testMode && <Pill tone="warning">Mode uji</Pill>}
-                        </p>
-                        <p className="mt-0.5">
-                          Anda akan diarahkan ke halaman pembayaran Xendit (QRIS, Virtual Account, e-wallet, atau gerai
-                          retail). Paket aktif otomatis begitu pembayaran diterima.
-                        </p>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-bold text-fg">Metode pembayaran</p>
+                        {testMode && <Pill tone="warning">Sandbox</Pill>}
                       </div>
+                      <MethodPicker methods={methods} value={method} onChange={setMethod} disabled={!!busy} />
+                      <p className="text-[11px] text-muted inline-flex items-start gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-accent shrink-0 mt-px" />
+                        Diproses aman oleh Midtrans. Kode bayar tampil di halaman ini; paket aktif otomatis begitu pembayaran diterima.
+                      </p>
                     </div>
                   ) : (
                     <div className="rounded-xl border border-warning p-3.5 flex items-start gap-3 text-xs text-fg">

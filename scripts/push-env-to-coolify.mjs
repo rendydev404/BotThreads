@@ -45,9 +45,11 @@ const KEYS = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
   "APP_URL",
-  // Pembayaran (Xendit) dan hubungkan akun Threads; bisa juga diisi dari panel Super Admin > Integrasi.
-  "XENDIT_SECRET_KEY",
-  "XENDIT_CALLBACK_TOKEN",
+  // Pembayaran (Midtrans) dan hubungkan akun Threads; bisa juga diisi dari panel Super Admin > Integrasi.
+  "MIDTRANS_SERVER_KEY",
+  "MIDTRANS_CLIENT_KEY",
+  "MIDTRANS_MERCHANT_ID",
+  "MIDTRANS_IS_PRODUCTION",
   "THREADS_APP_ID",
   "THREADS_APP_SECRET",
   // Wajib SAMA dengan worker auto-suka: kunci enkripsi token Threads.

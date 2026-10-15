@@ -1,15 +1,15 @@
 /**
- * Kunci integrasi platform: Xendit (pembayaran), Google OAuth (masuk), dan Meta Threads OAuth (hubungkan akun).
+ * Kunci integrasi platform: Midtrans (pembayaran), Google OAuth (masuk), dan Meta Threads OAuth (hubungkan akun).
  *
  * Sumber nilai per kolom: tabel "PlatformIntegration" (diisi super admin di /admin > Integrasi) lalu
  * variabel lingkungan sebagai cadangan. Bila sql/012 belum dipasang, hanya variabel lingkungan yang
  * dipakai, jadi mengisi .env saja sudah cukup.
  */
-import type { PlatformIntegrationsDTO } from "./billing-types";
+import { PAYMENT_METHOD_IDS, type PaymentMethodId, type PlatformIntegrationsDTO } from "./billing-types";
+import { midtransIsProduction } from "./midtrans";
 import { tokenKeyConfigured } from "./threads-token";
 import { rpc } from "./supabase";
 import type { Failure } from "./threads-publish";
-import { xenditMode } from "./xendit";
 
 const CACHE_TTL_MS = 15_000;
 
@@ -18,13 +18,22 @@ type Source = "database" | "env" | "none";
 export interface StoredIntegrations {
   /** Tabel konfigurasi tersedia (sql/012 terpasang). */
   stored: boolean;
-  xendit: { secretKey: string; callbackToken: string; source: Source };
+  /** sql/017_midtrans.sql terpasang (kolom konfigurasi Midtrans + RPC pembayaran). */
+  midtransSchema: boolean;
+  midtrans: {
+    serverKey: string;
+    clientKey: string;
+    merchantId: string;
+    isProduction: boolean;
+    methods: PaymentMethodId[];
+    source: Source;
+  };
   googleOauth: { enabled: boolean; clientId: string; clientSecret: string; appUrl: string; source: Source };
   threadsOauth: { enabled: boolean; appId: string; appSecret: string; source: Source };
 }
 
 interface ConfigRow {
-  xendit?: Record<string, unknown>;
+  midtrans?: Record<string, unknown>;
   googleOauth?: Record<string, unknown>;
   threadsOauth?: Record<string, unknown>;
 }
@@ -58,12 +67,17 @@ export async function getRawIntegrations(): Promise<StoredIntegrations> {
   } catch {
     // sql/012 belum dipasang: jalan dengan env saja.
   }
-  const x = row?.xendit ?? {};
+  const m = row?.midtrans ?? {};
   const g = row?.googleOauth ?? {};
   const t = row?.threadsOauth ?? {};
 
-  const xSecret = pick(x.secretKey, "XENDIT_SECRET_KEY");
-  const xToken = pick(x.callbackToken, "XENDIT_CALLBACK_TOKEN");
+  const mServer = pick(m.serverKey, "MIDTRANS_SERVER_KEY");
+  const mClient = pick(m.clientKey, "MIDTRANS_CLIENT_KEY");
+  const mMerchant = pick(m.merchantId, "MIDTRANS_MERCHANT_ID");
+  const mProd = typeof m.isProduction === "boolean" ? m.isProduction : env("MIDTRANS_IS_PRODUCTION") === "true";
+  const mMethods = Array.isArray(m.methods)
+    ? PAYMENT_METHOD_IDS.filter((id) => (m.methods as unknown[]).includes(id))
+    : PAYMENT_METHOD_IDS;
   const gId = pick(g.clientId, "GOOGLE_CLIENT_ID");
   const gSecret = pick(g.clientSecret, "GOOGLE_CLIENT_SECRET");
   const gUrl = pick(g.appUrl, "APP_URL");
@@ -72,11 +86,14 @@ export async function getRawIntegrations(): Promise<StoredIntegrations> {
 
   const value: StoredIntegrations = {
     stored,
-    xendit: {
-      secretKey: xSecret.value,
-      // Nama lama XENDIT_WEBHOOK_TOKEN tetap diterima.
-      callbackToken: xToken.value || env("XENDIT_WEBHOOK_TOKEN"),
-      source: xSecret.source,
+    midtransSchema: !!row && typeof row === "object" && "midtrans" in row,
+    midtrans: {
+      serverKey: mServer.value,
+      clientKey: mClient.value,
+      merchantId: mMerchant.value,
+      isProduction: midtransIsProduction(mServer.value, mProd),
+      methods: mMethods,
+      source: mServer.source,
     },
     googleOauth: {
       enabled: typeof g.enabled === "boolean" ? g.enabled : true,
@@ -109,14 +126,15 @@ export async function getPublicIntegrations(origin: string): Promise<PlatformInt
   return {
     stored: raw.stored,
     appUrl: raw.googleOauth.appUrl,
-    xendit: {
-      ready: !!raw.xendit.secretKey,
-      mode: xenditMode(raw.xendit.secretKey),
-      secretKeyMasked: maskSecret(raw.xendit.secretKey),
-      hasCallbackToken: !!raw.xendit.callbackToken,
-      callbackTokenMasked: maskSecret(raw.xendit.callbackToken),
-      webhookUrl: `${base}/api/billing/webhook`,
-      source: raw.xendit.source,
+    midtrans: {
+      ready: !!raw.midtrans.serverKey,
+      mode: raw.midtrans.isProduction ? "production" : "sandbox",
+      merchantId: raw.midtrans.merchantId,
+      clientKey: raw.midtrans.clientKey,
+      serverKeyMasked: maskSecret(raw.midtrans.serverKey),
+      methods: raw.midtrans.methods,
+      notificationUrl: `${base}/api/billing/webhook`,
+      source: raw.midtrans.source,
     },
     googleOauth: {
       enabled: raw.googleOauth.enabled,
@@ -149,7 +167,7 @@ function textField(src: Record<string, unknown>, key: string, max: number): stri
 
 /**
  * Simpan perubahan kunci. Kolom rahasia yang dikirim kosong dianggap "tidak diubah" (formulir tidak
- * pernah menampilkan nilai lamanya); untuk menghapusnya kirim `clear: ["xendit.secretKey", ...]`.
+ * pernah menampilkan nilai lamanya); untuk menghapusnya kirim `clear: ["midtrans.serverKey", ...]`.
  */
 export async function saveIntegrations(
   adminId: string,
@@ -167,7 +185,7 @@ export async function saveIntegrations(
     };
   }
 
-  const inX = isRecord(body.xendit) ? body.xendit : {};
+  const inM = isRecord(body.midtrans) ? body.midtrans : {};
   const inG = isRecord(body.googleOauth) ? body.googleOauth : {};
   const inT = isRecord(body.threadsOauth) ? body.threadsOauth : {};
   const clear = new Set(Array.isArray(body.clear) ? body.clear.filter((c): c is string => typeof c === "string") : []);
@@ -178,16 +196,38 @@ export async function saveIntegrations(
     return v ? v : undefined;
   };
 
-  const xendit: Record<string, unknown> = {};
-  const xKey = secret(inX, "secretKey", "xendit.secretKey");
-  if (xKey !== undefined) {
-    if (xKey && !/^xnd_(development|production)_[A-Za-z0-9]+$/.test(xKey)) {
-      return { ok: false, status: 400, error: "Secret Key Xendit harus diawali xnd_development_ atau xnd_production_." };
+  const midtrans: Record<string, unknown> = {};
+  const mKey = secret(inM, "serverKey", "midtrans.serverKey");
+  if (mKey !== undefined) {
+    if (mKey && !/^(SB-)?Mid-server-[A-Za-z0-9_-]{8,}$/.test(mKey)) {
+      return { ok: false, status: 400, error: "Server Key Midtrans harus diawali Mid-server- (atau SB-Mid-server- untuk sandbox lama)." };
     }
-    xendit.secretKey = xKey;
+    midtrans.serverKey = mKey;
   }
-  const xTok = secret(inX, "callbackToken", "xendit.callbackToken");
-  if (xTok !== undefined) xendit.callbackToken = xTok;
+  const mClient = textField(inM, "clientKey", 120);
+  if (mClient !== undefined) {
+    if (mClient && !/^(SB-)?Mid-client-[A-Za-z0-9_-]{8,}$/.test(mClient)) {
+      return { ok: false, status: 400, error: "Client Key Midtrans harus diawali Mid-client- (atau SB-Mid-client-)." };
+    }
+    midtrans.clientKey = mClient;
+  }
+  const mMerchant = textField(inM, "merchantId", 40);
+  if (mMerchant !== undefined) {
+    if (mMerchant && !/^[A-Za-z0-9]{4,30}$/.test(mMerchant)) return { ok: false, status: 400, error: "Merchant ID Midtrans tidak valid." };
+    midtrans.merchantId = mMerchant;
+  }
+  if (typeof inM.isProduction === "boolean") midtrans.isProduction = inM.isProduction;
+  if (Array.isArray(inM.methods)) {
+    const methods = PAYMENT_METHOD_IDS.filter((id) => (inM.methods as unknown[]).includes(id));
+    if (methods.length === 0) return { ok: false, status: 400, error: "Aktifkan minimal satu metode pembayaran." };
+    midtrans.methods = methods;
+  }
+  if (!current.midtransSchema) {
+    if (midtrans.serverKey || midtrans.clientKey || midtrans.merchantId) {
+      return { ok: false, status: 503, error: "Kolom Midtrans belum dipasang. Jalankan sql/017_midtrans.sql di Supabase SQL Editor." };
+    }
+    for (const k of Object.keys(midtrans)) delete midtrans[k];
+  }
 
   const googleOauth: Record<string, unknown> = {};
   if (typeof inG.enabled === "boolean") googleOauth.enabled = inG.enabled;
@@ -216,7 +256,7 @@ export async function saveIntegrations(
 
   const saved = await rpc<ConfigRow | null>("dash_bill_config_set", {
     p_actor: adminId,
-    p_patch: { xendit, googleOauth, threadsOauth },
+    p_patch: { midtrans, googleOauth, threadsOauth },
     p_now: now,
   });
   if (!saved) return { ok: false, status: 403, error: "Hanya super admin yang boleh mengubah integrasi." };

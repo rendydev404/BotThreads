@@ -1,11 +1,16 @@
 /**
- * Tagihan langganan via Xendit Invoice dan kalkulasi KPI SaaS.
+ * Tagihan langganan via Midtrans Core API (UI bayar sendiri, tanpa Snap) dan kalkulasi KPI SaaS.
  *
- * Alur: pengguna memilih paket ➜ `createCheckoutInvoice` membuat invoice Xendit dan menyimpannya di
- * "SubscriptionInvoice" ➜ pengguna membayar di halaman Xendit ➜ callback Xendit (atau tombol "Cek
- * status") memanggil `syncInvoice`, yang SELALU menanyakan status ke API Xendit memakai secret key
- * sebelum melunasi. Isi callback tidak pernah dipercaya begitu saja, jadi callback palsu tidak bisa
- * mengaktifkan paket. Pelunasan + perpanjangan paket atomik di database (`dash_bill_settle`).
+ * Alur: pengguna memilih paket + metode bayar ➜ `createCheckoutInvoice` menyimpan tagihan di
+ * "SubscriptionInvoice" lalu `payInvoice` membuat transaksi Midtrans (charge) dan menyimpan instruksi
+ * bayarnya (nomor VA / QR / deeplink) ➜ pengguna membayar ➜ notifikasi Midtrans, polling UI, atau
+ * scheduler memanggil `syncInvoice`, yang SELALU menanyakan status ke API Midtrans memakai server key
+ * sebelum melunasi. Isi notifikasi tidak pernah dipercaya begitu saja (signature dicek, status diambil
+ * ulang), jadi notifikasi palsu tidak bisa mengaktifkan paket. Pelunasan + perpanjangan paket atomik di
+ * database (`dash_bill_settle`).
+ *
+ * Satu tagihan bisa punya beberapa transaksi Midtrans bila pengguna ganti metode atau QR kedaluwarsa:
+ * order_id = id tagihan, lalu `<id>-2`, `<id>-3`, dst. Transaksi lama di-expire sebelum yang baru dibuat.
  */
 import { randomBytes } from "node:crypto";
 import {
@@ -14,38 +19,52 @@ import {
   type AdminBillingResponse,
   type BillingCycleMonths,
   type InvoiceDTO,
+  type PaymentInstructions,
+  type PaymentMethodId,
   type SaaSKpiMetrics,
   type WorkspaceBillingResponse,
 } from "./billing-types";
-import { getRawIntegrations } from "./integrations";
+import { getRawIntegrations, type StoredIntegrations } from "./integrations";
+import {
+  MidtransError,
+  chargeMidtrans,
+  expireMidtrans,
+  getMidtransStatus,
+  midtransPaid,
+  notificationSignatureValid,
+  type MidtransKeys,
+  type MidtransTransaction,
+} from "./midtrans";
 import { adminPlans, forgetPlans, workspacePlans } from "./plan";
 import { db, rpc, utc } from "./supabase";
 import type { Failure } from "./threads-publish";
-import {
-  callbackTokenMatches,
-  createXenditInvoice,
-  expireXenditInvoice,
-  getXenditInvoice,
-  xenditMode,
-  type XenditInvoice,
-} from "./xendit";
 
 /** Lama tagihan bisa dibayar. */
 const INVOICE_TTL_SECONDS = 24 * 3600;
-/** Tagihan menunggu yang masih berlaku selama ini dipakai ulang alih-alih membuat invoice baru. */
+/** Tagihan menunggu yang masih berlaku selama ini dipakai ulang alih-alih membuat tagihan baru. */
 const REUSE_MIN_REMAINING_MS = 30 * 60_000;
+/** Instruksi bayar dianggap masih bisa dipakai bila sisa waktunya lebih dari ini. */
+const PAYMENT_MIN_REMAINING_MS = 2 * 60_000;
+/** Batas transaksi Midtrans per tagihan (ganti metode berulang). */
+const MAX_ATTEMPTS = 20;
+
+const ORDER_RE = /^(INV-\d{8}-[0-9A-F]{6,8})(?:-(\d{1,3}))?$/;
 
 const failure = (status: number, error: string): Failure => ({ ok: false, status, error });
+type InvoiceResult = { ok: true; invoice: InvoiceDTO } | Failure;
 
 const NOT_INSTALLED = "Fitur tagihan belum dipasang di database. Jalankan sql/012_billing_and_integrations.sql di Supabase SQL Editor.";
+const MIDTRANS_NOT_INSTALLED = "Pembayaran Midtrans belum dipasang di database. Jalankan sql/017_midtrans.sql di Supabase SQL Editor.";
+const NOT_ACTIVE = "Pembayaran online belum diaktifkan oleh pengelola platform. Hubungi admin untuk mengaktifkan paket.";
 
 /* ------------------------------------------------------------------ baca */
 
-type RawInvoice = Omit<InvoiceDTO, "createdAt" | "paidAt" | "expiresAt" | "planActiveUntil"> & {
+type RawInvoice = Omit<InvoiceDTO, "createdAt" | "paidAt" | "expiresAt" | "planActiveUntil" | "payment"> & {
   createdAt: string;
   paidAt: string | null;
   expiresAt: string;
   planActiveUntil: string | null;
+  payment?: PaymentInstructions | null;
 };
 
 const iso = (v: string | null): string | null => (v ? utc(v).toISOString() : null);
@@ -69,6 +88,7 @@ function toDto(r: RawInvoice): InvoiceDTO {
     status: r.status,
     paymentUrl: r.paymentUrl ?? null,
     externalId: r.externalId ?? null,
+    payment: r.payment ?? null,
     paymentMethod: r.paymentMethod ?? null,
     notes: r.notes ?? null,
     createdAt: iso(r.createdAt) as string,
@@ -88,12 +108,17 @@ export async function listWorkspaceInvoices(workspaceId: string, now = new Date(
   return rows.map(toDto);
 }
 
+const paymentReady = (cfg: StoredIntegrations): boolean => cfg.stored && cfg.midtransSchema && !!cfg.midtrans.serverKey;
+
+const keysOf = (cfg: StoredIntegrations): MidtransKeys => ({ serverKey: cfg.midtrans.serverKey, isProduction: cfg.midtrans.isProduction });
+
 export async function getWorkspaceBilling(workspaceId: string): Promise<WorkspaceBillingResponse> {
   const cfg = await getRawIntegrations();
   return {
     success: true,
-    paymentReady: cfg.stored && !!cfg.xendit.secretKey,
-    testMode: xenditMode(cfg.xendit.secretKey) === "test",
+    paymentReady: paymentReady(cfg),
+    testMode: !cfg.midtrans.isProduction,
+    methods: cfg.midtrans.methods,
     invoices: cfg.stored ? await listWorkspaceInvoices(workspaceId) : [],
   };
 }
@@ -131,10 +156,34 @@ export async function getAdminBilling(now = new Date()): Promise<AdminBillingRes
 
 /* ------------------------------------------------------------------ checkout */
 
+/** Instruksi bayar yang masih bisa dipakai untuk metode ini (tidak perlu charge ulang). */
+function usablePayment(inv: InvoiceDTO, method: PaymentMethodId, now: Date): boolean {
+  const p = inv.payment;
+  return !!p && p.method === method && p.status === "pending" && p.orderId === inv.externalId && Date.parse(p.expiresAt) - now.getTime() > PAYMENT_MIN_REMAINING_MS;
+}
+
+function nextOrderId(inv: InvoiceDTO): string | null {
+  if (!inv.externalId) return inv.id;
+  const m = ORDER_RE.exec(inv.externalId);
+  const n = m?.[2] ? Number(m[2]) + 1 : 2;
+  return n > MAX_ATTEMPTS ? null : `${inv.id}-${n}`;
+}
+
+/** URL notifikasi hanya untuk alamat publik https (Midtrans tidak bisa menjangkau localhost). */
+function notifyUrlFor(origin: string): string | undefined {
+  try {
+    const u = new URL(origin);
+    if (u.protocol !== "https:" || /^(localhost|127\.|\[::1\])/.test(u.hostname) || u.hostname.endsWith(".localhost")) return undefined;
+    return `${u.origin}/api/billing/webhook`;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function createCheckoutInvoice(
-  params: { workspaceId: string; userId: string; planId: string; months: BillingCycleMonths; origin: string },
+  params: { workspaceId: string; userId: string; planId: string; months: BillingCycleMonths; method: string; origin: string },
   now = new Date()
-): Promise<{ ok: true; invoice: InvoiceDTO } | Failure> {
+): Promise<InvoiceResult> {
   if (!BILLING_CYCLES.some((c) => c.months === params.months)) {
     return failure(400, "Durasi langganan harus 1, 3, atau 12 bulan.");
   }
@@ -146,22 +195,22 @@ export async function createCheckoutInvoice(
   if (!plan) return failure(404, "Paket langganan tidak ditemukan atau sedang tidak aktif.");
   const pricing = calculateCyclePrice(plan.hargaBulanan, params.months);
 
-  if (pricing.total > 0 && !cfg.xendit.secretKey) {
-    return failure(503, "Pembayaran online belum diaktifkan oleh pengelola platform. Hubungi admin untuk mengaktifkan paket.");
-  }
-
-  // Tagihan yang sama dan masih bisa dibayar: pakai ulang supaya tidak menumpuk invoice di Xendit.
   if (pricing.total > 0) {
+    if (!cfg.midtransSchema) return failure(503, MIDTRANS_NOT_INSTALLED);
+    if (!cfg.midtrans.serverKey) return failure(503, NOT_ACTIVE);
+    if (!cfg.midtrans.methods.includes(params.method as PaymentMethodId)) return failure(400, "Pilih metode pembayaran yang tersedia.");
+
+    // Tagihan yang sama dan masih bisa dibayar: pakai ulang supaya tidak menumpuk tagihan.
     const reusable = (await listWorkspaceInvoices(params.workspaceId, now)).find(
       (i) =>
         i.status === "PENDING" &&
+        i.provider === "MIDTRANS" &&
         i.planId === plan.id &&
         i.months === params.months &&
         i.amount === pricing.total &&
-        !!i.paymentUrl &&
         Date.parse(i.expiresAt) - now.getTime() > REUSE_MIN_REMAINING_MS
     );
-    if (reusable) return { ok: true, invoice: reusable };
+    if (reusable) return payInvoice(reusable.id, params.method, { actorId: params.userId, origin: params.origin }, now);
   }
 
   const [userRes, wsSettings, wsRes] = await Promise.all([
@@ -197,34 +246,85 @@ export async function createCheckoutInvoice(
     return settleInvoice(id, { actorId: params.userId, paymentMethod: "FREE_PLAN", notes: "Aktivasi paket gratis", now });
   }
 
-  let xendit: XenditInvoice;
-  try {
-    xendit = await createXenditInvoice(cfg.xendit.secretKey, {
-      externalId: id,
-      amount: pricing.total,
-      description: `Langganan paket ${plan.nama} ${params.months} bulan - ${workspaceNama}`,
-      payerEmail: u.email ?? null,
-      customerName: userName,
-      itemName: `Paket ${plan.nama} (${params.months} bulan)`,
-      durationSeconds: INVOICE_TTL_SECONDS,
-      returnUrl: `${params.origin}/pengaturan?tab=langganan&invoice=${encodeURIComponent(id)}`,
-    });
-  } catch (err) {
-    console.warn("[billing] gagal membuat invoice Xendit:", err instanceof Error ? err.message : err);
-    return failure(502, err instanceof Error ? err.message : "Gagal menghubungi Xendit.");
+  await rpc("dash_bill_create", { p_inv: { ...base, provider: "MIDTRANS" }, p_now: now });
+  return payInvoice(id, params.method, { actorId: params.userId, origin: params.origin }, now);
+}
+
+/**
+ * Buat (atau pakai ulang) transaksi Midtrans untuk tagihan menunggu dengan metode pilihan pengguna.
+ * Transaksi lama dimatikan dulu; bila ternyata sudah dibayar, tagihan dilunasi alih-alih ditagih ulang.
+ */
+export async function payInvoice(
+  invoiceId: string,
+  method: string,
+  opts: { actorId: string; origin: string },
+  now = new Date()
+): Promise<InvoiceResult> {
+  const cfg = await getRawIntegrations();
+  if (!cfg.midtransSchema) return failure(503, MIDTRANS_NOT_INSTALLED);
+  if (!cfg.midtrans.serverKey) return failure(503, NOT_ACTIVE);
+  if (!cfg.midtrans.methods.includes(method as PaymentMethodId)) return failure(400, "Pilih metode pembayaran yang tersedia.");
+  const pm = method as PaymentMethodId;
+
+  const inv = await getInvoice(invoiceId, now);
+  if (!inv) return failure(404, "Tagihan tidak ditemukan.");
+  if (inv.status === "PAID") return { ok: true, invoice: inv };
+  if (inv.status !== "PENDING") return failure(409, "Tagihan ini sudah tidak berlaku. Buat tagihan baru.");
+  if (inv.provider !== "MIDTRANS") return failure(409, "Tagihan lama ini tidak bisa dibayar lewat Midtrans. Buat tagihan baru.");
+  if (usablePayment(inv, pm, now)) return { ok: true, invoice: inv };
+
+  const keys = keysOf(cfg);
+  if (inv.externalId) {
+    // Matikan transaksi sebelumnya supaya nomor VA/QR lama tidak bisa dibayar dobel.
+    const prev = await retireTransaction(keys, inv.externalId);
+    if (prev && midtransPaid(prev)) return applyMidtrans(inv, prev, opts.actorId, now);
   }
 
-  const saved = await rpc<RawInvoice>("dash_bill_create", {
-    p_inv: {
-      ...base,
-      provider: "XENDIT",
-      paymentUrl: xendit.invoice_url,
-      externalId: xendit.id,
-      expiresAt: xendit.expiry_date ? new Date(xendit.expiry_date).toISOString() : base.expiresAt,
-    },
+  const orderId = nextOrderId(inv);
+  if (!orderId) return failure(409, "Terlalu sering ganti metode untuk tagihan ini. Batalkan lalu buat tagihan baru.");
+
+  let charged: Awaited<ReturnType<typeof chargeMidtrans>>;
+  try {
+    charged = await chargeMidtrans(
+      keys,
+      {
+        orderId,
+        amount: inv.amount,
+        method: pm,
+        itemName: `Paket ${inv.planNama} ${inv.months} bulan`,
+        customerName: inv.userName,
+        email: inv.userEmail,
+        invoiceExpiresAt: new Date(inv.expiresAt),
+        notifyUrl: notifyUrlFor(opts.origin),
+        returnUrl: `${opts.origin}/pengaturan?tab=langganan&invoice=${encodeURIComponent(inv.id)}`,
+      },
+      now
+    );
+  } catch (err) {
+    console.warn(`[billing] charge Midtrans gagal untuk ${inv.id}:`, err instanceof Error ? err.message : err);
+    const why = err instanceof Error ? err.message : "Gagal menghubungi Midtrans.";
+    return failure(err instanceof MidtransError && err.status === 402 ? 409 : 502, why);
+  }
+
+  const res = await rpc<{ result: "OK" | "NOT_FOUND" | "PAID" | "CLOSED"; invoice?: RawInvoice }>("dash_bill_pay", {
+    p_id: inv.id,
+    p_external: orderId,
+    p_payment: charged.payment,
     p_now: now,
   });
-  return { ok: true, invoice: toDto(saved) };
+  if (res.result === "NOT_FOUND" || !res.invoice) return failure(404, "Tagihan tidak ditemukan.");
+  if (res.result === "CLOSED") return failure(409, "Tagihan ini sudah tidak berlaku. Buat tagihan baru.");
+  return { ok: true, invoice: toDto(res.invoice) };
+}
+
+/** Expire transaksi lama; hasilnya status terakhir transaksi itu (null bila tidak diketahui). */
+async function retireTransaction(keys: MidtransKeys, orderId: string): Promise<MidtransTransaction | null> {
+  try {
+    return await expireMidtrans(keys, orderId);
+  } catch {
+    // Sudah lunas/kedaluwarsa/tidak ada di Midtrans: expire ditolak, ambil statusnya saja.
+    return getMidtransStatus(keys, orderId).catch(() => null);
+  }
 }
 
 /* ------------------------------------------------------------------ pelunasan */
@@ -233,12 +333,12 @@ type SettleResult = "OK" | "ALREADY" | "NOT_FOUND" | "NO_PLAN" | "NO_TENANT";
 
 /**
  * Lunasi tagihan dan pasang/perpanjang paket workspace (atomik di database).
- * Hanya dipanggil setelah pembayaran terverifikasi: status dari API Xendit, paket gratis, atau super admin.
+ * Hanya dipanggil setelah pembayaran terverifikasi: status dari API Midtrans, paket gratis, atau super admin.
  */
 export async function settleInvoice(
   invoiceId: string,
   opts: { actorId: string; paymentMethod: string; notes?: string; now?: Date }
-): Promise<{ ok: true; invoice: InvoiceDTO } | Failure> {
+): Promise<InvoiceResult> {
   const res = await rpc<{ result: SettleResult; invoice?: RawInvoice }>("dash_bill_settle", {
     p_id: invoiceId,
     p_actor: opts.actorId,
@@ -259,7 +359,7 @@ async function closeInvoice(
   status: "CANCELLED" | "EXPIRED",
   notes: string,
   now = new Date()
-): Promise<{ ok: true; invoice: InvoiceDTO } | Failure> {
+): Promise<InvoiceResult> {
   const res = await rpc<{ result: "OK" | "NOT_FOUND" | "PAID" | "CLOSED"; invoice?: RawInvoice }>("dash_bill_close", {
     p_id: invoiceId,
     p_actor: actorId,
@@ -272,99 +372,128 @@ async function closeInvoice(
   return { ok: true, invoice: toDto(res.invoice) };
 }
 
-/** Terapkan status invoice dari API Xendit ke tagihan kita. */
-async function applyXendit(inv: InvoiceDTO, x: XenditInvoice, actorId: string): Promise<{ ok: true; invoice: InvoiceDTO } | Failure> {
-  if (x.external_id !== inv.id || Number(x.amount) !== inv.amount) {
-    console.warn(`[billing] data Xendit tidak cocok untuk ${inv.id} (external_id/amount berbeda)`);
-    return failure(409, "Data invoice di Xendit tidak cocok dengan tagihan.");
+/** Metode bayar sebenarnya dari data transaksi Midtrans (untuk catatan paymentMethod). */
+function methodOfTx(tx: MidtransTransaction): string {
+  switch (tx.payment_type) {
+    case "bank_transfer":
+      return tx.permata_va_number ? "PERMATA_VA" : `${(tx.va_numbers?.[0]?.bank ?? "BANK").toUpperCase()}_VA`;
+    case "echannel":
+      return "MANDIRI_BILL";
+    default:
+      return (tx.payment_type ?? "ONLINE").toUpperCase();
   }
-  if (x.status === "PAID" || x.status === "SETTLED") {
-    const channel = (x.payment_channel || x.payment_method || "INVOICE").toUpperCase();
-    return settleInvoice(inv.id, { actorId, paymentMethod: `XENDIT_${channel}`, notes: "Lunas via Xendit" });
+}
+
+/** Terapkan status transaksi dari API Midtrans ke tagihan kita. */
+async function applyMidtrans(inv: InvoiceDTO, tx: MidtransTransaction, actorId: string, now = new Date()): Promise<InvoiceResult> {
+  const owner = ORDER_RE.exec(tx.order_id)?.[1];
+  if (owner !== inv.id || Math.round(Number(tx.gross_amount)) !== inv.amount) {
+    console.warn(`[billing] data Midtrans tidak cocok untuk ${inv.id} (order_id/nominal berbeda)`);
+    return failure(409, "Data transaksi di Midtrans tidak cocok dengan tagihan.");
   }
-  if (x.status === "EXPIRED" && inv.status === "PENDING") {
-    return closeInvoice(inv.id, actorId, "EXPIRED", "Kedaluwarsa di Xendit");
+  if (midtransPaid(tx)) {
+    return settleInvoice(inv.id, { actorId, paymentMethod: `MIDTRANS_${methodOfTx(tx)}`, notes: `Lunas via Midtrans (${tx.order_id})`, now });
+  }
+  // Transaksi yang sedang berlaku berubah status (kedaluwarsa/ditolak): catat supaya UI menawarkan kode baru.
+  const st = tx.transaction_status;
+  if (inv.payment && tx.order_id === inv.externalId && st && st !== inv.payment.status && ["expire", "cancel", "deny", "failure"].includes(st)) {
+    const res = await rpc<{ result: string; invoice?: RawInvoice }>("dash_bill_pay", {
+      p_id: inv.id,
+      p_external: inv.externalId,
+      p_payment: { ...inv.payment, status: st },
+      p_now: now,
+    });
+    if (res.invoice) return { ok: true, invoice: toDto(res.invoice) };
   }
   return { ok: true, invoice: inv };
 }
 
 /**
- * Cocokkan tagihan dengan status terbaru di Xendit (tombol "Cek status" dan sesudah kembali dari
- * halaman bayar). Aman dipanggil berulang.
+ * Cocokkan tagihan dengan status terbaru di Midtrans (polling UI, tombol "Cek status", scheduler).
+ * Aman dipanggil berulang.
  */
-export async function syncInvoice(invoiceId: string, actorId: string): Promise<{ ok: true; invoice: InvoiceDTO } | Failure> {
+export async function syncInvoice(invoiceId: string, actorId: string): Promise<InvoiceResult> {
   const inv = await getInvoice(invoiceId);
   if (!inv) return failure(404, "Tagihan tidak ditemukan.");
-  if (inv.provider !== "XENDIT" || !inv.externalId || inv.status === "PAID" || inv.status === "CANCELLED") {
+  if (inv.provider !== "MIDTRANS" || !inv.externalId || inv.status === "PAID" || inv.status === "CANCELLED") {
     return { ok: true, invoice: inv };
   }
   const cfg = await getRawIntegrations();
-  if (!cfg.xendit.secretKey) return failure(503, "Kunci Xendit belum diisi.");
+  if (!cfg.midtrans.serverKey) return failure(503, "Server key Midtrans belum diisi.");
   try {
-    return await applyXendit(inv, await getXenditInvoice(cfg.xendit.secretKey, inv.externalId), actorId);
+    return await applyMidtrans(inv, await getMidtransStatus(keysOf(cfg), inv.externalId), actorId);
   } catch (err) {
-    return failure(502, err instanceof Error ? err.message : "Gagal menghubungi Xendit.");
+    // Transaksi belum tercatat di Midtrans (mis. charge gagal di tengah jalan): belum ada yang dibayar.
+    if (err instanceof MidtransError && err.status === 404) return { ok: true, invoice: inv };
+    return failure(502, err instanceof Error ? err.message : "Gagal menghubungi Midtrans.");
   }
 }
 
-/** Batalkan tagihan yang belum lunas; invoice di Xendit ikut ditutup supaya tautannya mati. */
-export async function cancelInvoice(
-  invoiceId: string,
-  actorId: string,
-  notes: string
-): Promise<{ ok: true; invoice: InvoiceDTO } | Failure> {
+/** Batalkan tagihan yang belum lunas; transaksi di Midtrans ikut dimatikan supaya kode bayarnya mati. */
+export async function cancelInvoice(invoiceId: string, actorId: string, notes: string): Promise<InvoiceResult> {
   const inv = await getInvoice(invoiceId);
   if (!inv) return failure(404, "Tagihan tidak ditemukan.");
   if (inv.status === "PAID") return failure(409, "Tagihan yang sudah lunas tidak bisa dibatalkan.");
 
   const cfg = await getRawIntegrations();
-  if (inv.provider === "XENDIT" && inv.externalId && cfg.xendit.secretKey && inv.status === "PENDING") {
-    try {
-      const x = await expireXenditInvoice(cfg.xendit.secretKey, inv.externalId);
-      // Sempat dibayar sebelum ditutup: lunasi, jangan batalkan.
-      if (x.status === "PAID" || x.status === "SETTLED") return applyXendit(inv, x, actorId);
-    } catch (err) {
-      // Invoice yang sudah kedaluwarsa/lunas di Xendit menolak ditutup; cek statusnya.
-      const synced = await syncInvoice(inv.id, actorId);
-      if (synced.ok && synced.invoice.status === "PAID") return failure(409, "Tagihan ini ternyata sudah dibayar.");
-      if (!synced.ok) return failure(502, err instanceof Error ? err.message : "Gagal menutup invoice di Xendit.");
+  if (inv.provider === "MIDTRANS" && inv.externalId && cfg.midtrans.serverKey && inv.status === "PENDING") {
+    const last = await retireTransaction(keysOf(cfg), inv.externalId);
+    // Sempat dibayar sebelum dimatikan: lunasi, jangan batalkan.
+    if (last && midtransPaid(last)) {
+      const settled = await applyMidtrans(inv, last, actorId);
+      return settled.ok ? failure(409, "Tagihan ini ternyata sudah dibayar. Paket sudah aktif.") : settled;
     }
   }
   return closeInvoice(inv.id, actorId, "CANCELLED", notes);
 }
 
-/** Super admin menandai lunas secara manual (mis. transfer di luar Xendit). */
+/** Super admin menandai lunas secara manual (mis. transfer di luar Midtrans). */
 export function approveInvoice(invoiceId: string, adminId: string, notes: string) {
   return settleInvoice(invoiceId, { actorId: adminId, paymentMethod: "VERIFIKASI_SUPERADMIN", notes });
 }
 
 /**
- * Callback invoice Xendit. Token x-callback-token wajib cocok bila diisi di pengaturan; apa pun isi
- * callback-nya, status tetap diambil ulang dari API Xendit sebelum tagihan dilunasi.
- * Hasil `status` adalah kode HTTP untuk Xendit (2xx = jangan kirim ulang).
+ * Notifikasi HTTP Midtrans. signature_key wajib valid; apa pun isinya, status tetap diambil ulang dari
+ * API Midtrans sebelum tagihan dilunasi. Hasil `status` adalah kode HTTP untuk Midtrans (2xx = jangan kirim ulang).
  */
-export async function handleXenditCallback(
-  body: unknown,
-  callbackToken: string | null
-): Promise<{ status: number; message: string }> {
+export async function handleMidtransNotification(body: unknown): Promise<{ status: number; message: string }> {
   const cfg = await getRawIntegrations();
-  if (cfg.xendit.callbackToken && !callbackTokenMatches(cfg.xendit.callbackToken, callbackToken)) {
-    return { status: 401, message: "Callback token tidak valid." };
-  }
-  if (!cfg.stored || !cfg.xendit.secretKey) return { status: 503, message: "Xendit belum dikonfigurasi." };
+  if (!cfg.stored || !cfg.midtrans.serverKey) return { status: 503, message: "Midtrans belum dikonfigurasi." };
 
   const b = (typeof body === "object" && body !== null ? body : {}) as Record<string, unknown>;
-  const externalId = typeof b.external_id === "string" ? b.external_id : "";
-  if (!/^INV-\d{8}-[0-9A-F]{6,8}$/.test(externalId)) {
-    // Callback produk Xendit lain (atau uji coba dari dashboard Xendit): akui supaya tidak dikirim ulang.
-    return { status: 200, message: "Diabaikan." };
-  }
+  if (!notificationSignatureValid(cfg.midtrans.serverKey, b)) return { status: 401, message: "Signature tidak valid." };
 
-  const inv = await getInvoice(externalId);
+  const orderId = typeof b.order_id === "string" ? b.order_id : "";
+  const invoiceId = ORDER_RE.exec(orderId)?.[1];
+  // Transaksi lain di akun Midtrans yang sama (atau uji coba dari dashboard): akui supaya tidak dikirim ulang.
+  if (!invoiceId) return { status: 200, message: "Diabaikan." };
+
+  const inv = await getInvoice(invoiceId);
   if (!inv) return { status: 200, message: "Tagihan tidak dikenal." };
-  const res = await syncInvoice(inv.id, "system:xendit");
-  if (!res.ok) return { status: res.status >= 500 ? 502 : 200, message: res.error };
-  return { status: 200, message: `Status ${res.invoice.status}.` };
+  if (inv.status === "PAID") return { status: 200, message: "Sudah lunas." };
+  try {
+    const res = await applyMidtrans(inv, await getMidtransStatus(keysOf(cfg), orderId), "system:midtrans");
+    if (!res.ok) return { status: res.status >= 500 ? 502 : 200, message: res.error };
+    return { status: 200, message: `Status ${res.invoice.status}.` };
+  } catch (err) {
+    return { status: 502, message: err instanceof Error ? err.message : "Gagal menghubungi Midtrans." };
+  }
+}
+
+/**
+ * Cadangan bila notifikasi Midtrans terlewat (server mati, localhost): cocokkan tagihan menunggu
+ * dengan status di Midtrans. Dipanggil dari tick autopilot.
+ */
+export async function syncPendingInvoices(limit = 20, now = new Date()): Promise<{ checked: number; paid: number }> {
+  const cfg = await getRawIntegrations();
+  if (!paymentReady(cfg)) return { checked: 0, paid: 0 };
+  const ids = await rpc<string[]>("dash_bill_pending", { p_limit: limit, p_now: now }).catch(() => [] as string[]);
+  let paid = 0;
+  for (const id of ids) {
+    const res = await syncInvoice(id, "system:midtrans").catch(() => null);
+    if (res?.ok && res.invoice.status === "PAID") paid += 1;
+  }
+  return { checked: ids.length, paid };
 }
 
 /* ------------------------------------------------------------------ KPI SaaS */

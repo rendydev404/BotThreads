@@ -13,7 +13,7 @@ export const GET = withAdmin("tagihan.lihat", async () => {
   }
 });
 
-/** `approve` (tandai lunas manual), `sync` (cek status ke Xendit), atau `cancel`. */
+/** `approve` (tandai lunas manual), `sync` (cek status ke Midtrans), atau `cancel`. */
 export const POST = withAdmin("tagihan.kelola", async (request, admin) => {
   const limit = throttle(`admin-billing:${admin.userId}`, 30, 60_000);
   if (!limit.ok) return ADMIN_TOO_MANY(limit.retryAfter);

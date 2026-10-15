@@ -1,21 +1,22 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { handleXenditCallback } from "@/lib/billing";
+import { handleMidtransNotification } from "@/lib/billing";
 import { clientIp } from "@/lib/session-cookie";
 import { throttle } from "@/lib/throttle";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
 /**
- * Callback Invoice Xendit (atur di Xendit Dashboard > Settings > Webhooks > Invoices paid).
- * Status lunas selalu diverifikasi ulang ke API Xendit; isi callback tidak dipercaya.
+ * Notifikasi HTTP Midtrans (Dashboard Midtrans > Settings > Configuration > Payment Notification URL;
+ * charge juga mengirim header X-Append-Notification ke URL ini). signature_key dicek dan status lunas
+ * selalu diverifikasi ulang ke API Midtrans; isi notifikasi tidak dipercaya.
  */
 export async function POST(request: NextRequest) {
-  if (!throttle(`xendit-cb:${clientIp(request)}`, 120, 60_000).ok) {
+  if (!throttle(`midtrans-cb:${clientIp(request)}`, 120, 60_000).ok) {
     return NextResponse.json({ success: false, error: "Terlalu banyak permintaan." }, { status: 429, headers: NO_STORE });
   }
   try {
     const body = await request.json().catch(() => null);
-    const res = await handleXenditCallback(body, request.headers.get("x-callback-token"));
+    const res = await handleMidtransNotification(body);
     return NextResponse.json({ success: res.status < 300, message: res.message }, { status: res.status, headers: NO_STORE });
   } catch (err) {
     console.error("[billing/webhook]", err);

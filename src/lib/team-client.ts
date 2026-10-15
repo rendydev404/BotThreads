@@ -110,7 +110,7 @@ export const acceptInvite = (body: { token: string; username?: string; name?: st
 export const registerAccount = (body: { email: string; username: string; name?: string; brand: string; password: string }) =>
   call<{ success: true }>("/api/auth/register", { method: "POST", body: JSON.stringify(body) });
 
-import type { BillingCycleMonths, InvoiceDTO, WorkspaceBillingResponse } from "./billing-types";
+import type { BillingCycleMonths, InvoiceDTO, PaymentMethodId, WorkspaceBillingResponse } from "./billing-types";
 import type { PublicPlansResponse } from "./plan-types";
 import type { ConnectedThreadsAccountDTO, WorkspaceThreadsAccountsResponse } from "./threads-connect";
 
@@ -123,10 +123,17 @@ export const fetchPublicPlans = (signal?: AbortSignal) =>
 export const fetchWorkspaceBilling = (signal?: AbortSignal) =>
   call<WorkspaceBillingResponse>("/api/billing", { signal });
 
-export const createBillingCheckout = (body: { planId: string; months: BillingCycleMonths }) =>
+export const createBillingCheckout = (body: { planId: string; months: BillingCycleMonths; method: PaymentMethodId }) =>
   call<{ success: true; invoice: InvoiceDTO }>("/api/billing", { method: "POST", body: JSON.stringify({ action: "checkout", ...body }) });
 
-/** Cek status pembayaran tagihan ke Xendit (tagihan lunas otomatis bila sudah dibayar). */
+/** Buat kode bayar baru / ganti metode untuk tagihan yang belum dibayar. */
+export const payBillingInvoice = (invoiceId: string, method: PaymentMethodId) =>
+  call<{ success: true; invoice: InvoiceDTO }>("/api/billing", {
+    method: "POST",
+    body: JSON.stringify({ action: "pay", invoiceId, method }),
+  });
+
+/** Cek status pembayaran tagihan ke Midtrans (tagihan lunas otomatis bila sudah dibayar). */
 export const syncBillingInvoice = (invoiceId: string) =>
   call<{ success: true; invoice: InvoiceDTO }>("/api/billing", {
     method: "POST",

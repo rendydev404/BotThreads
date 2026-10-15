@@ -119,9 +119,9 @@ export function BillingTab() {
         reload();
         invalidate(["ringkasan", "workspace", "paket", "audit"]);
       }
-      setNotice(`Status ${inv.id} di Xendit: ${INVOICE_STATUS_LABEL[res.invoice.status]}.`);
+      setNotice(`Status ${inv.id} di Midtrans: ${INVOICE_STATUS_LABEL[res.invoice.status]}.`);
     } catch (e) {
-      setActionError(errorText(e, "Gagal mengecek status ke Xendit."));
+      setActionError(errorText(e, "Gagal mengecek status ke Midtrans."));
     } finally {
       setBusyId(null);
     }
@@ -160,7 +160,7 @@ export function BillingTab() {
             { label: "Total kas masuk", value: rupiah(data.summary.totalRevenue), hint: "Semua tagihan lunas" },
             { label: "30 hari terakhir", value: rupiah(data.summary.revenue30d), tone: data.summary.revenue30d > 0 ? "success" : "neutral" },
             { label: "Tagihan lunas", value: formatInt(data.summary.paidCount), hint: "Paket otomatis aktif" },
-            { label: "Menunggu bayar", value: formatInt(data.summary.pendingCount), hint: "Lunas otomatis via Xendit", tone: data.summary.pendingCount > 0 ? "warning" : "neutral" },
+            { label: "Menunggu bayar", value: formatInt(data.summary.pendingCount), hint: "Lunas otomatis via Midtrans", tone: data.summary.pendingCount > 0 ? "warning" : "neutral" },
           ]}
         />
       </Panel>
@@ -244,7 +244,11 @@ export function BillingTab() {
                       {formatWibFull(new Date(inv.createdAt))}
                       {inv.paidAt ? ` · Lunas ${formatWibFull(new Date(inv.paidAt))}` : ""}
                     </p>
-                    {inv.externalId && <p className="text-[11px] font-mono text-muted">ID Xendit: {inv.externalId}</p>}
+                    {inv.externalId && (
+                      <p className="text-[11px] font-mono text-muted">
+                        {inv.provider === "XENDIT" ? "ID Xendit" : "Order Midtrans"}: {inv.externalId}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -266,7 +270,7 @@ export function BillingTab() {
                       {inv.externalId && (
                         <button type="button" disabled={isBusy} onClick={() => void handleSync(inv)} className={BTN_OUTLINE}>
                           <RefreshCw className="w-3.5 h-3.5" />
-                          Cek Xendit
+                          Cek Midtrans
                         </button>
                       )}
                       <button

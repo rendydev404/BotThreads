@@ -18,7 +18,7 @@ const PUBLIC_API = [
   "/api/auth/register",
   // Daftar paket untuk halaman perkenalan (hanya paket aktif yang publik).
   "/api/plans",
-  // Callback invoice Xendit: dicek dengan callback token, lalu status diverifikasi ulang ke API Xendit.
+  // Notifikasi pembayaran Midtrans: signature dicek, lalu status diverifikasi ulang ke API Midtrans.
   "/api/billing/webhook",
 ];
 

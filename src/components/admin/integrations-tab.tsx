@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, Copy, CreditCard, Globe, KeyRound, Link2, Loader2, Save, ShieldCheck } from "lucide-react";
 import { fetchAdminIntegrations, saveAdminIntegrations, type AdminIntegrationsPayload } from "@/lib/admin-client";
-import type { PlatformIntegrationsDTO } from "@/lib/billing-types";
+import { PAYMENT_METHODS, type PaymentMethodId, type PlatformIntegrationsDTO } from "@/lib/billing-types";
+import { cn } from "@/lib/utils";
 import { Banner, ListSkeleton } from "@/components/autopilot/shared";
 import { FormError, TextField } from "@/components/settings/fields";
 import { errorText } from "@/components/settings/format";
@@ -16,8 +17,11 @@ const LOAD_ERROR = "Gagal memuat konfigurasi integrasi dan API keys.";
 /** Kolom rahasia selalu kosong di formulir; diisi hanya untuk mengganti nilai tersimpan. */
 interface FormState {
   appUrl: string;
-  xenditSecretKey: string;
-  xenditCallbackToken: string;
+  midtransMerchantId: string;
+  midtransClientKey: string;
+  midtransServerKey: string;
+  midtransProduction: boolean;
+  midtransMethods: PaymentMethodId[];
   googleClientId: string;
   googleClientSecret: string;
   threadsAppId: string;
@@ -26,8 +30,11 @@ interface FormState {
 
 const toFormState = (dto: PlatformIntegrationsDTO): FormState => ({
   appUrl: dto.appUrl,
-  xenditSecretKey: "",
-  xenditCallbackToken: "",
+  midtransMerchantId: dto.midtrans.merchantId,
+  midtransClientKey: dto.midtrans.clientKey,
+  midtransServerKey: "",
+  midtransProduction: dto.midtrans.mode === "production",
+  midtransMethods: dto.midtrans.methods,
   googleClientId: dto.googleOauth.clientId,
   googleClientSecret: "",
   threadsAppId: dto.threadsOauth.appId,
@@ -115,7 +122,13 @@ export function IntegrationsTab() {
       const secret = (v: string) => (v.trim() ? v.trim() : undefined);
       const res = await guard(
         saveAdminIntegrations({
-          xendit: { secretKey: secret(form.xenditSecretKey), callbackToken: secret(form.xenditCallbackToken) },
+          midtrans: {
+            merchantId: form.midtransMerchantId,
+            clientKey: form.midtransClientKey,
+            serverKey: secret(form.midtransServerKey),
+            isProduction: form.midtransProduction,
+            methods: form.midtransMethods,
+          },
           googleOauth: { clientId: form.googleClientId, clientSecret: secret(form.googleClientSecret), appUrl: form.appUrl },
           threadsOauth: { appId: form.threadsAppId, appSecret: secret(form.threadsAppSecret) },
         })
@@ -186,53 +199,115 @@ export function IntegrationsTab() {
         </div>
       </section>
 
-      {/* Xendit */}
+      {/* Midtrans */}
       <section className="card p-5 space-y-5">
         <SectionHead
           icon={<CreditCard className="w-5 h-5" />}
-          title="Xendit (Pembayaran Langganan)"
+          title="Midtrans (Pembayaran Langganan)"
           status={
-            dto.xendit.ready ? (
-              <Pill tone={dto.xendit.mode === "live" ? "success" : "warning"}>
-                {dto.xendit.mode === "live" ? "Live" : "Mode uji"} · {SOURCE_LABEL[dto.xendit.source]}
+            dto.midtrans.ready ? (
+              <Pill tone={dto.midtrans.mode === "production" ? "success" : "warning"}>
+                {dto.midtrans.mode === "production" ? "Production" : "Sandbox"} · {SOURCE_LABEL[dto.midtrans.source]}
               </Pill>
             ) : (
               <Pill tone="warning">Belum diisi</Pill>
             )
           }
         >
-          Pelanggan membayar paket lewat halaman Xendit (QRIS, Virtual Account, e-wallet, retail). Paket aktif otomatis setelah
-          Xendit mengonfirmasi pembayaran.
+          Pelanggan membayar paket di halaman bayar aplikasi ini (Core API, tanpa Snap): QRIS, GoPay, ShopeePay, dan Virtual
+          Account. Paket aktif otomatis setelah Midtrans mengonfirmasi pembayaran.
         </SectionHead>
 
         <ol className="text-xs text-muted space-y-1 list-decimal pl-5">
-          <li>Xendit Dashboard &gt; Settings &gt; API Keys: buat Secret Key dengan izin <strong>Write</strong> untuk Money-in (Invoices).</li>
-          <li>Xendit Dashboard &gt; Settings &gt; Webhooks: isi URL &quot;Invoices paid&quot; dengan URL di bawah, lalu salin Verification Token.</li>
+          <li>Dashboard Midtrans &gt; Settings &gt; Access Keys: salin Merchant ID, Client Key, dan Server Key (sandbox dan production berbeda).</li>
+          <li>
+            Dashboard Midtrans &gt; Settings &gt; Configuration: isi <strong>Payment Notification URL</strong> dengan URL di bawah (charge juga
+            otomatis mengirim notifikasi ke URL ini).
+          </li>
+          <li>Production: pastikan tiap metode yang dicentang sudah aktif di akun Midtrans, selain itu charge ditolak.</li>
         </ol>
 
-        <CopyEndpointRow label="Webhook URL (Invoices paid)" url={dto.xendit.webhookUrl} />
+        <CopyEndpointRow label="Payment Notification URL" url={dto.midtrans.notificationUrl} />
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div role="group" aria-label="Lingkungan Midtrans" className="inline-flex p-1 rounded-xl bg-subtle border border-line">
+          {[
+            { v: false, label: "Sandbox (uji coba)" },
+            { v: true, label: "Production (uang sungguhan)" },
+          ].map((o) => (
+            <button
+              key={o.label}
+              type="button"
+              aria-pressed={form.midtransProduction === o.v}
+              onClick={() => update({ midtransProduction: o.v })}
+              disabled={busy}
+              className={cn(
+                "h-8 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer",
+                form.midtransProduction === o.v ? "bg-surface text-fg shadow-xs" : "text-muted hover:text-fg"
+              )}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
           <TextField
-            label="Secret API Key"
-            type="password"
+            label="Merchant ID"
             autoComplete="off"
-            value={form.xenditSecretKey}
-            onChange={(xenditSecretKey) => update({ xenditSecretKey })}
-            placeholder={dto.xendit.ready ? `Tersimpan (${dto.xendit.secretKeyMasked}), isi untuk mengganti` : "xnd_development_... atau xnd_production_..."}
-            hint="xnd_development_ untuk uji coba, xnd_production_ untuk pembayaran sungguhan."
+            value={form.midtransMerchantId}
+            onChange={(midtransMerchantId) => update({ midtransMerchantId })}
+            placeholder="M123456789"
             disabled={busy}
           />
           <TextField
-            label="Webhook Verification Token"
-            type="password"
+            label="Client Key"
             autoComplete="off"
-            value={form.xenditCallbackToken}
-            onChange={(xenditCallbackToken) => update({ xenditCallbackToken })}
-            placeholder={dto.xendit.hasCallbackToken ? `Tersimpan (${dto.xendit.callbackTokenMasked}), isi untuk mengganti` : "Token dari halaman Webhooks Xendit"}
-            hint="Dicocokkan dengan header x-callback-token. Status lunas tetap dicek ulang ke API Xendit."
+            value={form.midtransClientKey}
+            onChange={(midtransClientKey) => update({ midtransClientKey })}
+            placeholder="Mid-client-..."
             disabled={busy}
           />
+          <TextField
+            label="Server Key"
+            type="password"
+            autoComplete="off"
+            value={form.midtransServerKey}
+            onChange={(midtransServerKey) => update({ midtransServerKey })}
+            placeholder={dto.midtrans.ready ? `Tersimpan (${dto.midtrans.serverKeyMasked}), isi untuk mengganti` : "Mid-server-..."}
+            hint="Rahasia. Dipakai server untuk charge dan memverifikasi notifikasi."
+            disabled={busy}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted">Metode bayar yang ditawarkan</p>
+          <div className="flex flex-wrap gap-2">
+            {PAYMENT_METHODS.map((m) => {
+              const on = form.midtransMethods.includes(m.id);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  aria-pressed={on}
+                  disabled={busy}
+                  onClick={() =>
+                    update({
+                      midtransMethods: on
+                        ? form.midtransMethods.filter((x) => x !== m.id)
+                        : PAYMENT_METHODS.map((x) => x.id).filter((x) => x === m.id || form.midtransMethods.includes(x)),
+                    })
+                  }
+                  className={cn(
+                    "h-8 px-3 rounded-full border text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer",
+                    on ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:text-fg"
+                  )}
+                >
+                  {on && <Check className="w-3.5 h-3.5" />}
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
 

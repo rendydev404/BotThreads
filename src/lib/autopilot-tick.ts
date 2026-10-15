@@ -49,6 +49,7 @@ import {
 import { MIN_GAP_MAX } from "./autopilot-types";
 import { releaseSlot, writeSlot, type PeerDraft, type WriteContext } from "./autopilot-writer";
 import { hourRowsForAccounts } from "./best-hours";
+import { syncPendingInvoices } from "./billing";
 import { CREATIVE_ANGLES, loadSharedContext } from "./content-ai";
 import { WORKER_LATE_MS, isPublishEnabled } from "./content-config";
 import { expiredTenants } from "./plan";
@@ -410,6 +411,11 @@ export async function runTick(opts: { now?: Date; budgetMs?: number } = {}): Pro
         console.error("[autopilot] belajar:", err instanceof Error ? err.message : err);
       }
     });
+
+    // Cadangan notifikasi Midtrans: tagihan menunggu dicocokkan ulang ke API Midtrans (tidak menahan tick).
+    await syncPendingInvoices(20, now)
+      .then((r) => r.paid > 0 && bump(counts, "tagihanLunas", r.paid))
+      .catch((err) => console.error("[autopilot] cek tagihan:", err instanceof Error ? err.message : err));
 
     if (!stopped) bump(counts, "direncanakan", await planMissingSlots(state, accounts, now));
 

@@ -102,7 +102,8 @@ Jalankan berurutan di SQL Editor Supabase setelah `sql/002` dan `sql/003`. Semua
 | `sql/009_signup.sql` | Pendaftaran mandiri (akun + workspace baru) | Tombol daftar menjawab "belum siap di server" |
 | `sql/011_plans.sql` | Paket langganan dan batasnya; batas bawah posting per hari turun dari 3 ke 1 | Tidak ada paket; semua workspace tanpa batas |
 | `sql/010_superadmin.sql` | Super admin sistem: blokir pengguna, tangguhkan workspace, tautkan sumber akun, saklar platform, audit platform | Tidak ada super admin; panel `/admin` menjawab "belum dipasang" |
-| `sql/012_billing_and_integrations.sql` | Tagihan langganan via Xendit (pelunasan atomik) dan penyimpanan kunci integrasi dari panel `/admin` | Pembayaran online mati; kunci Xendit/Google/Threads hanya bisa diisi lewat env |
+| `sql/012_billing_and_integrations.sql` | Tagihan langganan (pelunasan atomik) dan penyimpanan kunci integrasi dari panel `/admin` | Pembayaran online mati; kunci Google/Threads hanya bisa diisi lewat env |
+| `sql/017_midtrans.sql` | Pembayaran via Midtrans Core API: kunci Midtrans di panel, instruksi bayar per tagihan, ganti metode, pencocokan status oleh penjadwal | Paket berbayar ditolak dengan petunjuk memasang file ini; paket gratis tetap jalan |
 | `sql/013_fix_dashboard_user_id.sql` | Default `id` untuk `DashboardUser` (tabel dibuat Prisma tanpa default database) | Daftar akun baru (Google, `/daftar`, terima undangan) gagal dengan 23502 `null value in column "id"` |
 
 `sql/008` mengganti tiga fungsi daftar antrean (`dash_post_list`, `dash_posts_by_ids`, `dash_post_summary`) dengan versi berparameter tambahan yang bernilai bawaan, jadi aman dipasang sebelum maupun sesudah kode baru di-deploy.
@@ -132,8 +133,8 @@ Endpoint itu hanya menerima `POST` dengan rahasia yang benar (401 bila salah, 50
 | `AUTOPILOT_CRITIC` | nyala | `false` mematikan penilaian editor AI (pemeriksaan aturan tetap berjalan). |
 | `AUTOPILOT_BANNED_TERMS` | kosong | Kata/frasa terlarang tambahan untuk semua workspace, dipisah koma. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | - | Mengaktifkan tombol "Masuk dengan Google". |
-| `APP_URL` | dari header proxy | Asal publik aplikasi untuk alamat kembali Google, Threads, dan Xendit, mis. `https://wargi.sukashawarma.com`. Daftarkan `<APP_URL>/api/auth/google/callback` di Google Cloud. |
-| `XENDIT_SECRET_KEY`, `XENDIT_CALLBACK_TOKEN` | - | Pembayaran paket via Xendit. Bisa juga diisi di `/admin` tab Integrasi (nilai panel menang atas env). |
+| `APP_URL` | dari header proxy | Asal publik aplikasi untuk alamat kembali Google, Threads, dan notifikasi Midtrans, mis. `https://wargi.sukashawarma.com`. Daftarkan `<APP_URL>/api/auth/google/callback` di Google Cloud. |
+| `MIDTRANS_SERVER_KEY`, `MIDTRANS_CLIENT_KEY`, `MIDTRANS_MERCHANT_ID`, `MIDTRANS_IS_PRODUCTION` | - | Pembayaran paket via Midtrans Core API. `MIDTRANS_IS_PRODUCTION=true` untuk uang sungguhan. Bisa juga diisi di `/admin` tab Integrasi (nilai panel menang atas env). |
 | `THREADS_APP_ID`, `THREADS_APP_SECRET` | - | Tombol "Login dengan Threads" untuk pelanggan. Bisa juga diisi di panel. |
 | `TOKEN_ENCRYPTION_KEY` | `META_APP_SECRET` | **Wajib sama dengan worker auto-suka.** Kunci enkripsi token Threads; tanpa ini akun tidak bisa dihubungkan dari dashboard. |
 
@@ -216,16 +217,16 @@ Aturan pemakaian:
 - Workspace tanpa paket sendiri mengikuti **paket bawaan** platform. Tanpa paket bawaan, workspace itu tanpa batas (perilaku sebelum `sql/011`). Supaya workspace internal tidak ikut dibatasi saat paket bawaan dipasang, buat satu paket longgar yang tidak publik lalu pasang ke workspace itu.
 - Paket yang **habis masa berlakunya** menghentikan autopilot workspace itu sampai diperpanjang. Datanya tetap bisa dibuka, dan mematikan autopilot selalu boleh.
 - Mengubah paket tidak mematikan autopilot yang sudah berjalan di atas batas baru; batasnya ditegakkan pada perubahan berikutnya.
-- **Pembayaran lewat Xendit** (`sql/012`). Pelanggan memilih paket di Pengaturan > Langganan, dibawa ke halaman bayar Xendit, dan paket aktif otomatis setelah lunas. Perpanjangan paket yang sama ditambahkan dari tanggal berakhirnya. Super admin tetap bisa memasang paket manual dari tab Workspace atau menandai tagihan lunas dari tab Transaksi.
+- **Pembayaran lewat Midtrans** (`sql/012` + `sql/017`). Pelanggan memilih paket dan metode bayar di Pengaturan > Langganan, nomor VA / QR / tombol e-wallet tampil di halaman aplikasi sendiri (tanpa Snap), dan paket aktif otomatis setelah lunas. Perpanjangan paket yang sama ditambahkan dari tanggal berakhirnya. Super admin tetap bisa memasang paket manual dari tab Workspace atau menandai tagihan lunas dari tab Transaksi.
 
-### Pembayaran (Xendit)
+### Pembayaran (Midtrans Core API)
 
-1. Pasang `sql/012_billing_and_integrations.sql`.
-2. Xendit Dashboard > Settings > API Keys: buat Secret Key dengan izin Write untuk Money-in. `xnd_development_...` untuk uji, `xnd_production_...` untuk uang sungguhan.
-3. Xendit Dashboard > Settings > Webhooks > Invoices paid: isi `<APP_URL>/api/billing/webhook`, lalu salin Verification Token.
-4. Isi Secret Key dan token itu di `/admin` tab Integrasi (atau `XENDIT_SECRET_KEY` / `XENDIT_CALLBACK_TOKEN`).
+1. Pasang `sql/012_billing_and_integrations.sql` lalu `sql/017_midtrans.sql`.
+2. Dashboard Midtrans > Settings > Access Keys: salin Merchant ID, Client Key, dan Server Key. Kunci sandbox dan production berbeda.
+3. Isi di `/admin` tab Integrasi, pilih Sandbox atau Production, dan centang metode bayar yang sudah aktif di akun Midtrans (QRIS, GoPay, ShopeePay, BCA/BNI/BRI/Permata/CIMB VA, Mandiri Bill).
+4. Dashboard Midtrans > Settings > Configuration > Payment Notification URL: isi `<APP_URL>/api/billing/webhook`. Charge juga mengirim header `X-Append-Notification` ke URL itu bila aplikasi berjalan di https.
 
-Callback hanya pemicu: status lunas dan nominalnya selalu diambil ulang dari API Xendit memakai secret key, jadi callback palsu tidak bisa mengaktifkan paket. Callback ganda tidak memperpanjang dua kali. Di localhost (callback Xendit tidak sampai), status dicek otomatis saat pengguna kembali dari halaman bayar, atau lewat tombol "Cek status".
+Notifikasi hanya pemicu: `signature_key` dicek, lalu status dan nominal selalu diambil ulang dari API Midtrans memakai server key, jadi notifikasi palsu tidak bisa mengaktifkan paket. Notifikasi ganda tidak memperpanjang dua kali. Ganti metode mematikan transaksi lama (order `<id tagihan>-2`, `-3`, ...). Layar bayar mengecek status tiap 8 detik, dan penjadwal mencocokkan tagihan menunggu tiap tick, jadi di localhost (notifikasi tidak sampai) pembayaran tetap terdeteksi. Uji sandbox dibayar lewat https://simulator.sandbox.midtrans.com.
 
 ### Hubungkan akun Threads (pelanggan)
 
