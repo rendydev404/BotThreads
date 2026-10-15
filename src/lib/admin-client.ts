@@ -117,3 +117,40 @@ export const cancelAdminInvoice = (invoiceId: string, notes?: string) =>
     body: JSON.stringify({ action: "cancel", invoiceId, notes }),
   });
 
+
+/* ------------------------------------------------------------------ pengguna: buat, ubah, peran */
+
+/** Buat akun pengguna baru. `role` (peran admin platform) hanya boleh diisi Super Admin. */
+export const createAdminUser = (body: { username: string; email: string | null; name: string | null; password: string; role: string | null }) =>
+  call<{ success: true; id: string }>("/api/admin/users", { method: "POST", body: JSON.stringify(body) });
+
+export const updateAdminUser = (id: string, patch: { name?: string | null; email?: string | null }) => userAction(id, { action: "update", ...patch });
+
+/** Atur peran admin platform (sql/014); `null` = bukan staf. Hanya Super Admin. */
+export const setUserPlatformRole = (id: string, role: string | null) => userAction(id, { action: "role", role });
+
+/* ------------------------------------------------------------------ peran dan hak akses */
+
+import type { AdminRolesResponse } from "./admin-perms";
+
+export const fetchAdminRoles = (signal?: AbortSignal) => call<AdminRolesResponse>("/api/admin/roles", { signal });
+
+export const saveAdminRole = (role: { id: string; nama: string; deskripsi: string | null; izin: string[] }) =>
+  call<{ success: true }>("/api/admin/roles", { method: "POST", body: JSON.stringify({ action: "save", role }) });
+
+export const deleteAdminRole = (id: string) => call<{ success: true }>("/api/admin/roles", { method: "POST", body: JSON.stringify({ action: "delete", id }) });
+
+/* ------------------------------------------------------------------ konten lintas tenant */
+
+import type { PostStatusKey, PostsResponse } from "./content-types";
+
+export function listAdminContent(p: { scope: "upcoming" | "history"; status?: PostStatusKey | null; account?: string; cursor?: string | null }, signal?: AbortSignal) {
+  const q = new URLSearchParams({ scope: p.scope });
+  if (p.status) q.set("status", p.status);
+  if (p.account) q.set("account", p.account);
+  if (p.cursor) q.set("cursor", p.cursor);
+  return call<PostsResponse>(`/api/admin/content?${q}`, { signal });
+}
+
+export const adminContentAction = (action: "cancel" | "retry", postId: string) =>
+  call<{ success: true }>("/api/admin/content", { method: "POST", body: JSON.stringify({ action, postId }) });

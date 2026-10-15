@@ -20,8 +20,8 @@ export const navigationItems = [
   { name: "Pengaturan", href: "/pengaturan", icon: Settings, mobile: false },
 ];
 
-/** Panel pengelola platform: hanya tampil untuk super admin. */
-export const adminNavItem = { name: "Super Admin", href: "/admin", icon: ShieldCheck, mobile: false };
+/** Konsol admin platform (aplikasi terpisah di /admin): hanya tampil untuk staf platform. */
+export const adminNavItem = { name: "Konsol Admin", href: "/admin", icon: ShieldCheck, mobile: false };
 
 export const isActivePath = (pathname: string, href: string): boolean =>
   href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);

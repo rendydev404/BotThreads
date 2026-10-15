@@ -3,11 +3,11 @@ import { jsonError, readJson } from "@/lib/api-auth";
 import { ADMIN_TOO_MANY, NO_STORE, adminError } from "@/lib/admin-api";
 import { appOrigin } from "@/lib/google-oauth";
 import { getPublicIntegrations, getRawIntegrations, saveIntegrations } from "@/lib/integrations";
-import { withSuperAdmin } from "@/lib/request-ctx";
+import { withAdmin } from "@/lib/request-ctx";
 import { threadsTokenKeyStatus } from "@/lib/threads-connect";
 import { throttle } from "@/lib/throttle";
 
-export const GET = withSuperAdmin(async (request) => {
+export const GET = withAdmin("integrasi.lihat", async (request) => {
   try {
     const cfg = await getRawIntegrations();
     const [integrations, tokenKey] = await Promise.all([
@@ -20,7 +20,7 @@ export const GET = withSuperAdmin(async (request) => {
   }
 });
 
-export const PUT = withSuperAdmin(async (request, admin) => {
+export const PUT = withAdmin("integrasi.kelola", async (request, admin) => {
   const limit = throttle(`admin-integrations:${admin.userId}`, 20, 60_000);
   if (!limit.ok) return ADMIN_TOO_MANY(limit.retryAfter);
   try {

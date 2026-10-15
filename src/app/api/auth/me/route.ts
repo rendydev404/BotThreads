@@ -32,6 +32,8 @@ export const GET = withCtx("VIEWER", async (_request, ctx) => {
         multiUser: ctx.workspaceId !== null,
         hasAccess: ctx.workspaceId !== NO_WORKSPACE,
         superadmin: ctx.superadmin === true,
+        /** Peran dan izin konsol admin platform; null bila bukan staf. */
+        admin: ctx.admin ?? null,
         suspended: ctx.suspended ?? null,
         announcement: ctx.announcement ?? null,
         accountScoped: ctx.accountIds !== null,

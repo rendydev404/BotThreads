@@ -239,7 +239,8 @@ function confirmCopy({ source, target }: Pending) {
 
 /** Tab Sumber akun: tautkan workspace SukaPost (tempat akun Threads berada) ke workspace dashboard. */
 export function SourcesTab() {
-  const { guard, rev, invalidate } = useAdmin();
+  const { guard, rev, invalidate, can } = useAdmin();
+  const manage = can("sumber.kelola");
   const { data, error, status, loading, refreshing, reload, mutate } = useRemote<AdminSourceListResponse>(
     `sumber:${rev.sumber}`,
     (signal) => guard(listAdminSources(signal)),
@@ -316,10 +317,7 @@ export function SourcesTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <p className="text-sm text-muted max-w-2xl leading-relaxed">
-          Akun Threads disimpan di workspace SukaPost, bukan di dashboard ini. Sebuah workspace SukaPost harus ditautkan ke workspace
-          dashboard dulu supaya akun di dalamnya tampil di sana.
-        </p>
+        <p className="text-[13px] text-muted max-w-2xl">Akun Threads baru tampil di workspace dashboard setelah sumbernya (workspace SukaPost) ditautkan.</p>
         <div className="ml-auto sm:ml-0">
           <RefreshButton onClick={reload} busy={refreshing} />
         </div>
@@ -391,6 +389,7 @@ export function SourcesTab() {
                         )}
                       </div>
                     </div>
+                    {manage && (
                     <div className="flex flex-wrap items-center gap-2 shrink-0 lg:justify-end">
                       <button
                         type="button"
@@ -417,6 +416,7 @@ export function SourcesTab() {
                         </button>
                       )}
                     </div>
+                    )}
                   </li>
                 );
               })}

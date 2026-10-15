@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, MoreVertical, RotateCw, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ADMIN_REASON_MAX, ADMIN_REASON_MIN } from "@/lib/admin-types";
@@ -11,10 +12,22 @@ import { FormError, TextAreaField } from "@/components/settings/fields";
 import { errorText } from "@/components/settings/format";
 import { BTN_OUTLINE, ICON_BTN, LoadError, NotInstalled } from "@/components/settings/states";
 import type { useRemote } from "@/components/settings/use-remote";
+import type { AdminPerm } from "@/lib/admin-perms";
 
 /* ------------------------------------------------------------------ konteks panel */
 
-export type AdminTabKey = "ringkasan" | "paket" | "transaksi" | "workspace" | "pengguna" | "sumber" | "integrasi" | "sistem" | "audit";
+export type AdminTabKey =
+  | "ringkasan"
+  | "paket"
+  | "transaksi"
+  | "workspace"
+  | "pengguna"
+  | "konten"
+  | "sumber"
+  | "integrasi"
+  | "sistem"
+  | "akses"
+  | "audit";
 
 export interface AdminContextValue {
   /**
@@ -29,13 +42,21 @@ export interface AdminContextValue {
   openTab: (tab: AdminTabKey) => void;
   /** Muat ulang profil (mis. setelah mencabut peran super admin sendiri). */
   reloadMe: () => void;
+  /** Pemegang izin konsol ini? (`kelola` mencakup `lihat`). */
+  can: (perm: AdminPerm) => boolean;
+  /** Peran Super Admin: boleh mengatur peran admin lain. */
+  isSuper: boolean;
+  /** Id pengguna yang sedang masuk. */
+  meId: string;
+  /** Daftar paket, dimuat sekali di layout untuk modul Paket dan Workspace. */
+  plans: PlansRemote;
 }
 
 export const AdminContext = createContext<AdminContextValue | null>(null);
 
 export function useAdmin(): AdminContextValue {
   const ctx = useContext(AdminContext);
-  if (!ctx) throw new Error("useAdmin dipakai di luar halaman /admin.");
+  if (!ctx) throw new Error("useAdmin dipakai di luar konsol /admin.");
   return ctx;
 }
 
@@ -142,7 +163,7 @@ export function SearchField({
 }) {
   return (
     <div className={cn("relative flex-1 min-w-0", className)}>
-      <Search className="w-4 h-4 text-faint absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+      <Search className="w-4 h-4 text-faint absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
       <input
         type="text"
         inputMode="search"
@@ -156,14 +177,14 @@ export function SearchField({
         placeholder={placeholder}
         aria-label={label}
         data-autofocus={modalAutofocus || undefined}
-        className="w-full h-11 pl-10 pr-11 rounded-full bg-surface border border-line-strong text-sm text-fg placeholder:text-faint outline-none focus:border-accent focus:ring-4 focus:ring-accent/15 transition-colors"
+        className="w-full h-10 pl-10 pr-10 rounded-lg bg-surface border border-line text-sm text-fg placeholder:text-faint outline-none hover:border-line-strong focus:border-accent focus:ring-4 focus:ring-accent/15 transition-colors"
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange("")}
           aria-label="Hapus pencarian"
-          className="absolute right-0.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full text-muted hover:text-fg inline-flex items-center justify-center cursor-pointer transition-colors"
+          className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-lg text-muted hover:text-fg inline-flex items-center justify-center cursor-pointer transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -194,7 +215,7 @@ export function FilterChips<T extends string>({
     <div
       role="group"
       aria-label={ariaLabel}
-      className="-mx-4 px-4 -my-1 py-1 md:-mx-1 md:px-1 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="max-w-full inline-flex gap-0.5 p-1 rounded-lg bg-subtle overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {options.map((o) => {
         const active = o.value === value;
@@ -205,12 +226,12 @@ export function FilterChips<T extends string>({
             aria-pressed={active}
             onClick={() => !active && onChange(o.value)}
             className={cn(
-              "shrink-0 h-10 px-3.5 rounded-full border text-[13px] font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer",
-              active ? "bg-accent border-accent text-on-accent" : "bg-surface border-line-strong text-fg hover:border-accent hover:text-accent"
+              "shrink-0 h-8 px-3 rounded-md text-[13px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer",
+              active ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg"
             )}
           >
             {o.label}
-            {o.count !== undefined && <span className={cn("tabular-nums", active ? "opacity-80" : "text-muted")}>{o.count}</span>}
+            {o.count !== undefined && <span className="tabular-nums text-faint">{o.count}</span>}
           </button>
         );
       })}
@@ -274,13 +295,19 @@ export interface MenuAction {
   disabledReason?: string | null;
 }
 
+/** Lebar menu (w-72) dan jarak aman dari tepi layar, dalam piksel. */
+const MENU_WIDTH = 288;
+const MENU_GAP = 4;
+const EDGE = 8;
+
 /**
- * Menu tindakan ringkas untuk satu baris (tombol titik tiga + role="menu"). Panah memindah fokus,
- * Esc menutup dan mengembalikan fokus ke tombol, klik di luar menutup.
+ * Menu tindakan ringkas untuk satu baris (tombol titik tiga + role="menu"). Menu dirender lewat portal
+ * ke <body> dengan posisi tetap, jadi tidak terpotong wadah ber-overflow (tabel, kartu) dan membuka ke
+ * atas bila ruang di bawah tombol tidak cukup. Panah memindah fokus, Esc menutup dan mengembalikan fokus
+ * ke tombol, klik di luar atau menggulir halaman menutup.
  */
 export function ActionMenu({ label, actions }: { label: string; actions: MenuAction[] }) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -288,16 +315,40 @@ export function ActionMenu({ label, actions }: { label: string; actions: MenuAct
   // Tab yang disembunyikan (Activity) tidak boleh kembali dengan menu masih terbuka.
   useLayoutEffect(() => () => setOpen(false), []);
 
+  // Posisi dihitung setelah menu tergambar (tingginya baru diketahui) dan ditulis langsung ke elemennya,
+  // sebelum peramban melukisnya: tidak ada kedipan dan tidak ada render ulang.
+  useLayoutEffect(() => {
+    const button = buttonRef.current;
+    const menu = menuRef.current;
+    if (!open || !button || !menu) return;
+    const r = button.getBoundingClientRect();
+    const h = menu.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const left = Math.max(EDGE, Math.min(r.right - MENU_WIDTH, vw - MENU_WIDTH - EDGE));
+    const below = r.bottom + MENU_GAP;
+    const above = r.top - MENU_GAP - h;
+    const top = below + h <= vh - EDGE || above < EDGE ? Math.min(below, Math.max(EDGE, vh - EDGE - h)) : above;
+    menu.style.top = `${top}px`;
+    menu.style.left = `${left}px`;
+    menu.style.visibility = "visible";
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
-    const menu = menuRef.current;
-    menu?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
-    menu?.scrollIntoView({ block: "nearest" });
+    menuRef.current?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
 
     const onPointer = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!buttonRef.current?.contains(t) && !menuRef.current?.contains(t)) setOpen(false);
     };
+    // Posisi tetap tidak ikut bergulir: tutup saja daripada menu melayang di tempat yang salah.
+    const onScroll = (e: Event) => {
+      if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onResize = () => setOpen(false);
     const onKey = (e: KeyboardEvent) => {
+      const menu = menuRef.current;
       if (e.key === "Escape") {
         e.stopPropagation();
         setOpen(false);
@@ -312,7 +363,7 @@ export function ActionMenu({ label, actions }: { label: string; actions: MenuAct
       e.preventDefault();
       const items = [...menu.querySelectorAll<HTMLElement>("button")];
       const at = items.indexOf(document.activeElement as HTMLElement);
-      const next =
+      const nextIndex =
         e.key === "Home"
           ? 0
           : e.key === "End"
@@ -320,18 +371,22 @@ export function ActionMenu({ label, actions }: { label: string; actions: MenuAct
             : e.key === "ArrowDown"
               ? (at + 1) % items.length
               : (at - 1 + items.length) % items.length;
-      items[next]?.focus();
+      items[nextIndex]?.focus();
     };
     document.addEventListener("pointerdown", onPointer);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
     window.addEventListener("keydown", onKey, true);
     return () => {
       document.removeEventListener("pointerdown", onPointer);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
       window.removeEventListener("keydown", onKey, true);
     };
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative shrink-0">
+    <div className="relative shrink-0">
       <button
         ref={buttonRef}
         type="button"
@@ -345,46 +400,47 @@ export function ActionMenu({ label, actions }: { label: string; actions: MenuAct
         <MoreVertical className="w-[18px] h-[18px]" />
       </button>
 
-      {open && (
-        <div
-          ref={menuRef}
-          id={menuId}
-          role="menu"
-          aria-label={label}
-          className="absolute z-30 right-0 top-full mt-1 w-72 max-w-[calc(100vw-3rem)] scroll-mb-28 md:scroll-mb-4 bg-surface border border-line rounded-xl shadow-pop p-1 animate-[pop-in_150ms_ease-out]"
-        >
-          {actions.map((a) => {
-            const off = !!a.disabledReason;
-            return (
-              <button
-                key={a.key}
-                type="button"
-                role="menuitem"
-                aria-disabled={off || undefined}
-                onClick={() => {
-                  if (off) return;
-                  setOpen(false);
-                  // Fokus kembali ke tombol dulu, supaya dialog yang dibuka tindakan ini mengembalikan fokus ke sana.
-                  buttonRef.current?.focus();
-                  a.onSelect();
-                }}
-                className={cn(
-                  "w-full min-h-11 px-3 py-2 rounded-lg flex items-start gap-2.5 text-left text-sm transition-colors",
-                  off
-                    ? "text-faint cursor-not-allowed"
-                    : cn("cursor-pointer", a.danger ? "text-danger hover:bg-danger-soft" : "text-fg hover:bg-subtle")
-                )}
-              >
-                <span className="mt-0.5 shrink-0">{a.icon}</span>
-                <span className="flex-1 min-w-0">
-                  <span className="block font-medium">{a.label}</span>
-                  {off && <span className="block text-xs text-muted leading-relaxed">{a.disabledReason}</span>}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            id={menuId}
+            role="menu"
+            aria-label={label}
+            style={{ position: "fixed", top: 0, left: 0, width: MENU_WIDTH, visibility: "hidden" }}
+            className="z-50 max-w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] overflow-y-auto bg-surface border border-line rounded-xl shadow-pop p-1 animate-[pop-in_150ms_ease-out]"
+          >
+            {actions.map((a) => {
+              const off = !!a.disabledReason;
+              return (
+                <button
+                  key={a.key}
+                  type="button"
+                  role="menuitem"
+                  aria-disabled={off || undefined}
+                  onClick={() => {
+                    if (off) return;
+                    setOpen(false);
+                    // Fokus kembali ke tombol dulu, supaya dialog yang dibuka tindakan ini mengembalikan fokus ke sana.
+                    buttonRef.current?.focus();
+                    a.onSelect();
+                  }}
+                  className={cn(
+                    "w-full min-h-11 px-3 py-2 rounded-lg flex items-start gap-2.5 text-left text-sm transition-colors",
+                    off ? "text-faint cursor-not-allowed" : cn("cursor-pointer", a.danger ? "text-danger hover:bg-danger-soft" : "text-fg hover:bg-subtle")
+                  )}
+                >
+                  <span className="mt-0.5 shrink-0">{a.icon}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-medium">{a.label}</span>
+                    {off && <span className="block text-xs text-muted leading-relaxed">{a.disabledReason}</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

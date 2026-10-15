@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useId, useLayoutEffect, useState } from "react";
-import { Loader2, Package, Pencil, Plus, Save, Star, StarOff, Trash2 } from "lucide-react";
+import { Check, Loader2, Minus, Package, Pencil, Plus, Save, Star, StarOff, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { deleteAdminPlan, saveAdminPlan, setDefaultPlan } from "@/lib/admin-client";
 import { PLAN_DESC_MAX, PLAN_ID_PATTERN, PLAN_NAME_MAX, PLAN_POSTS_MAX, formatRupiah, type PlanDTO } from "@/lib/plan-types";
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
@@ -369,18 +370,21 @@ function PlanDialog({ plan, existing, onClose, onSaved }: PlanDialogProps) {
 /** Tindakan yang menunggu konfirmasi. */
 type Pending = { kind: "default" | "undefault" | "delete"; plan: PlanDTO };
 
-function Limit({ label, value }: { label: string; value: string }) {
+/** Satu batas paket dalam daftar fitur kartu. `off` = fitur yang tidak termasuk. */
+function Limit({ text, off }: { text: string; off?: boolean }) {
   return (
-    <div className="min-w-0">
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className="text-[13px] font-semibold text-fg tabular-nums">{value}</dd>
-    </div>
+    <li className={cn("flex items-start gap-2", off && "text-muted")}>
+      {off ? <Minus className="w-4 h-4 mt-px shrink-0 text-faint" /> : <Check className="w-4 h-4 mt-px shrink-0 text-success" />}
+      <span>{text}</span>
+    </li>
   );
 }
 
 /** Tab Paket: paket langganan yang didefinisikan super admin, paket bawaan, dan batas tiap paket. */
-export function PlansTab({ plans }: { plans: PlansRemote }) {
-  const { guard, invalidate } = useAdmin();
+export function PlansTab({ plans: given }: { plans?: PlansRemote }) {
+  const { guard, invalidate, plans: shared, can } = useAdmin();
+  const manage = can("paket.kelola");
+  const plans = given ?? shared;
   const { data, error, status, loading, refreshing, reload, mutate } = plans;
   const [editing, setEditing] = useState<{ plan: PlanDTO | null } | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -399,8 +403,8 @@ export function PlansTab({ plans }: { plans: PlansRemote }) {
   );
 
   const intro = (
-    <p className="text-sm text-muted max-w-2xl leading-relaxed">
-      Kelola paket sewa dan harga bulanan BotThreads secara real-time. Setiap perubahan harga, kuota akun Threads, atau batas posting per hari langsung berlaku di halaman pendaftaran, menu Langganan & Tagihan pelanggan, dan checkout Payment Gateway.
+    <p className="text-[13px] text-muted max-w-2xl">
+      Perubahan harga dan batas langsung berlaku di halaman pendaftaran, menu tagihan pelanggan, dan checkout.
     </p>
   );
 
@@ -517,7 +521,7 @@ export function PlansTab({ plans }: { plans: PlansRemote }) {
             }
           : null;
 
-  const addButton = (
+  const addButton = manage && (
     <button type="button" onClick={() => setEditing({ plan: null })} className={BTN_PRIMARY}>
       <Plus className="w-4 h-4" />
       Tambah paket
@@ -526,9 +530,9 @@ export function PlansTab({ plans }: { plans: PlansRemote }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {intro}
-        <div className="flex items-center gap-2 ml-auto lg:ml-0 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <RefreshButton onClick={reload} busy={refreshing} />
           {addButton}
         </div>
@@ -547,48 +551,59 @@ export function PlansTab({ plans }: { plans: PlansRemote }) {
         </EmptyState>
       ) : (
         <>
-          <Banner tone="info">
+          <p className="flex items-center gap-2 text-[13px] text-muted">
+            <Star className="w-4 h-4 text-accent shrink-0" />
             {current
-              ? `Paket bawaan saat ini ${current.nama}: workspace tanpa paket sendiri dibatasi olehnya.`
-              : "Belum ada paket bawaan: workspace tanpa paket sendiri tidak dibatasi."}
-          </Banner>
-          <ul className="card divide-y divide-line">
+              ? `Paket bawaan: ${current.nama}. Workspace yang belum berlangganan otomatis memakai batas paket ini.`
+              : "Belum ada paket bawaan. Workspace yang belum berlangganan tidak dibatasi."}
+          </p>
+          <ul className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
             {items.map((p) => (
-              <li key={p.id} className="p-4 flex items-start gap-3">
-                <span className="w-9 h-9 rounded-full bg-subtle text-muted flex items-center justify-center shrink-0" aria-hidden>
-                  <Package className="w-4 h-4" />
-                </span>
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-sm font-semibold text-fg break-words min-w-0">{p.nama}</span>
-                    {p.bawaan && (
-                      <Pill tone="solid" icon={<Star className="w-3.5 h-3.5 shrink-0" />}>
-                        Bawaan
-                      </Pill>
-                    )}
-                    <Pill tone={p.publik ? "accent" : "neutral"}>{p.publik ? "Publik" : "Tersembunyi"}</Pill>
-                    {!p.aktif && <Pill tone="danger">Nonaktif</Pill>}
+              <li key={p.id} className={cn("card p-5 flex flex-col min-w-0", p.bawaan && "border-accent ring-1 ring-accent/30", !p.aktif && "opacity-70")}>
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-[15px] font-semibold text-fg break-words">{p.nama}</h3>
+                    <p className="text-[11px] font-mono text-faint break-all">{p.id}</p>
                   </div>
-                  <p className="text-[11px] font-mono text-faint break-all">{p.id}</p>
-                  <p className="text-base font-bold text-fg tabular-nums">
-                    {formatRupiah(p.hargaBulanan)}
-                    {p.hargaBulanan > 0 && <span className="text-xs font-medium text-muted"> per bulan</span>}
-                  </p>
-                  {p.deskripsi && <p className="text-[13px] text-muted break-words">{p.deskripsi}</p>}
-                  <dl className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-2 pt-0.5">
-                    <Limit label="Akun ber-autopilot" value={formatInt(p.maxAkun)} />
-                    <Limit label="Posting per akun per hari" value={formatInt(p.maxPostingPerHari)} />
-                    <Limit label="Anggota tim" value={formatInt(p.maxAnggota)} />
-                    <Limit label="Mode Otomatis" value={p.modeOtomatis ? "Ya" : "Tidak, hanya Tinjau dulu"} />
-                  </dl>
-                  <p className="text-xs text-muted">
-                    {p.dipakai > 0 ? `Dipakai ${formatInt(p.dipakai)} workspace` : "Belum dipakai workspace mana pun"}
-                    {p.bawaan ? ", ditambah workspace yang mengikuti paket bawaan" : ""}
-                  </p>
+                  {manage && (
+                    <div className="-mr-2 -mt-1.5">
+                      <ActionMenu label={`Tindakan untuk paket ${p.nama}`} actions={actionsFor(p)} />
+                    </div>
+                  )}
                 </div>
-                <div className="-mr-2 -mt-1.5">
-                  <ActionMenu label={`Tindakan untuk paket ${p.nama}`} actions={actionsFor(p)} />
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {p.bawaan && (
+                    <Pill tone="solid" icon={<Star className="w-3 h-3 shrink-0" />}>
+                      Bawaan
+                    </Pill>
+                  )}
+                  <Pill tone={p.publik ? "accent" : "neutral"}>{p.publik ? "Publik" : "Tersembunyi"}</Pill>
+                  {!p.aktif && <Pill tone="danger">Nonaktif</Pill>}
                 </div>
+
+                <p className="mt-4 text-fg">
+                  <span className="text-[28px] leading-none font-semibold tabular-nums tracking-tight">{p.hargaBulanan > 0 ? formatRupiah(p.hargaBulanan) : "Gratis"}</span>
+                  {p.hargaBulanan > 0 && <span className="text-[13px] text-muted"> /bulan</span>}
+                </p>
+                {p.deskripsi && <p className="mt-2 text-[13px] text-muted leading-relaxed line-clamp-3">{p.deskripsi}</p>}
+
+                <ul className="mt-4 pt-4 border-t border-line space-y-2.5 text-[13px] text-fg flex-1">
+                  <Limit text={`${formatInt(p.maxAkun)} akun ber-autopilot`} />
+                  <Limit text={`${formatInt(p.maxPostingPerHari)} posting per akun per hari`} />
+                  <Limit text={`${formatInt(p.maxAnggota)} anggota tim`} />
+                  <Limit text={p.modeOtomatis ? "Mode otomatis penuh" : "Hanya mode tinjau dulu"} off={!p.modeOtomatis} />
+                </ul>
+
+                <p className="mt-4 pt-3 border-t border-line text-xs text-muted">
+                  {p.dipakai > 0 ? (
+                    <>
+                      Dipakai <span className="font-semibold text-fg">{formatInt(p.dipakai)}</span> workspace
+                    </>
+                  ) : (
+                    "Belum dipakai workspace"
+                  )}
+                  {p.bawaan ? " + workspace tanpa langganan" : ""}
+                </p>
               </li>
             ))}
           </ul>

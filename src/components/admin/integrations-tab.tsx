@@ -61,10 +61,10 @@ function SectionHead({ icon, title, children, status }: { icon: React.ReactNode;
   return (
     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-accent-soft text-accent flex items-center justify-center shrink-0">{icon}</div>
+        <div className="w-9 h-9 rounded-lg bg-subtle text-muted flex items-center justify-center shrink-0">{icon}</div>
         <div>
-          <h4 className="text-sm font-bold text-fg">{title}</h4>
-          <p className="text-xs text-muted mt-0.5">{children}</p>
+          <h3 className="text-[15px] font-semibold text-fg">{title}</h3>
+          <p className="text-[13px] text-muted mt-0.5">{children}</p>
         </div>
       </div>
       <div className="shrink-0">{status}</div>
@@ -73,7 +73,8 @@ function SectionHead({ icon, title, children, status }: { icon: React.ReactNode;
 }
 
 export function IntegrationsTab() {
-  const { guard, rev, invalidate } = useAdmin();
+  const { guard, rev, invalidate, can } = useAdmin();
+  const manage = can("integrasi.kelola");
   const { data, error, status, loading, refreshing, reload, mutate } = useRemote<AdminIntegrationsPayload>(
     `integrasi:${rev.integrasi}`,
     (signal) => guard(fetchAdminIntegrations(signal)),
@@ -135,15 +136,12 @@ export function IntegrationsTab() {
   const keyOk = tokenKey.configured && tokenKey.matchesWorker !== false;
 
   return (
-    <form onSubmit={(e) => void handleSave(e)} className="space-y-6">
+    <form onSubmit={(e) => void handleSave(e)}>
+      <fieldset disabled={!manage} className="space-y-6 min-w-0">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-fg">Integrasi & Kunci API</h3>
-          <p className="text-xs text-muted mt-0.5">
-            Isi kunci dari Xendit, Google Cloud, dan Meta. Berlaku langsung tanpa restart. Kolom yang dikosongkan tidak mengubah
-            kunci yang sudah tersimpan.
-          </p>
-        </div>
+        <p className="text-[13px] text-muted max-w-2xl">
+          Berlaku langsung tanpa restart. Kolom rahasia yang dikosongkan tidak mengubah kunci yang sudah tersimpan.
+        </p>
         <div className="flex items-center gap-2 shrink-0">
           <RefreshButton onClick={reload} busy={refreshing} />
           <button type="submit" disabled={busy || !dto.stored} className={BTN_PRIMARY}>
@@ -323,6 +321,7 @@ export function IntegrationsTab() {
         <ShieldCheck className="w-4 h-4 text-accent shrink-0" />
         Kunci rahasia hanya dibaca server dan tidak pernah dikirim balik ke browser; catatan audit hanya mencatat kolom yang diubah.
       </p>
+      </fieldset>
     </form>
   );
 }

@@ -36,8 +36,10 @@ export interface MeResponse {
   multiUser: boolean;
   /** False = pengguna belum menjadi anggota workspace mana pun, atau workspace aktifnya ditangguhkan. */
   hasAccess: boolean;
-  /** Pengelola platform: boleh membuka panel /admin. */
+  /** Staf platform: boleh membuka konsol /admin. */
   superadmin: boolean;
+  /** Peran dan izin konsol admin ("*" = semua); null bila bukan staf. */
+  admin: { role: string | null; roleNama: string | null; izin: string[] } | null;
   /** Workspace aktif sedang ditangguhkan pengelola (dengan alasannya); null bila tidak. */
   suspended: { workspaceId: string; reason: string | null } | null;
   /** Pengumuman dari pengelola platform; null bila tidak ada. */

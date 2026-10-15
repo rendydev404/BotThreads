@@ -1,14 +1,12 @@
 "use client";
 
 import React, { useLayoutEffect, useState } from "react";
-import { Ban, KeyRound, LogOut, ShieldCheck, ShieldOff, UserCheck, Users } from "lucide-react";
+import { Ban, KeyRound, LogOut, Pencil, ShieldCheck, UserCheck, UserPlus, Users } from "lucide-react";
 import {
   adminResetLink,
   banUser,
   forceLogoutUser,
-  grantSuperAdmin,
   listAdminUsers,
-  revokeSuperAdmin,
   unbanUser,
 } from "@/lib/admin-client";
 import { ADMIN_USER_STATUS_LABEL, type AdminUserDTO, type AdminUserListResponse, type AdminUserStatus } from "@/lib/admin-types";
@@ -18,7 +16,7 @@ import { ConfirmModal } from "@/components/autopilot/confirm-modal";
 import { Banner, ListSkeleton, LoadMoreButton, durationText } from "@/components/autopilot/shared";
 import { errorText, formatDateWib } from "@/components/settings/format";
 import { OneTimeLinkModal, type OneTimeLink } from "@/components/settings/one-time-link-modal";
-import { BTN_OUTLINE, EmptyState, Pill, RefreshButton } from "@/components/settings/states";
+import { BTN_OUTLINE, BTN_PRIMARY, EmptyState, RefreshButton } from "@/components/settings/states";
 import { memberName } from "@/components/settings/team-dialogs";
 import { usePaged } from "@/components/settings/use-remote";
 import {
@@ -34,19 +32,18 @@ import {
   type ChipOption,
   type MenuAction,
 } from "./shared";
+import { CreateUserDialog, EditUserDialog, RoleDialog } from "./user-dialogs";
 
 const LOAD_ERROR = "Gagal memuat daftar pengguna.";
-/** Workspace yang langsung tampil per pengguna; sisanya diringkas. */
-const WORKSPACES_SHOWN = 4;
 
 type StatusFilter = "ALL" | AdminUserStatus;
 const STATUS_FILTERS: ChipOption<StatusFilter>[] = [
   { value: "ALL", label: "Semua" },
-  ...(["AKTIF", "DIBLOKIR", "NONAKTIF", "SUPERADMIN"] as AdminUserStatus[]).map((s) => ({ value: s, label: ADMIN_USER_STATUS_LABEL[s] })),
+  ...(["AKTIF", "STAF", "DIBLOKIR", "NONAKTIF"] as AdminUserStatus[]).map((s) => ({ value: s, label: ADMIN_USER_STATUS_LABEL[s] })),
 ];
 
 /** Tindakan yang menunggu konfirmasi (blokir punya dialog sendiri karena wajib beralasan). */
-type Pending = { kind: "unban" | "grant" | "revoke" | "logout" | "reset"; user: AdminUserDTO };
+type Pending = { kind: "unban" | "logout" | "reset"; user: AdminUserDTO };
 
 interface ConfirmCopy {
   title: string;
@@ -75,24 +72,6 @@ function confirmCopy({ kind, user }: Pending, self: boolean): ConfirmCopy {
             icon: <UserCheck className="w-4 h-4" />,
             danger: false,
           };
-    case "grant":
-      return {
-        title: `Jadikan ${name} super admin?`,
-        body: "Super admin bisa melihat dan mengubah semua pengguna dan workspace di platform: memblokir pengguna, menangguhkan workspace, memindahkan sumber akun, mengubah saklar sistem, serta memberi dan mencabut peran super admin, termasuk milik Anda.",
-        label: "Ya, beri peran",
-        icon: <ShieldCheck className="w-4 h-4" />,
-        danger: true,
-      };
-    case "revoke":
-      return {
-        title: self ? "Cabut peran super admin Anda sendiri?" : `Cabut peran super admin ${name}?`,
-        body: self
-          ? "Panel ini langsung tertutup untuk Anda dan hanya super admin lain yang bisa mengembalikan peran itu. Akun dan keanggotaan workspace Anda tidak berubah."
-          : "Ia langsung kehilangan akses ke panel super admin. Akun dan keanggotaan workspace-nya tidak berubah.",
-        label: "Ya, cabut peran",
-        icon: <ShieldOff className="w-4 h-4" />,
-        danger: true,
-      };
     case "logout":
       return {
         title: self ? "Keluarkan akun Anda dari semua perangkat?" : `Keluarkan ${name} dari semua perangkat?`,
@@ -114,9 +93,25 @@ function confirmCopy({ kind, user }: Pending, self: boolean): ConfirmCopy {
   }
 }
 
+/** Status akun ringkas: titik berwarna + label. */
+function UserStatus({ user }: { user: AdminUserDTO }) {
+  const [label, dot, text] = user.bannedAt
+    ? [ADMIN_USER_STATUS_LABEL.DIBLOKIR, "bg-danger", "text-danger"]
+    : !user.isActive
+      ? [ADMIN_USER_STATUS_LABEL.NONAKTIF, "bg-warning", "text-warning"]
+      : [ADMIN_USER_STATUS_LABEL.AKTIF, "bg-success", "text-fg"];
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[13px] font-medium ${text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden />
+      {label}
+    </span>
+  );
+}
+
 /** Tab Pengguna: cari dan saring semua pengguna platform, lalu blokir, atur peran super admin, atau bantu masuk lagi. */
 export function UsersTab() {
-  const { guard, rev, invalidate, reloadMe } = useAdmin();
+  const { guard, rev, invalidate, can, isSuper } = useAdmin();
+  const manage = can("pengguna.kelola");
   const [text, setText] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("ALL");
   const q = useDebounced(text, SEARCH_DEBOUNCE_MS).trim();
@@ -134,6 +129,9 @@ export function UsersTab() {
   const [pendingError, setPendingError] = useState<string | null>(null);
   const [link, setLink] = useState<OneTimeLink | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<AdminUserDTO | null>(null);
+  const [roleFor, setRoleFor] = useState<AdminUserDTO | null>(null);
 
   // Tab atau halaman yang disembunyikan (Activity) tidak boleh kembali dengan dialog terbuka; tautan
   // sekali tampil juga tidak boleh tertinggal di memori.
@@ -143,6 +141,9 @@ export function UsersTab() {
       setPending(null);
       setLink(null);
       setNotice(null);
+      setCreating(false);
+      setEditing(null);
+      setRoleFor(null);
     },
     []
   );
@@ -178,16 +179,6 @@ export function UsersTab() {
         await guard(unbanUser(user.id));
         patch(user.id, { isActive: true, bannedAt: null, bannedReason: null });
         setNotice(`${name} aktif lagi.`);
-      } else if (kind === "grant") {
-        await guard(grantSuperAdmin(user.id));
-        patch(user.id, { superadmin: true });
-        setNotice(`${name} sekarang super admin.`);
-      } else if (kind === "revoke") {
-        await guard(revokeSuperAdmin(user.id));
-        patch(user.id, { superadmin: false });
-        setNotice(`Peran super admin ${name} dicabut.`);
-        // Peran sendiri dicabut: profil dimuat ulang dan halaman menutup panelnya.
-        if (user.id === meId) reloadMe();
       } else if (kind === "logout") {
         await guard(forceLogoutUser(user.id));
         if (user.id === meId) {
@@ -222,7 +213,9 @@ export function UsersTab() {
   const actionsFor = (u: AdminUserDTO): MenuAction[] => {
     const self = u.id === meId;
     const banned = !!u.bannedAt;
-    const actions: MenuAction[] = [];
+    const actions: MenuAction[] = [
+      { key: "edit", label: "Ubah profil", icon: <Pencil className="w-4 h-4" />, onSelect: () => setEditing(u) },
+    ];
     if (!u.isActive) {
       actions.push({
         key: "unban",
@@ -245,22 +238,22 @@ export function UsersTab() {
             : null,
       });
     }
+    if (isSuper) {
+      actions.push({
+        key: "role",
+        label: u.platformRole || u.superadmin ? "Ubah peran admin" : "Jadikan staf admin",
+        icon: <ShieldCheck className="w-4 h-4" />,
+        onSelect: () => setRoleFor(u),
+        disabledReason: self
+          ? "Peran Anda sendiri hanya bisa diubah Super Admin lain."
+          : !u.isActive && !u.platformRole && !u.superadmin
+            ? banned
+              ? "Akun ini diblokir. Buka blokirnya dulu."
+              : "Akun ini nonaktif. Aktifkan dulu."
+            : null,
+      });
+    }
     actions.push(
-      u.superadmin
-        ? {
-            key: "revoke",
-            label: "Cabut super admin",
-            icon: <ShieldOff className="w-4 h-4" />,
-            danger: true,
-            onSelect: () => openPending({ kind: "revoke", user: u }),
-          }
-        : {
-            key: "grant",
-            label: "Beri super admin",
-            icon: <ShieldCheck className="w-4 h-4" />,
-            onSelect: () => openPending({ kind: "grant", user: u }),
-            disabledReason: u.isActive ? null : banned ? "Akun ini diblokir. Buka blokirnya dulu." : "Akun ini nonaktif. Aktifkan dulu.",
-          },
       {
         key: "logout",
         label: "Keluarkan dari semua perangkat",
@@ -281,11 +274,19 @@ export function UsersTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <SearchField label="Cari pengguna" value={text} onChange={setText} placeholder="Cari nama, username, atau email" />
-        <RefreshButton onClick={reload} busy={refreshing} disabled={loading} />
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+        <FilterChips ariaLabel="Filter status pengguna" options={STATUS_FILTERS} value={filter} onChange={setFilter} />
+        <div className="flex items-center gap-2 lg:ml-auto">
+          <SearchField label="Cari pengguna" value={text} onChange={setText} placeholder="Cari nama, username, atau email" className="lg:w-72 lg:flex-none" />
+          <RefreshButton onClick={reload} busy={refreshing} disabled={loading} />
+          {manage && (
+            <button type="button" onClick={() => setCreating(true)} className={BTN_PRIMARY}>
+              <UserPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Buat pengguna</span>
+            </button>
+          )}
+        </div>
       </div>
-      <FilterChips ariaLabel="Filter status pengguna" options={STATUS_FILTERS} value={filter} onChange={setFilter} />
 
       {data && <RefreshError error={error} onRetry={reload} />}
       {notice && (
@@ -321,70 +322,84 @@ export function UsersTab() {
         </EmptyState>
       ) : (
         <>
-          <ul className="card divide-y divide-line">
-            {items.map((u) => {
-              const name = memberName(u);
-              const more = u.workspaces.length - WORKSPACES_SHOWN;
-              return (
-                <li key={u.id} className="p-4 flex items-start gap-3">
-                  <AccountAvatar name={name} size="w-9 h-9" />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-sm font-semibold text-fg break-words min-w-0">{name}</span>
-                      {u.superadmin && (
-                        <Pill tone="solid" icon={<ShieldCheck className="w-3.5 h-3.5 shrink-0" />}>
-                          {ADMIN_USER_STATUS_LABEL.SUPERADMIN}
-                        </Pill>
-                      )}
-                      {u.bannedAt ? (
-                        <Pill tone="danger">{ADMIN_USER_STATUS_LABEL.DIBLOKIR}</Pill>
-                      ) : !u.isActive ? (
-                        <Pill tone="warning">{ADMIN_USER_STATUS_LABEL.NONAKTIF}</Pill>
-                      ) : (
-                        !u.superadmin && <Pill tone="success">{ADMIN_USER_STATUS_LABEL.AKTIF}</Pill>
-                      )}
-                      {u.id === meId && <Pill>Anda</Pill>}
-                      {u.google && <Pill tone="accent">Google</Pill>}
-                    </div>
-                    <p className="text-xs text-muted break-all">
-                      @{u.username}
-                      {u.email ? ` · ${u.email}` : ""}
-                    </p>
-                    <p className="text-xs text-muted">
-                      {u.lastLoginAt ? `Terakhir masuk ${formatDateWib(u.lastLoginAt)}` : "Belum pernah masuk"}
-                      {" · "}
-                      Bergabung {formatDateWib(u.createdAt)}
-                    </p>
-                    {u.bannedAt && (
-                      <p className="text-xs font-medium text-danger break-words">
-                        Diblokir {formatDateWib(u.bannedAt)}
-                        {u.bannedReason ? `: ${u.bannedReason}` : ""}
-                      </p>
-                    )}
-                    {u.workspaces.length === 0 ? (
-                      <p className="text-xs text-faint">Belum menjadi anggota workspace mana pun.</p>
-                    ) : (
-                      <ul aria-label={`Workspace ${name}`} className="flex flex-wrap gap-1.5 pt-0.5">
-                        {u.workspaces.slice(0, WORKSPACES_SHOWN).map((w) => (
-                          <li key={w.workspaceId} className="min-w-0 max-w-full">
-                            <Pill>
-                              {w.nama} · {ROLE_LABELS[w.role] ?? w.role}
-                            </Pill>
-                          </li>
-                        ))}
-                        {more > 0 && (
-                          <li className="h-6 inline-flex items-center text-xs text-muted">+{more} lainnya</li>
+          <div className="card overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line bg-subtle/60 text-xs text-muted">
+                  <th scope="col" className="text-left font-medium px-4 py-2.5">Pengguna</th>
+                  <th scope="col" className="text-left font-medium px-4 py-2.5 w-40">Status</th>
+                  <th scope="col" className="text-left font-medium px-4 py-2.5 hidden lg:table-cell">Workspace</th>
+                  <th scope="col" className="text-left font-medium px-4 py-2.5 hidden md:table-cell w-44">Terakhir masuk</th>
+                  {manage && <th scope="col" className="w-12"><span className="sr-only">Tindakan</span></th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {items.map((u) => {
+                  const name = memberName(u);
+                  const ws = u.workspaces[0];
+                  const more = u.workspaces.length - 1;
+                  return (
+                    <tr key={u.id} className="align-top hover:bg-subtle/40 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <AccountAvatar name={name} size="w-8 h-8" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-fg truncate">
+                              {name}
+                              {u.id === meId && <span className="ml-1.5 text-xs font-normal text-muted">(Anda)</span>}
+                            </p>
+                            <p className="text-xs text-muted truncate" title={u.email ?? undefined}>
+                              @{u.username}
+                              {u.email ? ` · ${u.email}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col items-start gap-1.5">
+                          <UserStatus user={u} />
+                          {(u.platformRole || u.superadmin) && (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-accent">
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              {u.roleNama ?? ADMIN_USER_STATUS_LABEL.SUPERADMIN}
+                            </span>
+                          )}
+                        </div>
+                        {u.bannedAt && u.bannedReason && (
+                          <p className="mt-1 text-xs text-danger line-clamp-2 max-w-48" title={u.bannedReason}>
+                            {u.bannedReason}
+                          </p>
                         )}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="-mr-2 -mt-1.5">
-                    <ActionMenu label={`Tindakan untuk ${name}`} actions={actionsFor(u)} />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell">
+                        {ws ? (
+                          <p className="text-fg truncate max-w-64">
+                            {ws.nama}
+                            <span className="text-muted"> · {ROLE_LABELS[ws.role] ?? ws.role}</span>
+                            {more > 0 && <span className="ml-1.5 text-xs text-muted">+{more}</span>}
+                          </p>
+                        ) : (
+                          <span className="text-faint">Belum ada</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <p className="text-fg">{u.lastLoginAt ? formatDateWib(u.lastLoginAt) : <span className="text-faint">Belum pernah</span>}</p>
+                        <p className="text-xs text-muted">
+                          Gabung {formatDateWib(u.createdAt)}
+                          {u.google ? " · Google" : ""}
+                        </p>
+                      </td>
+                      {manage && (
+                        <td className="pr-2 py-2 text-right">
+                          <ActionMenu label={`Tindakan untuk ${name}`} actions={actionsFor(u)} />
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           {moreError && <Banner tone="danger">{moreError}</Banner>}
           {nextCursor && <LoadMoreButton onClick={() => void loadMore()} loading={loadingMore} />}
         </>
@@ -419,6 +434,43 @@ export function UsersTab() {
       </ConfirmModal>
 
       <OneTimeLinkModal link={link} onClose={() => setLink(null)} />
+
+      {creating && (
+        <CreateUserDialog
+          onClose={() => setCreating(false)}
+          onCreated={(username) => {
+            setCreating(false);
+            setNotice(`Akun @${username} dibuat. Kirim username dan password awalnya ke pengguna lewat saluran aman.`);
+            invalidate(["pengguna", "ringkasan", "audit", "akses"]);
+          }}
+        />
+      )}
+      {editing && (
+        <EditUserDialog
+          key={editing.id}
+          user={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(next) => {
+            patch(editing.id, next);
+            setNotice(`Profil ${memberName({ ...editing, ...next })} disimpan.`);
+            invalidate(["audit"]);
+            setEditing(null);
+          }}
+        />
+      )}
+      {roleFor && (
+        <RoleDialog
+          key={roleFor.id}
+          user={roleFor}
+          onClose={() => setRoleFor(null)}
+          onSaved={(role) => {
+            patch(roleFor.id, { platformRole: role.id, roleNama: role.id ? role.nama : null, superadmin: role.id === "SUPERADMIN" });
+            setNotice(role.id ? `${memberName(roleFor)} sekarang ${role.nama}.` : `${memberName(roleFor)} bukan staf admin lagi.`);
+            invalidate(["ringkasan", "audit", "akses"]);
+            setRoleFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }

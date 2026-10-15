@@ -22,7 +22,7 @@ const TITLES: [prefix: string, title: string][] = [
   ["/prompt-studio", "Studio AI"],
   ["/billing", "Billing & Paket Sewa"],
   ["/pengaturan", "Pengaturan"],
-  ["/admin", "Panel Super Admin"],
+  ["/admin", "Konsol Admin"],
 ];
 
 const titleOf = (pathname: string): string =>

@@ -34,12 +34,13 @@ export interface AdminOverviewResponse {
   kpi?: SaaSKpiMetrics;
 }
 
-export type AdminUserStatus = "AKTIF" | "DIBLOKIR" | "NONAKTIF" | "SUPERADMIN";
+export type AdminUserStatus = "AKTIF" | "DIBLOKIR" | "NONAKTIF" | "SUPERADMIN" | "STAF";
 export const ADMIN_USER_STATUS_LABEL: Record<AdminUserStatus, string> = {
   AKTIF: "Aktif",
   DIBLOKIR: "Diblokir",
   NONAKTIF: "Nonaktif",
   SUPERADMIN: "Super admin",
+  STAF: "Staf admin",
 };
 
 export interface AdminUserDTO {
@@ -49,6 +50,9 @@ export interface AdminUserDTO {
   name: string | null;
   isActive: boolean;
   superadmin: boolean;
+  /** Peran admin platform (sql/014); null = bukan staf. Tidak ada sebelum sql/014 dipasang. */
+  platformRole?: string | null;
+  roleNama?: string | null;
   /** ISO; ada = diblokir super admin. */
   bannedAt: string | null;
   bannedReason: string | null;
@@ -69,7 +73,7 @@ export interface AdminUserListResponse {
 
 /** ban = blokir (wajib alasan), unban = buka blokir/aktifkan, grant/revoke = peran super admin,
  *  logout = keluarkan dari semua perangkat, reset = buat tautan reset password sekali pakai. */
-export type AdminUserAction = "ban" | "unban" | "grant" | "revoke" | "logout" | "reset";
+export type AdminUserAction = "ban" | "unban" | "grant" | "revoke" | "logout" | "reset" | "role" | "update";
 
 export interface AdminWorkspaceDTO {
   id: string;
@@ -127,7 +131,7 @@ export interface AdminAuditDTO {
   actor: string;
   actorName: string;
   action: string;
-  targetType: "PENGGUNA" | "WORKSPACE" | "SUMBER" | "SISTEM" | "PAKET" | "TAGIHAN";
+  targetType: "PENGGUNA" | "WORKSPACE" | "SUMBER" | "SISTEM" | "PAKET" | "TAGIHAN" | "AKSES";
   targetId: string | null;
   detail: Record<string, unknown>;
   createdAt: string;
@@ -163,6 +167,12 @@ export const ADMIN_ACTION_LABEL: Record<string, string> = {
   TAGIHAN_BATAL: "Membatalkan tagihan langganan",
   INTEGRASI_SIMPAN: "Menyimpan konfigurasi integrasi & API keys",
   THREADS_HUBUNGKAN: "Menghubungkan akun Threads baru",
+  PENGGUNA_BUAT: "Membuat akun pengguna",
+  PENGGUNA_UBAH: "Mengubah profil pengguna",
+  AKSES_PERAN_PENGGUNA: "Mengubah peran admin pengguna",
+  AKSES_PERAN_BUAT: "Membuat peran admin",
+  AKSES_PERAN_UBAH: "Mengubah hak akses peran admin",
+  AKSES_PERAN_HAPUS: "Menghapus peran admin",
 };
 
 export const ADMIN_REASON_MIN = 5;

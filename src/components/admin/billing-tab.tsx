@@ -19,6 +19,7 @@ import { errorText, formatInt } from "@/components/settings/format";
 import { BTN_OUTLINE, BTN_PRIMARY, EmptyState, Pill, RefreshButton, type PillTone } from "@/components/settings/states";
 import { useRemote } from "@/components/settings/use-remote";
 import { AdminLoadError, FilterChips, RefreshError, SearchField, useAdmin, type ChipOption } from "./shared";
+import { Panel, StatStrip, rupiah } from "./ui";
 
 const LOAD_ERROR = "Gagal memuat transaksi dan tagihan platform.";
 
@@ -32,7 +33,8 @@ const STATUS_TONE: Record<InvoiceStatus, PillTone> = {
 };
 
 export function BillingTab() {
-  const { guard, rev, invalidate } = useAdmin();
+  const { guard, rev, invalidate, can } = useAdmin();
+  const manage = can("tagihan.kelola");
   const { data, error, status, loading, refreshing, reload, mutate } = useRemote<AdminBillingResponse>(
     `transaksi:${rev.transaksi}`,
     (signal) => guard(fetchAdminBilling(signal)),
@@ -152,30 +154,16 @@ export function BillingTab() {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="card p-4">
-          <p className="text-xs font-semibold text-muted">Total Pendapatan (Lunas)</p>
-          <p className="mt-1 text-xl font-bold text-fg tabular-nums">{formatRupiah(data.summary.totalRevenue)}</p>
-          <p className="mt-0.5 text-xs text-muted">Akumulasi seluruh invoice lunas</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-xs font-semibold text-muted">Pendapatan 30 Hari</p>
-          <p className="mt-1 text-xl font-bold text-success tabular-nums">{formatRupiah(data.summary.revenue30d)}</p>
-          <p className="mt-0.5 text-xs text-muted">30 hari kalender terakhir</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-xs font-semibold text-muted">Transaksi Lunas</p>
-          <p className="mt-1 text-xl font-bold text-fg tabular-nums">{formatInt(data.summary.paidCount)}</p>
-          <p className="mt-0.5 text-xs text-muted">Paket otomatis aktif</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-xs font-semibold text-muted">Menunggu Pembayaran</p>
-          <p className={cn("mt-1 text-xl font-bold tabular-nums", data.summary.pendingCount > 0 ? "text-warning" : "text-fg")}>
-            {formatInt(data.summary.pendingCount)}
-          </p>
-          <p className="mt-0.5 text-xs text-muted">Lunas otomatis lewat callback Xendit</p>
-        </div>
-      </div>
+      <Panel>
+        <StatStrip
+          items={[
+            { label: "Total kas masuk", value: rupiah(data.summary.totalRevenue), hint: "Semua tagihan lunas" },
+            { label: "30 hari terakhir", value: rupiah(data.summary.revenue30d), tone: data.summary.revenue30d > 0 ? "success" : "neutral" },
+            { label: "Tagihan lunas", value: formatInt(data.summary.paidCount), hint: "Paket otomatis aktif" },
+            { label: "Menunggu bayar", value: formatInt(data.summary.pendingCount), hint: "Lunas otomatis via Xendit", tone: data.summary.pendingCount > 0 ? "warning" : "neutral" },
+          ]}
+        />
+      </Panel>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <FilterChips ariaLabel="Saring status tagihan" options={chips} value={filter} onChange={setFilter} />
@@ -273,7 +261,7 @@ export function BillingTab() {
                     </a>
                   )}
 
-                  {inv.status === "PENDING" && (
+                  {manage && inv.status === "PENDING" && (
                     <div className="flex items-center gap-2">
                       {inv.externalId && (
                         <button type="button" disabled={isBusy} onClick={() => void handleSync(inv)} className={BTN_OUTLINE}>

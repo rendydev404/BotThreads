@@ -15,7 +15,7 @@ import { ControlLabel, FormError, TextField } from "@/components/settings/fields
 import { errorText, formatDateWib, formatInt } from "@/components/settings/format";
 import { BTN_OUTLINE, EmptyState, ICON_BTN, Pill, RefreshButton, type PillTone } from "@/components/settings/states";
 import { usePaged } from "@/components/settings/use-remote";
-import { AdminLoadError, type PlansRemote, ReasonDialog, RefreshError, SEARCH_DEBOUNCE_MS, SearchField, useAdmin, useDebounced } from "./shared";
+import { ActionMenu, AdminLoadError, type PlansRemote, ReasonDialog, RefreshError, SEARCH_DEBOUNCE_MS, SearchField, useAdmin, useDebounced } from "./shared";
 import { WorkspacePlanDialog } from "./workspace-plan-dialog";
 
 const LOAD_ERROR = "Gagal memuat daftar workspace.";
@@ -157,8 +157,14 @@ function MemberDialog({ workspace, member, onClose, onSaved }: MemberDialogProps
 type Pending = { kind: "unsuspend"; ws: AdminWorkspaceDTO } | { kind: "remove"; ws: AdminWorkspaceDTO; member: Member };
 
 /** Tab Workspace: semua workspace dashboard beserta anggotanya; tangguhkan, pulihkan, atur paket, dan atur anggota. */
-export function WorkspacesTab({ plans }: { plans?: PlansRemote }) {
-  const { guard, rev, invalidate } = useAdmin();
+export function WorkspacesTab({ plans: given }: { plans?: PlansRemote }) {
+  const { guard, rev, invalidate, plans: shared, can } = useAdmin();
+  const plans = given ?? shared;
+  // Jam acuan "paket habis" dipatok saat halaman dibuka (render harus murni).
+  const [nowMs] = useState(() => Date.now());
+  // Paket diatur modul Paket; anggota dan penangguhan diatur modul Workspace.
+  const managePlan = can("paket.kelola");
+  const manageWs = can("workspace.kelola");
   const [text, setText] = useState("");
   const q = useDebounced(text, SEARCH_DEBOUNCE_MS).trim();
   const list = usePaged<AdminWorkspaceDTO, AdminWorkspaceListResponse>(
@@ -299,7 +305,7 @@ export function WorkspacesTab({ plans }: { plans?: PlansRemote }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <SearchField label="Cari workspace" value={text} onChange={setText} placeholder="Cari nama workspace" />
+        <SearchField label="Cari workspace" value={text} onChange={setText} placeholder="Cari nama workspace" className="sm:max-w-sm" />
         <RefreshButton onClick={reload} busy={refreshing} disabled={loading} />
       </div>
 
@@ -335,88 +341,82 @@ export function WorkspacesTab({ plans }: { plans?: PlansRemote }) {
               const open = expanded.has(ws.id);
               const panelId = `admin-ws-anggota-${ws.id}`;
               const assignedPlan = ws.planId ? planItems.find((p) => p.id === ws.planId) : null;
-              const planExpired = Boolean(ws.planBerakhir && Date.parse(ws.planBerakhir) < Date.now());
+              const planExpired = Boolean(ws.planBerakhir && Date.parse(ws.planBerakhir) < nowMs);
               return (
-                <li key={ws.id} className="p-4 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <span className="w-9 h-9 rounded-full bg-subtle text-muted flex items-center justify-center shrink-0" aria-hidden>
-                      <Building2 className="w-4 h-4" />
-                    </span>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="text-sm font-semibold text-fg break-words min-w-0">{ws.nama}</span>
-                        {ws.planId ? (
-                          <Pill tone={planExpired ? "danger" : "accent"}>
-                            Paket {assignedPlan?.nama ?? ws.planId}
-                            {planExpired ? " (Habis)" : ""}
-                          </Pill>
-                        ) : defaultPlan ? (
-                          <Pill tone="neutral">Paket {defaultPlan.nama} (Bawaan)</Pill>
-                        ) : null}
-                        {ws.suspendedAt && <Pill tone="danger">Ditangguhkan</Pill>}
-                      </div>
-                      <p className="text-[11px] font-mono text-faint break-all">{ws.id}</p>
-                      <p className="text-xs text-muted">
-                        {formatInt(ws.anggota)} anggota · {formatInt(ws.akun)} akun Threads · {formatInt(ws.autopilotAkun)} akun autopilot aktif
-                        {ws.planId && ws.planBerakhir ? ` · Berlaku s/d ${formatDateWib(ws.planBerakhir)}` : ""}
-                      </p>
-                      {ws.suspendedAt && (
-                        <p className="text-xs font-medium text-danger break-words">
-                          Ditangguhkan {formatDateWib(ws.suspendedAt)}
-                          {ws.suspendedReason ? `: ${ws.suspendedReason}` : ""}
+                <li key={ws.id} className="px-4 py-3.5">
+                  <div className="flex flex-col md:flex-row md:items-center gap-3">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <span className="w-8 h-8 rounded-lg bg-subtle text-muted flex items-center justify-center shrink-0" aria-hidden>
+                        <Building2 className="w-4 h-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="text-sm font-medium text-fg break-words min-w-0">{ws.nama}</span>
+                          {ws.suspendedAt && <Pill tone="danger">Ditangguhkan</Pill>}
+                        </div>
+                        <p className="text-xs text-muted">
+                          {ws.planId ? (
+                            <span className={planExpired ? "text-danger font-medium" : undefined}>
+                              {assignedPlan?.nama ?? ws.planId}
+                              {planExpired ? " · habis" : ws.planBerakhir ? ` · s/d ${formatDateWib(ws.planBerakhir)}` : ""}
+                            </span>
+                          ) : defaultPlan ? (
+                            `${defaultPlan.nama} (bawaan)`
+                          ) : (
+                            "Tanpa paket"
+                          )}
                         </p>
+                        {ws.suspendedAt && ws.suspendedReason && (
+                          <p className="mt-0.5 text-xs text-danger break-words">Alasan: {ws.suspendedReason}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <dl className="flex items-center gap-6 text-center md:pr-2 pl-11 md:pl-0">
+                      {[
+                        ["Anggota", ws.anggota],
+                        ["Akun", ws.akun],
+                        ["Autopilot", ws.autopilotAkun],
+                      ].map(([label, n]) => (
+                        <div key={label as string} className="min-w-12">
+                          <dd className="text-sm font-semibold text-fg tabular-nums">{formatInt(n as number)}</dd>
+                          <dt className="text-[11px] text-muted">{label}</dt>
+                        </div>
+                      ))}
+                    </dl>
+
+                    <div className="flex items-center gap-1 pl-11 md:pl-0 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => toggle(ws.id)}
+                        aria-expanded={open}
+                        aria-controls={panelId}
+                        className="h-8 px-2.5 rounded-lg text-[13px] font-medium text-muted hover:text-fg hover:bg-subtle inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        Anggota
+                        <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", open && "rotate-180")} />
+                      </button>
+                      {(managePlan || manageWs) && (
+                        <ActionMenu
+                          label={`Tindakan untuk ${ws.nama}`}
+                          actions={[
+                            ...(managePlan ? [{ key: "plan", label: "Atur paket", icon: <Gem className="w-4 h-4" />, onSelect: () => setPlanningWs(ws) }] : []),
+                            ...(manageWs
+                              ? [
+                                  { key: "member", label: "Tambah anggota", icon: <UserPlus className="w-4 h-4" />, onSelect: () => setEditing({ ws, member: null }) },
+                                  ws.suspendedAt
+                                    ? { key: "unsuspend", label: "Pulihkan workspace", icon: <CirclePlay className="w-4 h-4" />, onSelect: () => openPending({ kind: "unsuspend", ws }) }
+                                    : { key: "suspend", label: "Tangguhkan workspace", icon: <CirclePause className="w-4 h-4" />, danger: true, onSelect: () => setSuspending(ws) },
+                                ]
+                              : []),
+                          ]}
+                        />
                       )}
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={() => toggle(ws.id)} aria-expanded={open} aria-controls={panelId} className={BTN_OUTLINE}>
-                      Anggota ({formatInt(ws.members.length)})
-                      <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", open && "rotate-180")} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPlanningWs(ws)}
-                      aria-label={`Atur paket workspace ${ws.nama}`}
-                      className={BTN_OUTLINE}
-                    >
-                      <Gem className="w-3.5 h-3.5" />
-                      Atur paket
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditing({ ws, member: null })}
-                      aria-label={`Tambah atau ubah anggota ${ws.nama}`}
-                      className={BTN_OUTLINE}
-                    >
-                      <UserPlus className="w-3.5 h-3.5" />
-                      Tambah anggota
-                    </button>
-                    {ws.suspendedAt ? (
-                      <button
-                        type="button"
-                        onClick={() => openPending({ kind: "unsuspend", ws })}
-                        aria-label={`Pulihkan workspace ${ws.nama}`}
-                        className={BTN_OUTLINE}
-                      >
-                        <CirclePlay className="w-3.5 h-3.5" />
-                        Pulihkan
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setSuspending(ws)}
-                        aria-label={`Tangguhkan workspace ${ws.nama}`}
-                        className={cn(BTN_OUTLINE, "hover:border-danger hover:text-danger")}
-                      >
-                        <CirclePause className="w-3.5 h-3.5" />
-                        Tangguhkan
-                      </button>
-                    )}
-                  </div>
-
                   {open && (
-                    <div id={panelId} className="rounded-xl bg-subtle px-3">
+                    <div id={panelId} className="mt-3 md:ml-11 rounded-xl bg-subtle px-3">
                       {ws.members.length === 0 ? (
                         <p className="py-3 text-[13px] text-muted">
                           Belum ada anggota. Akun Threads di workspace ini belum terlihat siapa pun sampai ada anggota yang ditambahkan.
@@ -432,6 +432,7 @@ export function WorkspacesTab({ plans }: { plans?: PlansRemote }) {
                               <Pill tone={ROLE_TONE[m.role] ?? "neutral"} className="shrink-0">
                                 {ROLE_LABELS[m.role] ?? m.role}
                               </Pill>
+                              {manageWs && (
                               <div className="flex items-center shrink-0 -mr-2">
                                 <button
                                   type="button"
@@ -452,6 +453,7 @@ export function WorkspacesTab({ plans }: { plans?: PlansRemote }) {
                                   <UserMinus className="w-[18px] h-[18px]" />
                                 </button>
                               </div>
+                              )}
                             </li>
                           ))}
                         </ul>

@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { jsonError, readJson } from "@/lib/api-auth";
 import { ADMIN_TOO_MANY, NO_STORE, adminError } from "@/lib/admin-api";
 import { approveInvoice, cancelInvoice, getAdminBilling, syncInvoice } from "@/lib/billing";
-import { withSuperAdmin } from "@/lib/request-ctx";
+import { withAdmin } from "@/lib/request-ctx";
 import { throttle } from "@/lib/throttle";
 
-export const GET = withSuperAdmin(async () => {
+export const GET = withAdmin("tagihan.lihat", async () => {
   try {
     return NextResponse.json(await getAdminBilling(), { headers: NO_STORE });
   } catch (err) {
@@ -14,7 +14,7 @@ export const GET = withSuperAdmin(async () => {
 });
 
 /** `approve` (tandai lunas manual), `sync` (cek status ke Xendit), atau `cancel`. */
-export const POST = withSuperAdmin(async (request, admin) => {
+export const POST = withAdmin("tagihan.kelola", async (request, admin) => {
   const limit = throttle(`admin-billing:${admin.userId}`, 30, 60_000);
   if (!limit.ok) return ADMIN_TOO_MANY(limit.retryAfter);
   try {

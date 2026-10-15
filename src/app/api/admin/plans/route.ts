@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { jsonError, readJson } from "@/lib/api-auth";
 import { ADMIN_TOO_MANY, NO_STORE, adminError } from "@/lib/admin-api";
 import { actOnPlans, adminPlans } from "@/lib/plan";
-import { withSuperAdmin } from "@/lib/request-ctx";
+import { ADMIN_FORBIDDEN, withAdmin } from "@/lib/request-ctx";
 import { throttle } from "@/lib/throttle";
 
 /** Semua paket (termasuk yang nonaktif) beserta jumlah workspace pemakainya. */
-export const GET = withSuperAdmin(async () => {
+export const GET = withAdmin(null, async (_request, admin) => {
+  // Daftar paket juga dipakai modul Workspace (dialog pasang paket).
+  if (!admin.can("paket.lihat") && !admin.can("workspace.lihat")) return ADMIN_FORBIDDEN();
   try {
     return NextResponse.json(await adminPlans(), { headers: NO_STORE });
   } catch (err) {
@@ -15,7 +17,7 @@ export const GET = withSuperAdmin(async () => {
 });
 
 /** Body: `{ action: "save", plan }` | `{ action: "delete", id }` | `{ action: "default", id | null }`. */
-export const POST = withSuperAdmin(async (request, admin) => {
+export const POST = withAdmin("paket.kelola", async (request, admin) => {
   const limit = throttle(`admin-plans:${admin.userId}`, 30, 60_000);
   if (!limit.ok) return ADMIN_TOO_MANY(limit.retryAfter);
   try {

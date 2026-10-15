@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Building2, Link2, Package, Receipt, ScrollText, Settings, User } from "lucide-react";
+import { Building2, KeyRound, Link2, Package, Receipt, ScrollText, Settings, User } from "lucide-react";
 import { fetchAdminAudit } from "@/lib/admin-client";
 import { ADMIN_ACTION_LABEL, type AdminAuditDTO, type AdminAuditResponse } from "@/lib/admin-types";
 import { formatWibFull } from "@/lib/scheduling";
@@ -23,6 +23,7 @@ const TARGET: Record<AdminAuditDTO["targetType"], { label: string; Icon: IconTyp
   SISTEM: { label: "Sistem", Icon: Settings },
   PAKET: { label: "Paket", Icon: Package },
   TAGIHAN: { label: "Tagihan", Icon: Receipt },
+  AKSES: { label: "Hak akses", Icon: KeyRound },
 };
 
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
@@ -109,7 +110,7 @@ export function AuditTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted max-w-xl">Setiap tindakan super admin tercatat dan tidak bisa dihapus dari sini, terbaru di atas.</p>
+        <p className="text-[13px] text-muted max-w-xl">Setiap tindakan admin tercatat permanen, terbaru di atas.</p>
         <div className="ml-auto">
           <RefreshButton onClick={reload} busy={refreshing} />
         </div>

@@ -17,7 +17,13 @@ export interface PlatformFlags {
 }
 
 export interface PlatformCtx {
+  /** Staf platform aktif (peran admin apa pun): boleh membuka konsol /admin. */
   superadmin: boolean;
+  /** Id peran platform (sql/014); "SUPERADMIN" bila sql/014 belum dipasang. Null = bukan staf. */
+  platformRole: string | null;
+  roleNama: string | null;
+  /** Izin konsol admin ("*" = semua). Kosong = bukan staf. */
+  izin: string[];
   banned: boolean;
   bannedReason: string | null;
   /** Epoch ms; sesi yang diterbitkan sebelum ini tidak berlaku. Null = tidak ada batas. */
@@ -28,7 +34,7 @@ export interface PlatformCtx {
 }
 
 export const DEFAULT_FLAGS: PlatformFlags = { signupOpen: true, autopilotGlobal: true, announcement: null };
-const DEFAULT_CTX: PlatformCtx = { superadmin: false, banned: false, bannedReason: null, sessionsValidAfter: null, suspended: new Map(), flags: DEFAULT_FLAGS };
+const DEFAULT_CTX: PlatformCtx = { superadmin: false, platformRole: null, roleNama: null, izin: [], banned: false, bannedReason: null, sessionsValidAfter: null, suspended: new Map(), flags: DEFAULT_FLAGS };
 
 const TTL_MS = 30_000;
 /** Setelah tahu skemanya belum dipasang, jangan bertanya lagi ke database selama ini. */
@@ -41,6 +47,10 @@ let flagsCache: { at: number; value: PlatformFlags } | null = null;
 
 interface RawCtx {
   superadmin: boolean;
+  /** Ada sejak sql/014. */
+  platformRole?: string | null;
+  roleNama?: string | null;
+  izin?: string[];
   banned: boolean;
   bannedReason: string | null;
   sessionsValidAfter: string | null;
@@ -62,8 +72,14 @@ export async function platformCtx(userId: string): Promise<PlatformCtx> {
   if (hit && now - hit.at < TTL_MS) return hit.value;
   try {
     const raw = await rpc<RawCtx>("dash_sa_ctx", { p_user: userId });
+    const staff = raw.superadmin === true;
+    // Sebelum sql/014 hanya ada satu peran platform: super admin dengan semua izin.
+    const rbac = Array.isArray(raw.izin);
     const value: PlatformCtx = {
-      superadmin: raw.superadmin === true,
+      superadmin: staff,
+      platformRole: staff ? (rbac ? raw.platformRole ?? null : "SUPERADMIN") : null,
+      roleNama: staff ? (rbac ? raw.roleNama ?? null : "Super Admin") : null,
+      izin: staff ? (rbac ? raw.izin ?? [] : ["*"]) : [],
       banned: raw.banned === true,
       bannedReason: raw.bannedReason ?? null,
       sessionsValidAfter: raw.sessionsValidAfter ? utc(raw.sessionsValidAfter).getTime() : null,

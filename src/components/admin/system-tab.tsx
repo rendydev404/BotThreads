@@ -43,7 +43,7 @@ function SwitchCard({
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 id={`${id}-label`} className="text-sm font-bold text-fg">
+            <h3 id={`${id}-label`} className="text-[15px] font-semibold text-fg">
               {title}
             </h3>
             {state}
@@ -61,7 +61,8 @@ function SwitchCard({
 
 /** Tab Sistem: saklar pendaftaran, saklar darurat autopilot, dan pengumuman untuk semua pengguna. */
 export function SystemTab() {
-  const { guard, invalidate } = useAdmin();
+  const { guard, invalidate, can } = useAdmin();
+  const manage = can("sistem.kelola");
   const { data, error, status, loading, refreshing, reload, mutate } = useRemote<AdminSettingsResponse>(
     "sistem",
     (signal) => guard(fetchAdminSettings(signal)),
@@ -128,7 +129,7 @@ export function SystemTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted max-w-xl">Saklar di sini berlaku untuk seluruh platform dan tercatat di audit.</p>
+        <p className="text-[13px] text-muted max-w-xl">Saklar di sini berlaku untuk seluruh platform dan tercatat di audit.</p>
         <div className="ml-auto">
           <RefreshButton onClick={reload} busy={refreshing} disabled={saving !== null} />
         </div>
@@ -156,7 +157,7 @@ export function SystemTab() {
         checked={flags.signupOpen}
         onChange={(next) => void save("signup", { signupOpen: next }, next ? "Pendaftaran mandiri dibuka." : "Pendaftaran mandiri ditutup.")}
         busy={saving === "signup"}
-        disabled={saving !== null}
+        disabled={saving !== null || !manage}
       >
         {!signupEnv && (
           <Banner tone="warning">
@@ -174,7 +175,7 @@ export function SystemTab() {
         checked={flags.autopilotGlobal}
         onChange={toggleAutopilot}
         busy={saving === "autopilot"}
-        disabled={saving !== null}
+        disabled={saving !== null || !manage}
       >
         {!flags.autopilotGlobal && (
           <Banner tone="danger">
@@ -191,8 +192,8 @@ export function SystemTab() {
             e.preventDefault();
             if (changed) void saveAnnouncement(clean);
           }}
-          className="space-y-4"
         >
+          <fieldset disabled={!manage} className="space-y-4 min-w-0">
           <TextAreaField
             label="Pengumuman"
             rows={3}
@@ -247,6 +248,7 @@ export function SystemTab() {
               {clean || !changed ? "Simpan pengumuman" : "Simpan (hapus pengumuman)"}
             </button>
           </div>
+          </fieldset>
         </form>
       </section>
 

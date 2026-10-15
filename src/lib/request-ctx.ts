@@ -7,6 +7,7 @@
  * Autentikasi sesi dan cek same-origin sudah dipaksa `proxy.ts`; di sini otorisasi.
  */
 import type { NextRequest, NextResponse } from "next/server";
+import { hasPerm, type AdminPerm } from "./admin-perms";
 import { UNAUTHORIZED, getRequestUserId, jsonError } from "./api-auth";
 import { SESSION_COOKIE } from "./auth";
 import { isMissingAutopilotSchema } from "./autopilot-store";
@@ -42,8 +43,10 @@ export interface RequestCtx {
   accountIds: string[] | null;
   /** Semua workspace tempat pengguna menjadi anggota (untuk pemilih workspace). */
   workspaces?: WorkspaceRef[];
-  /** Pengelola platform (sql/010_superadmin.sql). */
+  /** Staf platform (sql/010_superadmin.sql, peran per sql/014): boleh membuka konsol /admin. */
   superadmin?: boolean;
+  /** Peran dan izin konsol admin; null bila bukan staf platform. */
+  admin?: { role: string | null; roleNama: string | null; izin: string[] } | null;
   /** Workspace aktif sedang ditangguhkan super admin: tidak ada data yang boleh diakses. */
   suspended?: { workspaceId: string; reason: string | null };
   /** Pengumuman platform untuk ditampilkan di dashboard. */
@@ -121,7 +124,12 @@ async function loadMembership(userId: string): Promise<Membership> {
     value = { workspaceId: null, role: "OWNER", accountIds: null };
   }
   const platform = await platformPending;
-  value = { ...value, superadmin: platform.superadmin, announcement: platform.flags.announcement };
+  value = {
+    ...value,
+    superadmin: platform.superadmin,
+    admin: platform.superadmin ? { role: platform.platformRole, roleNama: platform.roleNama, izin: platform.izin } : null,
+    announcement: platform.flags.announcement,
+  };
   if (value.workspaceId && platform.suspended.has(value.workspaceId)) {
     // Workspace aktif ditangguhkan: perlakukan seperti tanpa workspace (tidak ada data yang cocok),
     // tetapi daftar workspace tetap ada supaya pengguna bisa pindah ke workspace lain.
@@ -145,30 +153,57 @@ export async function getCtx(request: NextRequest): Promise<RequestCtx | null> {
   return { userId, ...(await loadMembership(userId)) };
 }
 
+/** Pelaku konsol admin: id, peran platform, dan pemeriksa izin (sql/014_admin_rbac.sql). */
+export interface AdminActor {
+  userId: string;
+  role: string | null;
+  izin: string[];
+  /** Peran SUPERADMIN (semua izin, termasuk mengatur peran admin lain). */
+  isSuper: boolean;
+  can: (perm: AdminPerm) => boolean;
+}
+
 /**
- * Bungkus handler panel super admin: sesi wajib ada dan pelakunya harus super admin aktif. Handler
- * berjalan TANPA lingkup tenant (melihat semua workspace). Gagal memeriksa peran = akses ditutup.
+ * Bungkus handler konsol admin: sesi wajib ada, pelakunya staf platform aktif, dan (bila `perm` diisi)
+ * memegang izin itu. Handler berjalan TANPA lingkup tenant (melihat semua workspace). Gagal memeriksa
+ * peran = akses ditutup. Tindakan dengan izin berbeda per aksi memeriksa `admin.can()` sendiri.
  */
-export function withSuperAdmin<P = Record<string, never>>(
-  handler: (request: NextRequest, admin: { userId: string }, route: { params: Promise<P> }) => Promise<Response> | Response
+export function withAdmin<P = Record<string, never>>(
+  perm: AdminPerm | null,
+  handler: (request: NextRequest, admin: AdminActor, route: { params: Promise<P> }) => Promise<Response> | Response
 ) {
   return async (request: NextRequest, route: { params: Promise<P> } = { params: Promise.resolve({} as P) }): Promise<Response> => {
     // Dibaca di luar try/catch: sinyal "route dinamis" dari Next saat build tidak boleh tertelan.
     request.cookies.get(SESSION_COOKIE);
     let userId: string | null;
-    let allowed = false;
+    let actor: AdminActor | null = null;
     try {
       userId = await getRequestUserId(request);
-      if (userId) allowed = (await platformCtx(userId)).superadmin;
+      if (userId) {
+        const p = await platformCtx(userId);
+        if (p.superadmin) {
+          const izin = p.izin;
+          actor = { userId, role: p.platformRole, izin, isSuper: izin.includes("*"), can: (x) => hasPerm(izin, x) };
+        }
+      }
     } catch (err) {
       console.error("[admin] gagal memeriksa peran:", err instanceof Error ? err.message : "galat tak dikenal");
       return jsonError(503, "Server sedang bermasalah. Coba lagi sebentar.");
     }
     if (!userId) return UNAUTHORIZED();
-    if (!allowed) return jsonError(403, "Halaman ini hanya untuk super admin.");
-    return handler(request, { userId }, route);
+    if (!actor) return jsonError(403, "Halaman ini hanya untuk admin platform.");
+    if (perm && !actor.can(perm)) return ADMIN_FORBIDDEN();
+    return handler(request, actor, route);
   };
 }
+
+/** Staf platform tanpa izin modul ini (konsol memuat ulang profil untuk membedakannya dari peran yang dicabut). */
+export const ADMIN_FORBIDDEN = (): NextResponse<ApiError> => jsonError(403, "Peran admin Anda tidak punya izin untuk tindakan ini.");
+
+/** Kompatibilitas: semua staf platform, tanpa izin modul tertentu. */
+export const withSuperAdmin = <P = Record<string, never>>(
+  handler: (request: NextRequest, admin: AdminActor, route: { params: Promise<P> }) => Promise<Response> | Response
+) => withAdmin<P>(null, handler);
 
 /** Lingkup tenant untuk konteks pengguna (dipakai `runScoped`). */
 export const scopeOf = (ctx: RequestCtx) => makeScope(ctx.workspaceId, ctx.accountIds);
