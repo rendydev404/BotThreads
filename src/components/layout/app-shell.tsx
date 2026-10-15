@@ -99,6 +99,8 @@ function Frame({ children, pathname }: { children: React.ReactNode; pathname: st
                   secara mandiri untuk mengaktifkan analitik, penjadwalan, dan autopilot AI.
                 </p>
               </div>
+              {/* Menghubungkan akun hanya untuk Pemilik/Admin (sama dengan /api/threads/oauth); peran lain diberi arahan. */}
+              {me.role === "OWNER" || me.role === "ADMIN" ? (
               <div className="flex flex-wrap items-center gap-2 shrink-0 sm:ml-2">
                 <a
                   href="/api/threads/oauth"
@@ -115,6 +117,9 @@ function Frame({ children, pathname }: { children: React.ReactNode; pathname: st
                   Pilih Paket Sewa
                 </Link>
               </div>
+              ) : (
+                <p className="text-xs text-muted shrink-0 sm:ml-2">Minta Pemilik atau Admin workspace menghubungkannya.</p>
+              )}
             </div>
           )}
           {blocked ? me?.suspended ? <Suspended reason={me.suspended.reason} canSwitch={me.workspaces.length > 1} /> : <NoAccess /> : children}
