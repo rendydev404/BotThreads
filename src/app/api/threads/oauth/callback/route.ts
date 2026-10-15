@@ -20,7 +20,15 @@ export const GET = withCtx("ADMIN", async (request, ctx) => {
 
   if (!ctx.workspaceId) return fail("Workspace tidak ditemukan.");
   const denied = sp.get("error_description") || sp.get("error");
-  if (denied) return fail(sp.get("error") === "access_denied" ? "Izin ditolak di halaman Threads." : denied);
+  // access_denied: pengguna menekan Batal, ATAU (selama aplikasi Meta masih mode pengembangan) akun Threads-nya
+  // belum terdaftar sebagai Threads Tester. Jelaskan keduanya supaya pengguna tahu harus bagaimana.
+  if (denied) {
+    return fail(
+      sp.get("error") === "access_denied"
+        ? "Akses ditolak di halaman Threads. Jika Anda tidak menekan Batal, akun Threads ini mungkin belum diizinkan aplikasi kami. Hubungi pengelola platform."
+        : denied
+    );
+  }
 
   const [savedState, savedWs] = (request.cookies.get(THREADS_OAUTH_COOKIE)?.value ?? "").split(".");
   if (!savedState || !stateMatches(savedState, sp.get("state"))) return fail("Sesi login Threads kedaluwarsa. Silakan ulangi.");

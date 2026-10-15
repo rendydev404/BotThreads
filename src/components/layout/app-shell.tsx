@@ -10,6 +10,7 @@ import { BottomNav } from "./bottom-nav";
 import { logout } from "./session-nav";
 import { useMe } from "./use-me";
 import { FloatingAiBubble } from "@/components/chat/floating-ai-bubble";
+import { ThreadsConnectButton } from "@/components/settings/threads-connect-button";
 
 /** Halaman tanpa sesi (login, terima undangan, reset password) tampil polos: tanpa sidebar/header/bubble. */
 const BARE_PREFIXES = ["/undangan/", "/reset-password/"];
@@ -102,13 +103,7 @@ function Frame({ children, pathname }: { children: React.ReactNode; pathname: st
               {/* Menghubungkan akun hanya untuk Pemilik/Admin (sama dengan /api/threads/oauth); peran lain diberi arahan. */}
               {me.role === "OWNER" || me.role === "ADMIN" ? (
               <div className="flex flex-wrap items-center gap-2 shrink-0 sm:ml-2">
-                <a
-                  href="/api/threads/oauth"
-                  className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-accent text-on-accent text-xs font-semibold hover:bg-accent-hover transition-colors"
-                >
-                  <Link2 className="w-3.5 h-3.5" />
-                  Hubungkan Akun Threads
-                </a>
+                <ThreadsConnectButton size="sm" />
                 <Link
                   href="/billing"
                   className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-surface border border-line-strong text-fg text-xs font-semibold hover:border-accent hover:text-accent transition-colors"

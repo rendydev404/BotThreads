@@ -7,11 +7,11 @@ import { ArrowRight, Bot, CheckCircle2, Link2, Loader2, Sparkles, UserCheck } fr
 import { connectWorkspaceThreadsAccount, fetchConnectedThreadsAccounts } from "@/lib/team-client";
 import type { ConnectedThreadsAccountDTO, WorkspaceThreadsAccountsResponse } from "@/lib/threads-connect";
 import { Banner } from "@/components/autopilot/shared";
-import { ThreadsMark } from "@/components/landing/threads-mark";
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { FormError, TextAreaField } from "./fields";
 import { errorText, formatDateWib, formatInt } from "./format";
 import { BTN_OUTLINE, BTN_PRIMARY, EmptyState, LoadError, Pill, RefreshButton } from "./states";
+import { ThreadsConnectButton } from "./threads-connect-button";
 import { useRemote } from "./use-remote";
 
 export function AccountsTab({
@@ -65,18 +65,9 @@ export function AccountsTab({
   // Tempel Access Token hanya cadangan untuk pengembang (mis. localhost http, yang tidak bisa memakai login Threads).
   const manualAllowed = !!data?.connectReady && (!data.oauthConfigured || insecure);
 
-  const connectButton = (label: string) =>
-    oneClickReady ? (
-      <a href="/api/threads/oauth" className={BTN_PRIMARY}>
-        <ThreadsMark className="w-4 h-4" />
-        {label}
-      </a>
-    ) : (
-      <button type="button" disabled className={BTN_PRIMARY} title="Belum diaktifkan oleh pengelola platform">
-        <ThreadsMark className="w-4 h-4" />
-        {label}
-      </button>
-    );
+  const connectButton = (label: string) => (
+    <ThreadsConnectButton label={label} disabled={!oneClickReady} disabledTitle="Belum diaktifkan oleh pengelola platform" />
+  );
   const openManual = () => {
     setFormError(null);
     setModalOpen(true);
@@ -225,10 +216,7 @@ export function AccountsTab({
 
               <div className="flex items-center gap-2 shrink-0">
                 {acc.needsReconnect && canManage && oneClickReady && (
-                  <a href="/api/threads/oauth" className={BTN_PRIMARY}>
-                    <Link2 className="w-3.5 h-3.5" />
-                    Hubungkan ulang
-                  </a>
+                  <ThreadsConnectButton label="Hubungkan ulang" />
                 )}
                 <Link href="/autopilot" className={BTN_OUTLINE}>
                   <Bot className="w-3.5 h-3.5" />

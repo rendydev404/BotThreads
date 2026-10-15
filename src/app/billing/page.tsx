@@ -2,11 +2,12 @@
 
 import React, { Suspense } from "react";
 import Link from "next/link";
-import { AlertTriangle, CreditCard, Link2, RotateCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CreditCard, RotateCw, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/components/layout/use-me";
 import { PlanCard } from "@/components/settings/plan-card";
 import { BTN_OUTLINE, BTN_PRIMARY, Pill } from "@/components/settings/states";
+import { ThreadsConnectButton } from "@/components/settings/threads-connect-button";
 import { SubscriptionTab } from "@/components/settings/subscription-tab";
 
 function BillingSkeleton() {
@@ -57,10 +58,7 @@ function BillingInner() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <a href="/api/threads/oauth" className={BTN_OUTLINE}>
-            <Link2 className="w-3.5 h-3.5" />
-            Hubungkan Akun Threads
-          </a>
+          <ThreadsConnectButton />
           {me.superadmin && (
             <Link href="/admin?tab=transaksi" className={BTN_OUTLINE}>
               <ShieldCheck className="w-3.5 h-3.5" />
