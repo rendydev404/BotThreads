@@ -4,13 +4,14 @@
 
 export type SignalSource = "JARINGAN" | "GTRENDS" | "WEB" | "THREADS_SEARCH" | "MOMEN" | "MANUAL";
 
+/** Nama sumber tren seperti yang dilihat pengguna (tanpa istilah teknis "sinyal"). */
 export const SIGNAL_SOURCE_LABEL: Record<SignalSource, string> = {
-  JARINGAN: "Pemenang jaringan",
-  GTRENDS: "Tren pencarian",
-  WEB: "Tren web",
-  THREADS_SEARCH: "Pencarian Threads",
-  MOMEN: "Momen kalender",
-  MANUAL: "Inspirasi manual",
+  THREADS_SEARCH: "Viral di Threads",
+  GTRENDS: "Lagi ramai di Indonesia",
+  JARINGAN: "Viral di akun Anda",
+  WEB: "Ramai di web",
+  MOMEN: "Momen",
+  MANUAL: "Inspirasi saya",
 };
 
 export interface SignalDTO {
@@ -151,6 +152,13 @@ export interface MomentListResponse {
   success: true;
   installed: boolean;
   items: MomentDTO[];
+}
+
+/** Username penulis dari permalink posting Threads (https://www.threads.com/@user/post/ID); null bila bukan permalink Threads. */
+export function threadsAuthorFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = /^https:\/\/(?:www\.)?threads\.(?:net|com)\/@([A-Za-z0-9._]{1,64})\/post\/[A-Za-z0-9_-]+/.exec(url);
+  return m ? m[1].toLowerCase() : null;
 }
 
 export const MANUAL_SIGNAL_MAX = 600;

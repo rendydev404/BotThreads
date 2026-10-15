@@ -118,7 +118,7 @@ export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <p className="text-sm text-muted">
-          Tanggal penting yang ikut dipertimbangkan AI. Momen yang sedang berjalan atau segera dimulai menjadi sinyal radar.
+          Tanggal penting yang ikut dipertimbangkan AI. Momen yang sedang berjalan atau segera dimulai ikut tampil di Tren Viral.
         </p>
         <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
           <RefreshButton onClick={reload} busy={remote.refreshing} disabled={remote.loading} />
@@ -210,7 +210,7 @@ export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
                 Momen bawaan
               </h3>
               <p className="mt-0.5 text-[13px] text-muted">
-                Berulang otomatis dan tidak bisa diubah. Menjadi sinyal radar pada hari-hari berlakunya.
+                Berulang otomatis dan tidak bisa diubah. Ikut tampil di Tren Viral pada hari-hari berlakunya.
               </p>
             </div>
             <ul className="grid gap-3 sm:grid-cols-2">
@@ -249,7 +249,7 @@ export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
         {deleteTarget && (
           <p className="text-sm text-fg leading-relaxed">
             Momen <span className="font-semibold break-words">{deleteTarget.nama}</span> ({formatDayRange(deleteTarget.mulai, deleteTarget.selesai)})
-            dihapus dari kalender, dan sinyalnya ikut dihapus dari radar.
+            dihapus dari kalender, dan ikut hilang dari Tren Viral.
           </p>
         )}
       </ConfirmModal>

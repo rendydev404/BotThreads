@@ -471,7 +471,7 @@ export function IdeaSources() {
       </div>
 
       <div className="rounded-3xl border border-line bg-surface p-5 sm:p-6" role="tabpanel">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-faint">Sinyal</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-faint">Tren</p>
         <p className="mt-1.5 text-[15px] leading-relaxed text-fg">{source.signal}</p>
         <div className="my-4 flex items-center gap-3 text-xs font-semibold text-accent">
           <span className="h-px flex-1 bg-line" />
@@ -481,7 +481,7 @@ export function IdeaSources() {
         </div>
         <p className="text-[15px] leading-relaxed font-semibold text-fg">{source.idea}</p>
         <p className="mt-4 text-[13px] text-muted leading-relaxed">
-          Tiap ide diberi skor dari kekuatan sinyal, kebaruan, kecocokan dengan akun, dan kinerja pola serupa. Yang mirip posting lama
+          Tiap ide diberi skor dari seberapa viral trennya, kebaruan, kecocokan dengan akun, dan kinerja pola serupa. Yang mirip posting lama
           dibuang.
         </p>
       </div>

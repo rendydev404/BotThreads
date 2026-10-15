@@ -21,6 +21,7 @@ import { randomUUID } from "node:crypto";
 import { acquireLease, type AutopilotState, type ConfigRow } from "./autopilot-store";
 import type { PublishAccount } from "./publish-accounts";
 import { builtinMomentSignals, fetchGoogleTrends, trendsToSignals } from "./radar-sources";
+import { captureThreadsViral } from "./threads-trends";
 import {
   activeKnowledge,
   insertIdeas,
@@ -90,10 +91,17 @@ export async function runResearch(radar: RadarState, now: Date, counts: Counts):
     );
   }
   if (hour >= RESEARCH_FIRST_HOUR && hour <= RESEARCH_LAST_HOUR && stale(radar.lastCapture.GTRENDS, now)) {
+    const trends = fetchGoogleTrends();
+    jobs.push(guard("sinyalTren", trends.then((items) => upsertSignals(trendsToSignals(items, now, extraBannedTerms()), now))));
+    // Viral di Threads: posting terpopuler untuk topik yang sedang naik (butuh izin pencarian publik dari Meta).
     jobs.push(
       guard(
-        "sinyalTren",
-        fetchGoogleTrends().then((items) => upsertSignals(trendsToSignals(items, now, extraBannedTerms()), now))
+        "viralThreads",
+        trends.then(async (items) => {
+          const { signals, status } = await captureThreadsViral(items, now, extraBannedTerms());
+          if (status !== "ok") console.info(`[autopilot] viral Threads dilewati: ${status === "no_token" ? "belum ada akun berizin pencarian" : "izin pencarian publik Threads belum disetujui Meta"}`);
+          return signals.length ? upsertSignals(signals, now) : 0;
+        })
       )
     );
   }

@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     "AI mencari ide dari tren dan posting terbaik Anda, menulis, lalu menjadwalkan posting Threads setiap hari di jam ramai tiap akun. Jumlah posting per hari Anda yang atur.",
 };
 
-const PIPELINE = ["Sinyal", "Ide", "Tulis", "Periksa", "Antre", "Terbit"];
+const PIPELINE = ["Tren", "Ide", "Tulis", "Periksa", "Antre", "Terbit"];
 
 const LEARNING = [
   {
@@ -215,8 +215,8 @@ export default function LandingPage() {
 
         {/* ---------- 06.00 ide ---------- */}
         <section id="cara-kerja" className={`${WRAP} py-16 md:py-24 scroll-mt-24`}>
-          <SectionHead time="06.00" label="SINYAL DIKUMPULKAN" title="Setiap posting punya asal-usul">
-            Tidak ada ide yang muncul dari udara. Pilih satu sumber di bawah untuk melihat bagaimana sebuah sinyal berubah menjadi bahan
+          <SectionHead time="06.00" label="TREN DIPANTAU" title="Setiap posting punya asal-usul">
+            Tidak ada ide yang muncul dari udara. Pilih satu sumber di bawah untuk melihat bagaimana sebuah tren berubah menjadi bahan
             tulisan.
           </SectionHead>
           <div className="mt-10" data-reveal style={{ "--i": 1 } as React.CSSProperties}>

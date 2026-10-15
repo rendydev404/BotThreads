@@ -6,15 +6,15 @@ import {
   Building2,
   CalendarDays,
   Database,
+  Flame,
   Globe,
   Lightbulb,
   Lock,
   RefreshCw,
   RotateCw,
-  Search,
   TrendingUp,
-  Trophy,
 } from "lucide-react";
+import { ThreadsMark } from "@/components/landing/threads-mark";
 import { cn } from "@/lib/utils";
 import { SIGNAL_SOURCE_LABEL, type SignalSource } from "@/lib/radar-types";
 
@@ -208,10 +208,11 @@ export function LoadFailure({ status, message, onRetry }: { status: number | nul
 /* ------------------------------------------------------------------ sumber sinyal */
 
 const SOURCE_STYLE: Record<SignalSource, { cls: string; Icon: React.ComponentType<{ className?: string }> }> = {
-  JARINGAN: { cls: "bg-success-soft text-success", Icon: Trophy },
+  // Warna merek Threads (hitam/putih), supaya jelas datanya dari Threads.
+  THREADS_SEARCH: { cls: "bg-black text-white dark:bg-white dark:text-black", Icon: ThreadsMark },
   GTRENDS: { cls: "bg-accent-soft text-accent", Icon: TrendingUp },
+  JARINGAN: { cls: "bg-danger-soft text-danger", Icon: Flame },
   WEB: { cls: "bg-accent-soft text-accent", Icon: Globe },
-  THREADS_SEARCH: { cls: "bg-accent-soft text-accent", Icon: Search },
   MOMEN: { cls: "bg-warning-soft text-warning", Icon: CalendarDays },
   MANUAL: { cls: "bg-subtle text-muted", Icon: Lightbulb },
 };

@@ -36,6 +36,8 @@ export const THREADS_SCOPES = [
   "threads_manage_insights",
   "threads_read_replies",
   "threads_manage_replies",
+  // Pencarian kata kunci (Tren Viral di Radar); hasil publik butuh App Review dari Meta.
+  "threads_keyword_search",
 ];
 
 export interface ConnectedThreadsAccountDTO {

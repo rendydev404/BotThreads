@@ -10,11 +10,11 @@ import { IdeasTab } from "@/components/radar/ideas-tab";
 import { MomentsTab } from "@/components/radar/moments-tab";
 import { SignalsTab } from "@/components/radar/signals-tab";
 
-type TabKey = "ide" | "sinyal" | "momen";
+type TabKey = "ide" | "tren" | "momen";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "ide", label: "Ide" },
-  { key: "sinyal", label: "Sinyal" },
+  { key: "tren", label: "Tren Viral" },
   { key: "momen", label: "Momen" },
 ];
 
@@ -26,7 +26,7 @@ function PageHeader() {
       </div>
       <div className="min-w-0">
         <h2 className="text-xl font-bold text-fg leading-tight">Radar</h2>
-        <p className="text-sm text-muted">Sinyal tren, bank ide, dan kalender momen yang menjadi bahan tulisan autopilot.</p>
+        <p className="text-sm text-muted">Apa yang lagi viral, bank ide, dan kalender momen yang menjadi bahan tulisan autopilot.</p>
       </div>
     </div>
   );
@@ -53,7 +53,8 @@ function RadarInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const rawTab = searchParams.get("tab");
-  const tab: TabKey = rawTab === "sinyal" || rawTab === "momen" ? rawTab : "ide";
+  // "sinyal" = nama lama tab Tren Viral; tautan lama tetap membuka tab yang sama.
+  const tab: TabKey = rawTab === "tren" || rawTab === "sinyal" ? "tren" : rawTab === "momen" ? "momen" : "ide";
 
   // Tab aktif disimpan di URL (?tab=) lewat History API: tanpa navigasi ulang ke server.
   const setTab = (next: TabKey) => {
@@ -133,8 +134,8 @@ function RadarInner() {
             <IdeasTab canEdit={canEdit} onForbidden={onForbidden} />
           </div>
         </Activity>
-        <Activity mode={tab === "sinyal" ? "visible" : "hidden"}>
-          <div role="tabpanel" id="radar-panel-sinyal" aria-labelledby="radar-tab-sinyal">
+        <Activity mode={tab === "tren" ? "visible" : "hidden"}>
+          <div role="tabpanel" id="radar-panel-tren" aria-labelledby="radar-tab-tren">
             <SignalsTab canEdit={canEdit} onForbidden={onForbidden} />
           </div>
         </Activity>

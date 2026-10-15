@@ -4,7 +4,15 @@ import React, { memo, useCallback, useId, useLayoutEffect, useRef, useState } fr
 import { ExternalLink, Loader2, Plus, Radar, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { addRadarSignal, deleteRadarSignal, listRadarSignals } from "@/lib/radar-client";
-import { MANUAL_SIGNAL_MAX, SIGNAL_SOURCE_LABEL, type SignalDTO, type SignalListResponse, type SignalSource } from "@/lib/radar-types";
+import {
+  MANUAL_SIGNAL_MAX,
+  SIGNAL_SOURCE_LABEL,
+  threadsAuthorFromUrl,
+  type SignalDTO,
+  type SignalListResponse,
+  type SignalSource,
+} from "@/lib/radar-types";
+import { ThreadsMark } from "@/components/landing/threads-mark";
 import { formatWibFull } from "@/lib/scheduling";
 import { ConfirmModal } from "@/components/autopilot/confirm-modal";
 import { Banner, ListSkeleton, LoadMoreButton } from "@/components/autopilot/shared";
@@ -24,17 +32,17 @@ import {
   useNotice,
 } from "./shared";
 
-/** Sumber yang sudah diisi server. WEB dan THREADS_SEARCH baru disiapkan, jadi belum ditawarkan sebagai saringan. */
-type OfferedSource = Extract<SignalSource, "JARINGAN" | "GTRENDS" | "MOMEN" | "MANUAL">;
+/** Sumber yang diisi server dan ditawarkan sebagai saringan (WEB belum diisi). Urutan = urutan tampil. */
+type OfferedSource = Extract<SignalSource, "THREADS_SEARCH" | "GTRENDS" | "JARINGAN" | "MOMEN" | "MANUAL">;
 type SourceFilter = "ALL" | OfferedSource;
 
-const FILTER_SOURCES: OfferedSource[] = ["JARINGAN", "GTRENDS", "MOMEN", "MANUAL"];
+const FILTER_SOURCES: OfferedSource[] = ["THREADS_SEARCH", "GTRENDS", "JARINGAN", "MOMEN", "MANUAL"];
 const FILTERS: { value: SourceFilter; label: string }[] = [
   { value: "ALL", label: "Semua" },
   ...FILTER_SOURCES.map((s) => ({ value: s, label: SIGNAL_SOURCE_LABEL[s] })),
 ];
 /** Sumber yang dikumpulkan tick autopilot (inspirasi manual tidak dihitung "pengambilan"). */
-const AUTO_SOURCES: OfferedSource[] = ["JARINGAN", "GTRENDS", "MOMEN"];
+const AUTO_SOURCES: OfferedSource[] = ["THREADS_SEARCH", "GTRENDS", "JARINGAN", "MOMEN"];
 
 const URL_MAX = 500;
 const TEXT_MIN = 10;
@@ -43,20 +51,24 @@ const SHORT_TITLE = 80;
 
 const EMPTY_COPY: Record<SourceFilter, { title: string; body: string }> = {
   ALL: {
-    title: "Radar belum menangkap sinyal.",
-    body: "Setiap tick autopilot mengumpulkan pemenang jaringan, tren pencarian, dan momen kalender secara otomatis. Sinyal yang masih berlaku akan muncul di sini.",
+    title: "Belum ada tren yang tertangkap.",
+    body: "Tren diperbarui otomatis tiap beberapa jam: yang viral di Threads, yang lagi ramai di Indonesia, dan posting akun Anda yang sedang meledak.",
+  },
+  THREADS_SEARCH: {
+    title: "Belum ada posting viral dari Threads.",
+    body: "Bagian ini mengambil posting Threads paling populer untuk topik yang sedang naik. Aktif setelah izin pencarian Threads (threads_keyword_search) untuk aplikasi kami disetujui Meta.",
   },
   JARINGAN: {
-    title: "Belum ada pemenang jaringan.",
-    body: "Tick autopilot menandai postingan akun Anda yang views-nya jauh di atas kebiasaan akunnya. Pemenang baru akan muncul di sini dengan sendirinya.",
+    title: "Belum ada posting Anda yang viral.",
+    body: "Posting akun Anda yang views-nya jauh di atas biasanya akan muncul di sini dengan sendirinya.",
   },
   GTRENDS: {
-    title: "Belum ada tren pencarian.",
-    body: "Tren pencarian Indonesia diambil otomatis saat tick autopilot berjalan, lalu disaring supaya aman untuk brand.",
+    title: "Belum ada topik yang lagi ramai.",
+    body: "Topik yang sedang naik di Indonesia diperbarui otomatis, lalu disaring supaya aman untuk brand.",
   },
   MOMEN: {
     title: "Tidak ada momen yang sedang berlaku.",
-    body: "Momen bawaan dan momen dari tab Momen menjadi sinyal saat sedang berjalan atau segera dimulai.",
+    body: "Momen bawaan dan momen dari tab Momen tampil di sini saat sedang berjalan atau segera dimulai.",
   },
   MANUAL: {
     title: "Belum ada inspirasi manual.",
@@ -69,12 +81,12 @@ function lastCaptureText(last: SignalListResponse["lastCapture"], source: Source
   if (source === "ALL") {
     // ISO UTC berformat sama, jadi urutan teks = urutan waktu.
     const latest = AUTO_SOURCES.map((s) => last[s]).filter((v): v is string => !!v).sort().at(-1);
-    return latest ? `Pengambilan otomatis terakhir ${formatWibFull(new Date(latest))}.` : "Radar belum pernah mengambil sinyal otomatis.";
+    return latest ? `Diperbarui otomatis ${formatWibFull(new Date(latest))}.` : "Tren belum pernah diperbarui.";
   }
   const at = last[source];
   return at
-    ? `${SIGNAL_SOURCE_LABEL[source]} terakhir diambil ${formatWibFull(new Date(at))}.`
-    : `${SIGNAL_SOURCE_LABEL[source]} belum pernah diambil.`;
+    ? `${SIGNAL_SOURCE_LABEL[source]} diperbarui ${formatWibFull(new Date(at))}.`
+    : `${SIGNAL_SOURCE_LABEL[source]} belum pernah diperbarui.`;
 }
 
 const hostOf = (url: string): string => {
@@ -186,7 +198,45 @@ function AddSignalForm({ id, onAdded, onClose, onForbidden }: AddSignalFormProps
   );
 }
 
-/* ------------------------------------------------------------------ baris sinyal */
+/* ------------------------------------------------------------------ kartu posting viral Threads */
+
+const ThreadsViralRow = memo(function ThreadsViralRow({ signal }: { signal: SignalDTO }) {
+  const author = threadsAuthorFromUrl(signal.url);
+  return (
+    <li className="p-4 space-y-2.5">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        <SourceChip source="THREADS_SEARCH" />
+        <span className="text-xs font-semibold text-fg">Topik: {signal.title}</span>
+      </div>
+      <div className="flex items-start gap-3">
+        <span className="w-9 h-9 rounded-full bg-fg text-canvas flex items-center justify-center text-sm font-bold uppercase shrink-0" aria-hidden>
+          {(author ?? "?").charAt(0)}
+        </span>
+        <div className="min-w-0 flex-1">
+          {author && <p className="text-[13px] font-semibold text-fg">@{author}</p>}
+          <p className="mt-0.5 text-sm text-fg leading-relaxed whitespace-pre-wrap break-words line-clamp-6">{signal.summary}</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-12 text-xs text-muted">
+        {signal.url && (
+          <a
+            href={signal.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="-my-2 h-10 inline-flex items-center gap-1.5 font-semibold text-fg hover:underline"
+          >
+            <ThreadsMark className="w-3.5 h-3.5" />
+            Lihat di Threads
+            <span className="sr-only"> (tab baru)</span>
+          </a>
+        )}
+        <span>Diperbarui {formatWibFull(new Date(signal.capturedAt))}</span>
+      </div>
+    </li>
+  );
+});
+
+/* ------------------------------------------------------------------ baris tren */
 
 interface SignalRowProps {
   signal: SignalDTO;
@@ -207,9 +257,13 @@ const SignalRow = memo(function SignalRow({ signal, canDelete, onDelete }: Signa
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
           <SourceChip source={signal.source} />
-          {signal.rank !== null && <span className="text-xs font-semibold text-fg tabular-nums">Peringkat {signal.rank}</span>}
+          {signal.rank !== null && (
+            <span className="text-xs font-semibold text-fg tabular-nums">
+              {signal.source === "GTRENDS" ? `#${signal.rank} di Indonesia` : `Peringkat ${signal.rank}`}
+            </span>
+          )}
           <span className="text-xs font-semibold text-muted tabular-nums">
-            Kekuatan {toScore100(signal.score)}
+            Skor viral {toScore100(signal.score)}
             <span className="sr-only"> dari 100</span>
           </span>
         </div>
@@ -247,14 +301,14 @@ const SignalRow = memo(function SignalRow({ signal, canDelete, onDelete }: Signa
               className="-my-2 h-10 max-w-full inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline"
             >
               <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-              <span className="min-w-0 truncate">{signal.source === "JARINGAN" ? "Buka posting" : hostOf(href)}</span>
+              <span className="min-w-0 truncate">{signal.source === "JARINGAN" ? "Lihat posting" : hostOf(href)}</span>
               <span className="sr-only"> (tab baru)</span>
             </a>
           </div>
         )}
 
         <p className="text-xs text-muted">
-          Diambil {formatWibFull(new Date(signal.capturedAt))} · berlaku sampai {formatDateWib(signal.expiresAt)}
+          Diperbarui {formatWibFull(new Date(signal.capturedAt))} · berlaku sampai {formatDateWib(signal.expiresAt)}
         </p>
       </div>
 
@@ -294,7 +348,7 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
     `signals:${source}`,
     (cursor, signal) => listRadarSignals({ source: source === "ALL" ? null : source, cursor }, signal),
     (s) => s.id,
-    "Gagal memuat sinyal radar."
+    "Gagal memuat tren viral."
   );
   const { data, items, mutate, reload } = list;
 
@@ -361,7 +415,7 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
         */}
         <div
           role="group"
-          aria-label="Saring sumber sinyal"
+          aria-label="Saring sumber tren"
           className="min-w-0 flex gap-2 max-sm:-mx-4 max-sm:px-4 max-sm:-my-1.5 max-sm:py-1.5 max-sm:overflow-x-auto sm:flex-wrap"
         >
           {FILTERS.map((f) => {
@@ -373,8 +427,8 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
                 aria-pressed={active}
                 onClick={() => setSource(f.value)}
                 className={cn(
-                  "shrink-0 h-10 px-3.5 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors cursor-pointer",
-                  active ? "bg-accent text-on-accent border-accent" : "bg-surface text-fg border-line-strong hover:border-accent hover:text-accent"
+                  "shrink-0 h-9 px-3.5 rounded-full border text-[13px] font-semibold whitespace-nowrap transition-colors cursor-pointer",
+                  active ? "bg-fg text-canvas border-fg" : "bg-surface text-muted border-line hover:text-fg hover:border-line-strong"
                 )}
               >
                 {f.label}
@@ -409,15 +463,24 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
       )}
 
       {list.loading ? (
-        <ListSkeleton label="Memuat sinyal radar" />
+        <ListSkeleton label="Memuat tren viral" />
       ) : !data ? (
-        <LoadFailure status={list.status} message={list.error ?? "Gagal memuat sinyal radar."} onRetry={reload} />
+        <LoadFailure status={list.status} message={list.error ?? "Gagal memuat tren viral."} onRetry={reload} />
       ) : !data.installed ? (
         <NotInstalled />
       ) : (
         <>
           {list.error && <Banner tone="danger">Gagal menyegarkan: {list.error}</Banner>}
           {captured && <p className="text-xs text-muted">{captured}</p>}
+          {source === "ALL" && !data.lastCapture.THREADS_SEARCH && (
+            <p className="flex items-start gap-2 rounded-xl bg-subtle p-3 text-[13px] text-muted leading-relaxed">
+              <ThreadsMark className="w-4 h-4 mt-0.5 shrink-0 text-fg" />
+              <span>
+                <span className="font-semibold text-fg">Viral di Threads</span> akan muncul di sini setelah izin pencarian Threads untuk aplikasi
+                kami disetujui Meta. Sementara itu tampil topik yang lagi ramai di Indonesia dan posting akun Anda yang sedang viral.
+              </span>
+            </p>
+          )}
           {items.length === 0 ? (
             <EmptyState icon={<Radar className="w-6 h-6" />} title={empty.title}>
               <p>{empty.body}</p>
@@ -425,9 +488,13 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
             </EmptyState>
           ) : (
             <ul className="card divide-y divide-line">
-              {items.map((s) => (
-                <SignalRow key={s.id} signal={s} canDelete={canEdit && s.removable} onDelete={askDelete} />
-              ))}
+              {items.map((s) =>
+                s.source === "THREADS_SEARCH" ? (
+                  <ThreadsViralRow key={s.id} signal={s} />
+                ) : (
+                  <SignalRow key={s.id} signal={s} canDelete={canEdit && s.removable} onDelete={askDelete} />
+                )
+              )}
             </ul>
           )}
           {list.moreError && <Banner tone="danger">{list.moreError}</Banner>}

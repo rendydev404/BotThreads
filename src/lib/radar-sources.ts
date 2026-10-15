@@ -20,7 +20,7 @@ const FETCH_TIMEOUT_MS = 8000;
 const MAX_FEED_BYTES = 400_000;
 
 /** Berita keras yang tidak pantas ditunggangi akun brand; melengkapi daftar terlarang bawaan. */
-const HARD_NEWS_TERMS = [
+export const HARD_NEWS_TERMS = [
   "presiden", "menteri", "dpr", "kpk", "korupsi", "tersangka", "ditangkap", "polisi", "pembunuhan", "tewas",
   "kecelakaan", "kebakaran", "banjir", "demo", "perang", "pengadilan", "vonis", "penipuan", "narkoba",
   "cpns", "asn", "pppk", "bansos", "login", "pengumuman hasil",
@@ -28,7 +28,7 @@ const HARD_NEWS_TERMS = [
 
 export interface SignalDraft {
   workspaceId?: string | null;
-  source: "GTRENDS" | "MOMEN" | "MANUAL";
+  source: "GTRENDS" | "MOMEN" | "MANUAL" | "THREADS_SEARCH";
   title: string;
   summary?: string | null;
   url?: string | null;

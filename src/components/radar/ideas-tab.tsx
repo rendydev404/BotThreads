@@ -63,7 +63,7 @@ const STATUS_STYLE: Record<IdeaStatus, { cls: string; Icon: React.ComponentType<
 };
 
 const SCORE_PARTS: { key: keyof IdeaScoreDetail; label: string; hint: string }[] = [
-  { key: "sinyal", label: "Sinyal", hint: "Kekuatan sinyal yang dirujuk" },
+  { key: "sinyal", label: "Tren", hint: "Seberapa viral tren yang dirujuk" },
   { key: "kebaruan", label: "Kebaruan", hint: "Beda dari postingan dan ide sebelumnya" },
   { key: "kecocokan", label: "Kecocokan", hint: "Kecocokan dengan akun ini" },
   { key: "kinerja", label: "Kinerja", hint: "Kinerja pola serupa di akun ini (50 = belum ada data)" },
@@ -171,7 +171,7 @@ const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error,
 
       {idea.signals.length > 0 && (
         <div className="rounded-xl bg-subtle p-3">
-          <p className="text-xs font-semibold text-muted">Sinyal rujukan</p>
+          <p className="text-xs font-semibold text-muted">Tren rujukan</p>
           <ul className="mt-2 space-y-2">
             {idea.signals.map((s) => (
               <li key={s.id} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
@@ -351,7 +351,7 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
             >
               {view === "ready" && (
                 <p>
-                  Setiap tick autopilot mengumpulkan sinyal tren, lalu AI menyusun ide untuk akun yang autopilotnya
+                  Autopilot memantau apa yang sedang viral, lalu AI menyusun ide untuk akun yang autopilotnya
                   menyala. Ide baru muncul di sini dengan sendirinya. Mode tiap akun diatur di halaman{" "}
                   <Link href="/autopilot" className="font-semibold text-accent hover:underline">
                     Autopilot
