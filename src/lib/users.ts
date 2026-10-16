@@ -38,6 +38,7 @@ export async function findUserByIdentifier(identifier: string): Promise<LoginUse
 // Cache status pengguna agar proxy tidak query DB di setiap request.
 // Menonaktifkan akun / mengganti password berlaku paling lambat TTL ini.
 const STATUS_TTL_MS = 30_000;
+const STATUS_CACHE_MAX = 5_000;
 const statusCache = new Map<string, { at: number; ok: boolean; pv: string; validAfter: number | null }>();
 
 async function currentStatus(userId: string) {
@@ -61,8 +62,11 @@ async function currentStatus(userId: string) {
     // Super admin bisa menggugurkan semua sesi lama tanpa mengganti password.
     validAfter: platform.sessionsValidAfter,
   };
+  // Urutan sisip Map = urutan umur: buang yang tertua saja (mengosongkan semua sekaligus membuat
+  // ratusan pengguna aktif menembak database bersamaan).
+  statusCache.delete(userId);
   statusCache.set(userId, entry);
-  if (statusCache.size > 200) statusCache.clear();
+  if (statusCache.size > STATUS_CACHE_MAX) statusCache.delete(statusCache.keys().next().value as string);
   return entry;
 }
 

@@ -109,6 +109,8 @@ beforeAll(async () => {
   await db.exec(fs.readFileSync(path.join(REPO, "sql/008_multiuser.sql"), "utf8"));
   // Idempoten: menjalankan ulang tidak boleh galat dan tidak mengubah keanggotaan.
   await db.exec(fs.readFileSync(path.join(REPO, "sql/008_multiuser.sql"), "utf8"));
+  // Kunci pemilik terakhir (menimpa dua fungsi anggota dari 008); semua uji peran di bawah memakai versi ini.
+  await db.exec(fs.readFileSync(path.join(REPO, "sql/020_member_owner_lock.sql"), "utf8"));
 
   await db.exec(`
     INSERT INTO "DashboardUser" (id, username, email, "passwordHash") VALUES

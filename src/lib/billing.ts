@@ -25,6 +25,7 @@ import {
   type WorkspaceBillingResponse,
 } from "./billing-types";
 import { getRawIntegrations, type StoredIntegrations } from "./integrations";
+import { withKeys } from "./keyed-lock";
 import {
   MidtransError,
   chargeMidtrans,
@@ -47,6 +48,15 @@ const REUSE_MIN_REMAINING_MS = 30 * 60_000;
 const PAYMENT_MIN_REMAINING_MS = 2 * 60_000;
 /** Batas transaksi Midtrans per tagihan (ganti metode berulang). */
 const MAX_ATTEMPTS = 20;
+
+/**
+ * Semua perubahan satu tagihan (ganti metode, cek status, batal, notifikasi Midtrans) berjalan berurutan.
+ * Tanpa ini, cek status yang membaca data lama bisa menimpa transaksi baru hasil ganti metode, dan dua
+ * klik "bayar" serentak sama-sama mematikan transaksi lama lalu memakai order_id yang sama.
+ */
+const invoiceKey = (id: string) => `bill-inv:${id}`;
+/** Checkout per workspace berurutan: klik ganda memakai ulang tagihan pertama, bukan membuat dua. */
+const workspaceKey = (id: string) => `bill-ws:${id}`;
 
 const ORDER_RE = /^(INV-\d{8}-[0-9A-F]{6,8})(?:-(\d{1,3}))?$/;
 
@@ -180,9 +190,16 @@ function notifyUrlFor(origin: string): string | undefined {
   }
 }
 
-export async function createCheckoutInvoice(
+export function createCheckoutInvoice(
   params: { workspaceId: string; userId: string; planId: string; months: BillingCycleMonths; method: string; origin: string },
   now = new Date()
+): Promise<InvoiceResult> {
+  return withKeys([workspaceKey(params.workspaceId)], () => checkoutUnlocked(params, now));
+}
+
+async function checkoutUnlocked(
+  params: { workspaceId: string; userId: string; planId: string; months: BillingCycleMonths; method: string; origin: string },
+  now: Date
 ): Promise<InvoiceResult> {
   if (!BILLING_CYCLES.some((c) => c.months === params.months)) {
     return failure(400, "Durasi langganan harus 1, 3, atau 12 bulan.");
@@ -254,11 +271,20 @@ export async function createCheckoutInvoice(
  * Buat (atau pakai ulang) transaksi Midtrans untuk tagihan menunggu dengan metode pilihan pengguna.
  * Transaksi lama dimatikan dulu; bila ternyata sudah dibayar, tagihan dilunasi alih-alih ditagih ulang.
  */
-export async function payInvoice(
+export function payInvoice(
   invoiceId: string,
   method: string,
   opts: { actorId: string; origin: string },
   now = new Date()
+): Promise<InvoiceResult> {
+  return withKeys([invoiceKey(invoiceId)], () => payUnlocked(invoiceId, method, opts, now));
+}
+
+async function payUnlocked(
+  invoiceId: string,
+  method: string,
+  opts: { actorId: string; origin: string },
+  now: Date
 ): Promise<InvoiceResult> {
   const cfg = await getRawIntegrations();
   if (!cfg.midtransSchema) return failure(503, MIDTRANS_NOT_INSTALLED);
@@ -412,7 +438,11 @@ async function applyMidtrans(inv: InvoiceDTO, tx: MidtransTransaction, actorId: 
  * Cocokkan tagihan dengan status terbaru di Midtrans (polling UI, tombol "Cek status", scheduler).
  * Aman dipanggil berulang.
  */
-export async function syncInvoice(invoiceId: string, actorId: string): Promise<InvoiceResult> {
+export function syncInvoice(invoiceId: string, actorId: string): Promise<InvoiceResult> {
+  return withKeys([invoiceKey(invoiceId)], () => syncUnlocked(invoiceId, actorId));
+}
+
+async function syncUnlocked(invoiceId: string, actorId: string): Promise<InvoiceResult> {
   const inv = await getInvoice(invoiceId);
   if (!inv) return failure(404, "Tagihan tidak ditemukan.");
   if (inv.provider !== "MIDTRANS" || !inv.externalId || inv.status === "PAID" || inv.status === "CANCELLED") {
@@ -430,7 +460,11 @@ export async function syncInvoice(invoiceId: string, actorId: string): Promise<I
 }
 
 /** Batalkan tagihan yang belum lunas; transaksi di Midtrans ikut dimatikan supaya kode bayarnya mati. */
-export async function cancelInvoice(invoiceId: string, actorId: string, notes: string): Promise<InvoiceResult> {
+export function cancelInvoice(invoiceId: string, actorId: string, notes: string): Promise<InvoiceResult> {
+  return withKeys([invoiceKey(invoiceId)], () => cancelUnlocked(invoiceId, actorId, notes));
+}
+
+async function cancelUnlocked(invoiceId: string, actorId: string, notes: string): Promise<InvoiceResult> {
   const inv = await getInvoice(invoiceId);
   if (!inv) return failure(404, "Tagihan tidak ditemukan.");
   if (inv.status === "PAID") return failure(409, "Tagihan yang sudah lunas tidak bisa dibatalkan.");
@@ -467,7 +501,10 @@ export async function handleMidtransNotification(body: unknown): Promise<{ statu
   const invoiceId = ORDER_RE.exec(orderId)?.[1];
   // Transaksi lain di akun Midtrans yang sama (atau uji coba dari dashboard): akui supaya tidak dikirim ulang.
   if (!invoiceId) return { status: 200, message: "Diabaikan." };
+  return withKeys([invoiceKey(invoiceId)], () => notifyUnlocked(cfg, invoiceId, orderId));
+}
 
+async function notifyUnlocked(cfg: StoredIntegrations, invoiceId: string, orderId: string): Promise<{ status: number; message: string }> {
   const inv = await getInvoice(invoiceId);
   if (!inv) return { status: 200, message: "Tagihan tidak dikenal." };
   if (inv.status === "PAID") return { status: 200, message: "Sudah lunas." };

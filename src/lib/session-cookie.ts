@@ -19,12 +19,14 @@ export async function setSessionCookie(res: NextResponse, req: NextRequest, user
   });
 }
 
-/** IP klien untuk pembatas laju endpoint publik. */
-export function clientIp(req: NextRequest): string {
-  return (
-    req.headers.get("cf-connecting-ip") ||
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip") ||
-    "unknown"
-  );
+/**
+ * IP klien untuk pembatas laju endpoint publik. Hanya header yang ditulis proxy kita sendiri yang
+ * dipercaya: Caddy menimpa X-Forwarded-For dari klien dengan alamat aslinya, sedangkan
+ * `cf-connecting-ip` dan `x-real-ip` diteruskan apa adanya sehingga bisa dipalsukan untuk lolos dari
+ * kunci per IP. `cf-connecting-ip` baru dipakai bila situs memang di belakang Cloudflare
+ * (`TRUST_CLOUDFLARE_IP=true`).
+ */
+export function clientIp(req: { headers: Headers }): string {
+  const cf = process.env.TRUST_CLOUDFLARE_IP === "true" ? req.headers.get("cf-connecting-ip")?.trim() : "";
+  return cf || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 }

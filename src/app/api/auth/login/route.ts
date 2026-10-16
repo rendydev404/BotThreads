@@ -10,6 +10,7 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { clearFailures, lockedSeconds, recordFailure } from "@/lib/rate-limit";
 import { findUserByIdentifier, normalizeIdentifier } from "@/lib/users";
 import { isSameOrigin } from "@/lib/same-origin";
+import { clientIp } from "@/lib/session-cookie";
 import { platformCtx } from "@/lib/platform";
 
 const MAX_PER_IP = 5;
@@ -19,15 +20,6 @@ const MAX_PER_IDENTIFIER = 10;
 // supaya waktu respons tidak membocorkan keberadaan akun.
 let dummyHash: Promise<string> | null = null;
 const getDummyHash = () => (dummyHash ??= hashPassword("dummy-password"));
-
-function clientIp(req: NextRequest): string {
-  return (
-    req.headers.get("cf-connecting-ip") ||
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
 
 function json(body: object, status: number, headers?: Record<string, string>) {
   return NextResponse.json(body, {
@@ -76,6 +68,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Catat percobaan SEBELUM verifikasi (sinkron, tanpa await di antaranya). Kalau dicatat sesudah
+  // verifikasi yang lambat, ratusan percobaan serentak lolos pemeriksaan kunci bersamaan.
+  recordFailure(ipKey, MAX_PER_IP);
+  recordFailure(idKey, MAX_PER_IDENTIFIER);
+
   let user;
   try {
     user = await findUserByIdentifier(identifier);
@@ -102,8 +99,6 @@ export async function POST(req: NextRequest) {
   }
 
   if (!user || !user.isActive || !passwordOk) {
-    recordFailure(ipKey, MAX_PER_IP);
-    recordFailure(idKey, MAX_PER_IDENTIFIER);
     return json({ error: "Email/username atau password salah." }, 401);
   }
 

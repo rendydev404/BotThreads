@@ -16,6 +16,7 @@ import { randomUUID } from "node:crypto";
 import { accountScope, rpc, utc, utcOrNull } from "@/lib/supabase";
 import { currentScope } from "@/lib/tenant-scope";
 import { isExcludedUsername } from "./account-visibility";
+import { withKeys } from "./keyed-lock";
 import { autopilotPostIds } from "./autopilot-store";
 import {
   DASHBOARD_SOURCE,
@@ -420,16 +421,34 @@ async function doCreate(input: CreateInput, now: Date): Promise<CreateResult> {
     unique.push(p);
   }
   prepared = unique;
+  if (prepared.length === 0) return { ok: true, posts: [], replayed: false, skipped };
 
-  if (prepared.length) {
-    const violations = await checkRules(prepared, now, input.autoReschedule === true);
-    if (violations.size && !partial) {
-      const [first, message] = [...violations][0];
-      return failure(409, `${who(first.account)}: ${message}`);
-    }
-    for (const [p, error] of violations) skipped.push({ threadsAccountId: p.account.id, error });
-    prepared = prepared.filter((p) => !violations.has(p));
+  // Aturan (kuota harian, jarak minimal, teks kembar) diperiksa lalu ditulis sebagai satu langkah per
+  // akun: tanpa kunci, dua permintaan serentak ke akun yang sama (mis. tick autopilot + posting manual)
+  // sama-sama lolos pemeriksaan lalu melampaui kuota.
+  return withKeys(
+    prepared.map((p) => accountKey(p.account.id)),
+    () => commitPrepared(input, prepared, skipped, partial, now)
+  );
+}
+
+/** Kunci bersama untuk semua penulisan jadwal satu akun Threads (buat, ubah). */
+const accountKey = (accountId: string) => `post-account:${accountId}`;
+
+async function commitPrepared(
+  input: CreateInput,
+  prepared: Prepared[],
+  skipped: SkippedPostDTO[],
+  partial: boolean,
+  now: Date
+): Promise<CreateResult> {
+  const violations = await checkRules(prepared, now, input.autoReschedule === true);
+  if (violations.size && !partial) {
+    const [first, message] = [...violations][0];
+    return failure(409, `${who(first.account)}: ${message}`);
   }
+  for (const [p, error] of violations) skipped.push({ threadsAccountId: p.account.id, error });
+  prepared = prepared.filter((p) => !violations.has(p));
   if (prepared.length === 0) return { ok: true, posts: [], replayed: false, skipped };
 
   const batchId = randomUUID();
@@ -635,6 +654,18 @@ export async function editPost(
   }
 
   const accountId = post.dispatch.threadsAccountId;
+  return withKeys(accountId ? [accountKey(accountId)] : [], () =>
+    commitEdit(input, post, { newAt, newCaption, check, accountId }, now)
+  );
+}
+
+async function commitEdit(
+  input: EditInput,
+  post: PostRecord,
+  next: { newAt: Date; newCaption: string; check: { text: string; topicTag: string | null }; accountId: string | null },
+  now: Date
+): Promise<{ ok: true; post: PostItemDTO | null } | Failure> {
+  const { newAt, newCaption, check, accountId } = next;
   const timeChanged = newAt.getTime() !== post.tayangPada.getTime();
   const textChanged = normalizeForCompare(newCaption) !== normalizeForCompare(post.caption);
   if (accountId && (timeChanged || textChanged)) {

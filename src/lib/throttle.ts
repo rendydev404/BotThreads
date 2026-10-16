@@ -7,7 +7,7 @@ interface Bucket {
 }
 
 const buckets = new Map<string, Bucket>();
-const MAX_KEYS = 2000;
+const MAX_KEYS = 20_000;
 
 export interface ThrottleResult {
   ok: boolean;
@@ -18,7 +18,9 @@ export interface ThrottleResult {
 export function throttle(key: string, limit: number, windowMs: number, now = Date.now()): ThrottleResult {
   let b = buckets.get(key);
   if (!b) {
-    if (buckets.size >= MAX_KEYS) buckets.clear();
+    // Penuh: buang kunci tertua saja. Mengosongkan semuanya sekaligus akan mereset batas laju semua
+    // pengguna, dan penyerang cukup membanjiri kunci baru untuk memicunya.
+    if (buckets.size >= MAX_KEYS) buckets.delete(buckets.keys().next().value as string);
     b = { hits: [] };
     buckets.set(key, b);
   }
