@@ -396,13 +396,26 @@ export function PaymentPanel({ invoice, testMode, methods, busy, onCheck, onChan
 function PaymentCode({ invoice }: { invoice: InvoiceDTO }) {
   const p = invoice.payment!;
   if (p.kind === "va" && p.vaNumber) {
+    const vaGroups = p.vaNumber.match(/\d{1,4}/g) ?? [p.vaNumber];
     return (
-      <div className="rounded-xl border border-line p-4 space-y-1.5">
-        <p className="text-xs text-muted">Nomor Virtual Account</p>
+      <div className="rounded-xl border border-line p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xl sm:text-2xl font-extrabold font-mono text-fg tracking-wide break-all">{groupDigits(p.vaNumber)}</p>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-muted">Nomor Virtual Account</p>
+            <p className="mt-0.5 text-[11px] text-muted">Salin nomor ini untuk menyelesaikan transfer.</p>
+          </div>
           <CopyButton value={p.vaNumber} />
         </div>
+        <p
+          aria-label={`Nomor Virtual Account ${groupDigits(p.vaNumber)}`}
+          className="flex flex-wrap justify-center gap-x-2 gap-y-1 rounded-lg bg-subtle px-3 py-3 text-lg font-extrabold font-mono tabular-nums tracking-wide text-fg sm:text-xl"
+        >
+          {vaGroups.map((group, index) => (
+            <span className="whitespace-nowrap" key={`${index}-${group}`}>
+              {group}
+            </span>
+          ))}
+        </p>
       </div>
     );
   }
