@@ -51,6 +51,7 @@ import {
 import { SLOT_STATUS_LABEL, type SlotStatus } from "@/lib/autopilot-types";
 import { ContentApiError } from "@/lib/content-client";
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
+import { AccountAvatar } from "@/components/content/post-status-chip";
 import { ConfirmModal } from "./confirm-modal";
 import { Banner, Checkbox, HandleText, ListSkeleton, accountHandle, timeOf } from "./shared";
 
@@ -486,14 +487,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "su
 }
 
 function Avatar({ a }: { a: AffiliateAccountDTO }) {
-  return a.avatarUrl ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={a.avatarUrl} alt="" width={36} height={36} loading="lazy" className="w-9 h-9 rounded-full object-cover shrink-0 bg-subtle" />
-  ) : (
-    <div className="w-9 h-9 rounded-full bg-accent-soft text-accent text-sm font-bold flex items-center justify-center shrink-0">
-      {(a.username ?? a.displayName).slice(0, 1).toUpperCase()}
-    </div>
-  );
+  return <AccountAvatar name={a.username ?? a.displayName} src={a.avatarUrl} size="w-9 h-9" className="text-xs" />;
 }
 
 const dateTimeOf = (iso: string): string =>

@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Globe, Search, Users, X } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
+import { AccountAvatar } from "@/components/content/post-status-chip";
 
 export interface AccountItem {
   id: string;
@@ -28,21 +29,7 @@ const isMobile = () =>
   typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
 
 function Avatar({ acc, size = "w-9 h-9" }: { acc: AccountItem; size?: string }) {
-  return (
-    <div
-      className={cn(
-        "rounded-full overflow-hidden bg-subtle shrink-0 flex items-center justify-center text-xs font-semibold text-muted",
-        size
-      )}
-    >
-      {acc.avatarUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={acc.avatarUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
-      ) : (
-        acc.displayName.slice(0, 2).toUpperCase()
-      )}
-    </div>
-  );
+  return <AccountAvatar name={acc.displayName} src={acc.avatarUrl} size={size} className="text-xs" />;
 }
 
 export function AccountFilterSelect({

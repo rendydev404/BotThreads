@@ -5,6 +5,10 @@ import { AlertCircle, CalendarClock, CheckCircle2, Clock, Loader2 } from "lucide
 import { cn } from "@/lib/utils";
 import { STATUS_LABEL, type PostStatusKey } from "@/lib/content-types";
 
+/**
+ * Foto profil akun; inisial bila tidak ada foto atau gambarnya gagal dimuat (URL CDN Meta bisa
+ * kedaluwarsa sebelum disegarkan server, jangan sampai tampil ikon gambar rusak).
+ */
 export function AccountAvatar({
   name,
   src,
@@ -16,6 +20,8 @@ export function AccountAvatar({
   size?: string;
   className?: string;
 }) {
+  const [failedSrc, setFailedSrc] = React.useState<string | null>(null);
+  const show = src && src !== failedSrc;
   return (
     <span
       className={cn(
@@ -24,11 +30,18 @@ export function AccountAvatar({
         className
       )}
     >
-      {src ? (
+      {show ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setFailedSrc(src)}
+          className="w-full h-full object-cover"
+        />
       ) : (
-        name.slice(0, 2).toUpperCase()
+        name.replace(/^@/, "").slice(0, 2).toUpperCase()
       )}
     </span>
   );

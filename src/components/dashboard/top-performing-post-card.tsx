@@ -2,6 +2,7 @@
 
 import React from "react";
 import { formatNumber } from "@/lib/utils";
+import { AccountAvatar } from "@/components/content/post-status-chip";
 import {
   Eye,
   Heart,
@@ -79,19 +80,12 @@ export function TopPerformingPostCard({
         ) : (
           <>
             <div className="mt-4 flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-subtle overflow-hidden flex items-center justify-center text-xs font-semibold text-muted shrink-0">
-                {topPost.threadsAccount?.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={topPost.threadsAccount.avatarUrl}
-                    alt=""
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  "@"
-                )}
-              </div>
+              <AccountAvatar
+                name={topPost.threadsAccount?.username || "@"}
+                src={topPost.threadsAccount?.avatarUrl}
+                size="w-7 h-7"
+                className="text-xs"
+              />
               <span className="text-sm font-medium text-fg truncate">
                 @{topPost.threadsAccount?.username || "akun"}
               </span>

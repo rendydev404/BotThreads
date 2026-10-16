@@ -59,6 +59,7 @@ import { listPublishAccounts, reasonText, type PublishAccount } from "./publish-
 import { ideaCandidates, loadRadarState, type IdeaCandidate } from "./radar-store";
 import { startOfWibDay, wibDayKey } from "./scheduling";
 import { listBrands, type WorkspaceBrand } from "./team-store";
+import { refreshAvatars } from "./threads-avatars";
 import { fetchSchedule } from "./threads-publish";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -428,6 +429,14 @@ export async function runTick(opts: { now?: Date; budgetMs?: number } = {}): Pro
     await syncPendingInvoices(20, now)
       .then((r) => r.paid > 0 && bump(counts, "tagihanLunas", r.paid))
       .catch((err) => console.error("[autopilot] cek tagihan:", err instanceof Error ? err.message : err));
+
+    // URL foto profil CDN Meta kedaluwarsa ~4 hari; segarkan sebelum pecah (paling sering tiap 30 menit).
+    await refreshAvatars(now)
+      .then((r) => {
+        if (r.refreshed) bump(counts, "avatarDisegarkan", r.refreshed);
+        if (r.failed) bump(counts, "avatarGagal", r.failed);
+      })
+      .catch((err) => console.error("[autopilot] segarkan avatar:", err instanceof Error ? err.message : err));
 
     if (!stopped) bump(counts, "direncanakan", await planMissingSlots(state, accounts, now));
 

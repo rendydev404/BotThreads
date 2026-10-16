@@ -5,6 +5,7 @@ import { formatNumber } from "@/lib/utils";
 import { Search, Check, RotateCcw } from "lucide-react";
 import type { Delta } from "@/lib/report";
 import { DeltaBadge } from "@/components/ui/delta-badge";
+import { AccountAvatar } from "@/components/content/post-status-chip";
 
 export interface LeaderboardAccount {
   id: string;
@@ -142,19 +143,7 @@ export function FleetLeaderboardTable({
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-subtle overflow-hidden flex items-center justify-center text-xs font-semibold text-muted shrink-0">
-                          {acc.avatarUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={acc.avatarUrl}
-                              alt=""
-                              loading="lazy"
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            acc.displayName.slice(0, 2).toUpperCase()
-                          )}
-                        </div>
+                        <AccountAvatar name={acc.displayName} src={acc.avatarUrl} className="text-xs" />
                         <div className="min-w-0">
                           <p className="font-medium text-fg truncate max-w-[200px]">
                             {acc.displayName}
