@@ -8,6 +8,7 @@
  * 2. terlarang - topik sensitif bawaan dan daftar kata terlarang workspace.
  * 3. kembar    - tidak mirip draf akun lain pada hari yang sama (jaringan satu brand rawan terlihat spam).
  * 4. bentuk    - panjang dan placeholder diperiksa ulang (draf bisa saja diedit sebelum disetujui).
+ * 5. affiliate  - (slot affiliate saja) tanpa link, tanpa ajakan jualan keras, dan produknya disebut.
  */
 import type { GateCheckDTO } from "./autopilot-types";
 import { DRAFT_MAX_CHARS, PLACEHOLDER, THREADS_MAX_TEXT, charLength, jaccard } from "./threads-text";
@@ -98,6 +99,33 @@ export function bannedHits(text: string, terms: string[]): string[] {
   return hits;
 }
 
+/** Link di teks: postingan utama affiliate tidak boleh memuatnya (link dikirim di balasan pertama). */
+const URL_LIKE = /https?:\/\/|www\.|(?<![\p{L}\p{N}@])[\p{L}\p{N}-]+\.(?:com|co\.id|id|ee|net|shop|link|ly)(?![\p{L}\p{N}])/iu;
+
+/** Ajakan jualan keras yang membuat postingan terasa seperti iklan. */
+const HARD_SELL = [
+  "beli sekarang", "buruan", "checkout", "check out", "co sekarang", "klik link", "klik tautan", "link di bio",
+  "cek bio", "keranjang kuning", "keranjang oren", "order sekarang", "pesan sekarang", "jangan sampai kehabisan",
+  "stok terbatas", "harga termurah", "dijamin", "wajib punya", "wajib beli",
+];
+
+/** Kata bermakna dari nama produk (>= 4 huruf); nama pendek dipakai utuh. */
+function productWords(nama: string): string[] {
+  const words = nama.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4);
+  return words.length ? words : [nama.toLowerCase().trim()].filter(Boolean);
+}
+
+/** Masalah postingan utama affiliate; daftar kosong bila aman. */
+export function affiliateProblems(text: string, nama: string): string[] {
+  const out: string[] = [];
+  if (URL_LIKE.test(text)) out.push("memuat link (link dikirim di balasan, bukan di postingan)");
+  const sell = bannedHits(text, HARD_SELL);
+  if (sell.length) out.push(`ajakan jualan keras: ${sell.join(", ")}`);
+  const lower = text.toLowerCase();
+  if (!productWords(nama).some((w) => lower.includes(w))) out.push(`produk "${nama}" tidak disebut`);
+  return out;
+}
+
 export interface GateInput {
   text: string;
   /** Kalimat fakta akun + knowledge base: satu-satunya sumber harga dan promo yang sah. */
@@ -106,6 +134,8 @@ export interface GateInput {
   peers: string[];
   /** Kata terlarang tambahan milik workspace. */
   bannedTerms?: string[];
+  /** Slot affiliate: nama produk yang harus disebut. */
+  affiliate?: { nama: string };
 }
 
 export interface GateResult {
@@ -160,6 +190,16 @@ export function runGate(input: GateInput): GateResult {
       ? { detail: `Kemiripan ${Math.round(closest * 100)}% dengan draf akun lain.` }
       : {}),
   });
+
+  if (input.affiliate) {
+    const problems = affiliateProblems(text, input.affiliate.nama);
+    checks.push({
+      key: "affiliate",
+      label: "Affiliate terasa natural",
+      ok: problems.length === 0,
+      ...(problems.length ? { detail: `Postingan affiliate ${problems.join("; ")}.` } : {}),
+    });
+  }
 
   const failed = checks.filter((c) => !c.ok);
   return {

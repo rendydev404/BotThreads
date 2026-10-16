@@ -8,18 +8,20 @@ import { setAutopilotActive } from "@/lib/autopilot-client";
 import type { AutopilotOverviewResponse, SlotStatus } from "@/lib/autopilot-types";
 import { ContentApiError } from "@/lib/content-client";
 import { AccountsTab } from "@/components/autopilot/accounts-tab";
+import { AffiliateTab } from "@/components/autopilot/affiliate-tab";
 import { ConfirmModal } from "@/components/autopilot/confirm-modal";
 import { HistoryTab } from "@/components/autopilot/history-tab";
 import { ReviewTab } from "@/components/autopilot/review-tab";
 import { Banner, durationText, timeOf } from "@/components/autopilot/shared";
 import { useAutopilotOverview } from "@/components/autopilot/use-autopilot-overview";
 
-type TabKey = "akun" | "tinjau" | "riwayat";
+type TabKey = "akun" | "tinjau" | "riwayat" | "affiliate";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "akun", label: "Akun" },
   { key: "tinjau", label: "Tinjau" },
   { key: "riwayat", label: "Riwayat" },
+  { key: "affiliate", label: "Affiliate" },
 ];
 
 function PageHeader({ children }: { children?: React.ReactNode }) {
@@ -87,7 +89,7 @@ function AutopilotInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const rawTab = searchParams.get("tab");
-  const tab: TabKey = rawTab === "tinjau" || rawTab === "riwayat" ? rawTab : "akun";
+  const tab: TabKey = rawTab === "tinjau" || rawTab === "riwayat" || rawTab === "affiliate" ? rawTab : "akun";
 
   const [pauseOpen, setPauseOpen] = useState(false);
   const [pauseBusy, setPauseBusy] = useState(false);
@@ -320,6 +322,11 @@ function AutopilotInner() {
         <Activity mode={tab === "riwayat" ? "visible" : "hidden"}>
           <div role="tabpanel" id="autopilot-panel-riwayat" aria-labelledby="autopilot-tab-riwayat">
             <HistoryTab accounts={data.accounts} />
+          </div>
+        </Activity>
+        <Activity mode={tab === "affiliate" ? "visible" : "hidden"}>
+          <div role="tabpanel" id="autopilot-panel-affiliate" aria-labelledby="autopilot-tab-affiliate">
+            <AffiliateTab active={tab === "affiliate"} />
           </div>
         </Activity>
       </div>

@@ -149,6 +149,8 @@ export interface SlotDraftDTO {
   promo?: boolean;
   /** Pilar konten slot ini. */
   pillar?: string;
+  /** Slot affiliate: produk katalog dan balasan pertama berisi link (dikirim worker setelah terbit). */
+  affiliate?: { productId: string; nama: string; link: string; replyText: string };
 }
 
 export interface AutopilotSlotDetailDTO extends AutopilotSlotDTO {

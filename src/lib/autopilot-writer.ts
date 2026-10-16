@@ -8,6 +8,8 @@
  * validasi teks Threads, kuota harian, teks duplikat 7 hari, dan idempotensi. Kunci idempotensi
  * `autopilot:<slotId>` membuat satu slot tidak mungkin menghasilkan dua posting.
  */
+import { pickAffiliate, rememberAffiliate, type AffPick } from "./affiliate-pick";
+import { saveAffiliateUse, type AffiliateState } from "./affiliate-store";
 import { MAX_WRITE_ATTEMPTS, SLOT_LEASE_MS, SLOT_WRITE_TIMEOUT_MS } from "./autopilot-config";
 import { CRITIC_UNAVAILABLE, criticize } from "./autopilot-critic";
 import { runGate } from "./autopilot-gate";
@@ -61,6 +63,8 @@ export interface WriteContext {
   critic: boolean;
   /** Pola yang terbukti berhasil per akun (dari hasil posting sebelumnya), untuk prompt. */
   proven: Map<string, string[]>;
+  /** Pengaturan, katalog, dan pemakaian Shopee Affiliate (diubah di tempat saat slot memakai produk). */
+  affiliate?: AffiliateState;
   /** epoch ms: batas anggaran tick. */
   deadline: number;
   /** Benih sudut kreatif tick ini dan urutan akun, supaya akun bersebelahan mendapat sudut berbeda. */
@@ -103,10 +107,17 @@ interface SlotBrief {
   idea: IdeaCandidate | null;
   promo: boolean;
   pillar: string | null;
+  /** Slot affiliate: produk dan balasan berisi link. */
+  affiliate?: AffPick | null;
 }
 
-/** Tentukan isi slot: promo (bila gilirannya), ide dari bank ide, atau bebas dari gaya akun. */
-export function planSlotBrief(slot: ClaimedSlot, config: ConfigRow, kb: AccountKnowledge, ctx: Pick<WriteContext, "ideas" | "topicsToday">): SlotBrief {
+/** Tentukan isi slot: promo (bila gilirannya), affiliate (bila gilirannya), ide dari bank ide, atau bebas dari gaya akun. */
+export function planSlotBrief(
+  slot: ClaimedSlot,
+  config: ConfigRow,
+  kb: AccountKnowledge,
+  ctx: Pick<WriteContext, "ideas" | "topicsToday" | "affiliate">
+): SlotBrief {
   const pillar = pickPillar(config.pillars, slot.id);
   const promo = pickPromo(config.promoRatio, kb.promos, slot.id);
   if (promo) {
@@ -115,6 +126,16 @@ export function planSlotBrief(slot: ClaimedSlot, config: ConfigRow, kb: AccountK
       idea: null,
       promo: true,
       pillar,
+    };
+  }
+  const affiliate = ctx.affiliate ? pickAffiliate(slot, config.postsPerDay, ctx.affiliate) : null;
+  if (affiliate) {
+    return {
+      brief: `Tulis postingan sesuai niche dan gaya akun ini. Selipkan produk "${affiliate.product.nama}" secara natural sebagai pengalaman, temuan, atau rekomendasi di tengah cerita, bukan iklan.`,
+      idea: null,
+      promo: false,
+      pillar,
+      affiliate,
     };
   }
   // Percobaan ulang memakai ide berikutnya, supaya ide yang sulit ditulis tidak mengunci slot.
@@ -127,7 +148,7 @@ export function planSlotBrief(slot: ClaimedSlot, config: ConfigRow, kb: AccountK
 export function promptBlocks(
   config: Pick<ConfigRow, "brief" | "voiceStyle">,
   slot: Pick<ClaimedSlot, "slotAt">,
-  plan: Pick<SlotBrief, "idea" | "pillar">,
+  plan: Pick<SlotBrief, "idea" | "pillar" | "affiliate">,
   kb: AccountKnowledge,
   note: string | null,
   proven: string[] = []
@@ -153,6 +174,19 @@ export function promptBlocks(
     });
   }
   if (plan.pillar) blocks.push({ title: "PILAR KONTEN SLOT INI", lines: [plan.pillar] });
+  if (plan.affiliate) {
+    const p = plan.affiliate.product;
+    blocks.push({
+      title: "PRODUK AFFILIATE SLOT INI (wajib disebut, harus terasa natural)",
+      lines: [
+        `Produk: ${p.nama}`,
+        `Fakta produk (satu-satunya sumber detail; jangan menambah klaim, harga, atau diskon di luar ini): ${p.catatan || "-"}`,
+        "Topik tetap mengikuti niche dan gaya akun. Produk muncul sebagai bagian cerita atau rekomendasi, bukan iklan.",
+        'Jangan menulis link atau URL, "beli sekarang", "checkout", "link di bio", "keranjang kuning", atau ajakan jualan keras lain.',
+        "Link dikirim terpisah di balasan pertama. Boleh menutup dengan ajakan ringan bahwa link-nya ada di komen atau balasan, sesuai gaya sapaan akun.",
+      ],
+    });
+  }
   if (kb.sources.length) {
     blocks.push({
       title: "FAKTA BRAND (boleh dikutip apa adanya; jangan menambah detail di luar ini)",
@@ -220,9 +254,14 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
   const kb = ctx.knowledge.get(account.id) ?? EMPTY_KNOWLEDGE;
   const peers = ctx.peers.get(slot.workspaceId) ?? [];
   const others = peers.filter((p) => p.aid !== slot.accountId).map((p) => p.text);
-  const sources = [...(ctx.shared.facts.get(account.id) ?? []), ...kb.sources];
   const bannedTerms = [...ctx.bannedTerms, ...(ctx.workspaceBanned.get(slot.workspaceId) ?? []), ...kb.banned];
   const plan = planSlotBrief(slot, config, kb, ctx);
+  const aff = plan.affiliate ?? null;
+  // Fakta produk affiliate ikut menjadi sumber klaim yang sah.
+  const sources = [...(ctx.shared.facts.get(account.id) ?? []), ...kb.sources, ...(aff?.product.catatan ? [`${aff.product.nama}: ${aff.product.catatan}`] : [])];
+  const affWorkspace = ctx.affiliate?.configs.get(slot.accountId)?.workspaceId ?? slot.workspaceId;
+  // Pesan produk untuk slot ini supaya slot lain dalam tick yang sama tidak memakai produk/jatah yang sama.
+  if (aff && ctx.affiliate) rememberAffiliate(ctx.affiliate, slot, affWorkspace, aff.product.id);
   const p = wibParts(slot.slotAt);
   const signal = AbortSignal.timeout(Math.max(5_000, Math.min(SLOT_WRITE_TIMEOUT_MS, ctx.deadline - Date.now())));
 
@@ -254,7 +293,13 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
         lastError = out.error;
         continue;
       }
-      const gate = runGate({ text: out.draft.text, sources, peers: others, bannedTerms });
+      const gate = runGate({
+        text: out.draft.text,
+        sources,
+        peers: others,
+        bannedTerms,
+        ...(aff ? { affiliate: { nama: aff.product.nama } } : {}),
+      });
       if (!gate.ok) {
         rejected = true;
         note = gate.reason;
@@ -291,8 +336,27 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
         ...(plan.idea ? { idea: { id: plan.idea.id, topik: plan.idea.topik }, topicKey: plan.idea.topicKey } : {}),
         ...(plan.promo ? { promo: true } : {}),
         ...(plan.pillar ? { pillar: plan.pillar } : {}),
+        ...(aff ? { affiliate: { productId: aff.product.id, nama: aff.product.nama, link: aff.product.link, replyText: aff.replyText } } : {}),
       };
       break;
+    }
+
+    if (draft && aff) {
+      // Antrean balasan pertama berisi link. Gagal mencatat tidak menggagalkan slot: postingan tetap
+      // terbit tanpa balasan link (tidak merugikan), dan kesalahannya tercatat di log.
+      await saveAffiliateUse(
+        {
+          slotId: slot.id,
+          workspaceId: affWorkspace,
+          accountId: slot.accountId,
+          productId: aff.product.id,
+          dayKey: slot.dayKey,
+          slotAt: slot.slotAt.toISOString(),
+          replyText: aff.replyText,
+          delayDetik: aff.delayDetik,
+        },
+        new Date()
+      ).catch((err) => console.error(`[autopilot] affiliate slot ${slot.id}:`, err instanceof Error ? err.message : err));
     }
 
     if (draft) {

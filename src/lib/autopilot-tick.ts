@@ -24,6 +24,7 @@ import {
   maxSlotsPerTick,
   writeConcurrency,
 } from "./autopilot-config";
+import { emptyAffiliateState, loadAffiliateState, type AffiliateState } from "./affiliate-store";
 import { criticEnabled } from "./autopilot-critic";
 import { buildStats, loadLearnStats, notify, provenPatterns, runLearning, type NotificationWrite, type StatRow } from "./autopilot-learning";
 import type { TopicUse } from "./autopilot-ideas";
@@ -275,7 +276,8 @@ async function writeDueSlots(
   let ctx: WriteContext;
   try {
     const configs = ids.map((id) => state.configs.get(id)).filter((c): c is ConfigRow => !!c);
-    const [shared, peerRows, knowledge, ideas, statRows, brands] = await Promise.all([
+    const firstDay = claimed.reduce((min, s) => (s.dayKey < min ? s.dayKey : min), today);
+    const [shared, peerRows, knowledge, ideas, statRows, brands, affiliate] = await Promise.all([
       loadSharedContext(ids, now),
       peerTexts(null, today, today),
       // Radar belum dipasang atau sedang bermasalah: tulis tanpa ide dan tanpa knowledge base.
@@ -283,6 +285,15 @@ async function writeDueSlots(
       ideaCandidates(ids, now, IDEA_CANDIDATES_PER_ACCOUNT).catch(radarFallback(counts, new Map<string, IdeaCandidate[]>())),
       loadLearnStats(ids, now).catch(radarFallback(counts, [] as StatRow[])),
       listBrands().catch(radarFallback(counts, new Map<string, WorkspaceBrand>())),
+      // Affiliate belum dipasang (sql/019) atau bermasalah: semua slot ditulis sebagai postingan biasa.
+      loadAffiliateState(ids, firstDay).catch((err): AffiliateState => {
+        if (isMissingAutopilotSchema(err)) counts.affiliateBelumDipasang = 1;
+        else {
+          counts.affiliateGagal = 1;
+          console.error("[autopilot] affiliate:", err instanceof Error ? err.message : err);
+        }
+        return emptyAffiliateState();
+      }),
     ]);
     const stats = buildStats(statRows);
     const workspaceOf = (aid: string) => state.configs.get(aid)?.workspaceId ?? accounts.get(aid)?.tenantId ?? "";
@@ -306,6 +317,7 @@ async function writeDueSlots(
       topicsToday,
       critic: criticEnabled(),
       proven: new Map(ids.map((id) => [id, provenPatterns(statRows, id, stats.get(id))])),
+      affiliate,
       deadline,
       seed: Math.floor(Math.random() * CREATIVE_ANGLES.length),
       order: new Map(ids.map((id, i) => [id, i])),
