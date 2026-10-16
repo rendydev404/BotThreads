@@ -98,6 +98,21 @@ export function RegisterForm({ open }: { open: boolean }) {
           {busy ? <Loader2 className="w-[18px] h-[18px] animate-spin" /> : <Rocket className="w-[18px] h-[18px]" />}
           {busy ? "Membuat akun..." : "Daftar dan mulai"}
         </button>
+        <p className="pt-1 text-center text-[11px] text-faint leading-relaxed">
+          Dengan mendaftar, Anda menyetujui{" "}
+          <Link href="/syarat-ketentuan" className="font-semibold text-muted hover:text-accent underline">
+            Syarat & Ketentuan
+          </Link>
+          ,{" "}
+          <Link href="/kebijakan-privasi" className="font-semibold text-muted hover:text-accent underline">
+            Kebijakan Privasi
+          </Link>
+          , serta{" "}
+          <Link href="/kebijakan-pengembalian" className="font-semibold text-muted hover:text-accent underline">
+            Kebijakan Refund
+          </Link>{" "}
+          kami.
+        </p>
       </form>
       <p className="mt-5 text-center text-sm text-muted">
         Sudah punya akun?{" "}

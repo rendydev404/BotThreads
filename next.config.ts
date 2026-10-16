@@ -1,15 +1,21 @@
+import fs from "node:fs";
 import path from "node:path";
 import type { NextConfig } from "next";
+
+const projectRoot = fs.realpathSync.native(process.cwd());
 
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
+  experimental: {
+    workerThreads: true,
+  },
   // Build mandiri untuk Docker (image kecil). Root dipatok ke folder proyek
   // agar hasil build sama di lokal maupun CI.
   output: "standalone",
-  outputFileTracingRoot: path.resolve(process.cwd()),
+  outputFileTracingRoot: projectRoot,
   async headers() {
     return [
       {
@@ -27,10 +33,17 @@ const nextConfig: NextConfig = {
     ];
   },
   turbopack: {
-    root: path.resolve(process.cwd()),
+    root: projectRoot,
     rules: {
       "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
+        loaders: [
+          {
+            loader: "@tailwindcss/turbopack",
+            options: {
+              base: path.join(projectRoot, "src"),
+            },
+          },
+        ],
         as: "*.css",
       },
     },

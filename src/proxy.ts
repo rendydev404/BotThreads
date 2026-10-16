@@ -24,9 +24,18 @@ const PUBLIC_API = [
 
 // Halaman yang dibuka dari tautan undangan/reset oleh orang yang belum punya sesi.
 const PUBLIC_PAGE_PREFIXES = ["/undangan/", "/reset-password/"];
-// Halaman pemasaran dan pendaftaran: terbuka untuk siapa pun.
+// Halaman pemasaran, pendaftaran, dan dokumen kebijakan legal (wajib publik untuk verifikasi Payment Gateway & OAuth).
 const LANDING_PATH = "/selamat-datang";
-const PUBLIC_PAGES = [LANDING_PATH, "/daftar"];
+const PUBLIC_PAGES = [
+  LANDING_PATH,
+  "/daftar",
+  "/kebijakan-privasi",
+  "/syarat-ketentuan",
+  "/kebijakan-pengembalian",
+  "/pengiriman-layanan",
+  "/penghapusan-data",
+  "/kontak",
+];
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

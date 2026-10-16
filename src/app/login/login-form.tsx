@@ -243,6 +243,20 @@ export function LoginForm({ google = false, signup = false }: { google?: boolean
             "Akses hanya untuk anggota yang terdaftar atau diundang."
           )}
         </p>
+
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-faint">
+          <a href="/kebijakan-privasi" className="hover:text-fg transition-colors">
+            Kebijakan Privasi
+          </a>
+          <span aria-hidden="true">·</span>
+          <a href="/syarat-ketentuan" className="hover:text-fg transition-colors">
+            Syarat & Ketentuan
+          </a>
+          <span aria-hidden="true">·</span>
+          <a href="/kebijakan-pengembalian" className="hover:text-fg transition-colors">
+            Kebijakan Refund
+          </a>
+        </div>
       </div>
     </main>
   );

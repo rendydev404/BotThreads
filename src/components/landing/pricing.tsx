@@ -2,20 +2,53 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { ArrowRight, Check, Sparkles } from "lucide-react";
 import { publicPlans } from "@/lib/plan";
-import { formatRupiah } from "@/lib/plan-types";
+import { formatRupiah, type PublicPlansResponse } from "@/lib/plan-types";
 import { cn } from "@/lib/utils";
+
+const FALLBACK_PLANS: PublicPlansResponse["items"] = [
+  {
+    id: "starter",
+    nama: "Starter",
+    deskripsi: "Untuk pemilik satu brand atau UMKM yang ingin mulai rutin posting setiap hari dengan pengawasan.",
+    hargaBulanan: 99_000,
+    maxAkun: 1,
+    maxPostingPerHari: 3,
+    maxAnggota: 2,
+    modeOtomatis: false,
+  },
+  {
+    id: "pro",
+    nama: "Pro",
+    deskripsi: "Untuk brand berkembang dan tim konten yang membutuhkan autopilot penuh di beberapa akun sekaligus.",
+    hargaBulanan: 249_000,
+    maxAkun: 5,
+    maxPostingPerHari: 6,
+    maxAnggota: 5,
+    modeOtomatis: true,
+  },
+  {
+    id: "agensi",
+    nama: "Agensi",
+    deskripsi: "Untuk agensi kreatif dan jaringan multi-cabang yang mengelola banyak akun Threads dalam satu ruang kerja.",
+    hargaBulanan: 599_000,
+    maxAkun: 15,
+    maxPostingPerHari: 6,
+    maxAnggota: 15,
+    modeOtomatis: true,
+  },
+];
 
 /**
  * Daftar paket di halaman perkenalan. Isinya dari database (paket aktif yang publik, diatur super admin),
- * dibaca saat permintaan datang. Tidak ada paket = bagian ini tidak tampil sama sekali.
+ * dibaca saat permintaan datang.
  */
 export async function Pricing({ wrap }: { wrap: string }) {
   await connection();
-  const items = await publicPlans().then(
+  const dbItems = await publicPlans().then(
     (r) => r.items,
     () => []
   );
-  if (items.length === 0) return null;
+  const items = dbItems.length > 0 ? dbItems : FALLBACK_PLANS;
 
   // Utamakan paket "pro" bila ada, atau paket berbayar tengah sebagai pilihan utama.
   const proPlan = items.find((p) => p.id === "pro");
@@ -76,7 +109,7 @@ export async function Pricing({ wrap }: { wrap: string }) {
                 {p.deskripsi && <p className="mt-2 text-xs text-muted leading-relaxed min-h-[2.25rem]">{p.deskripsi}</p>}
                 <div className="mt-5 pt-5 border-t border-line">
                   <p className="flex items-baseline gap-1.5">
-                    <span className="lp-display text-[1.85rem] leading-none font-extrabold">
+                    <span className="lp-display text-[1.85rem] leading-none font-extrabold tabular-nums">
                       {isFree ? "Gratis" : formatRupiah(p.hargaBulanan)}
                     </span>
                     {!isFree && <span className="text-xs text-muted font-medium">/ bulan</span>}

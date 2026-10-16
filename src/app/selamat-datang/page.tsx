@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
 import { ArrowRight, ArrowUpRight, ChevronDown, Eye, Flame, Repeat2, ShieldAlert, Zap } from "lucide-react";
 import { GateDemo, HeroDemo, HoursPlanner, IdeaSources } from "@/components/landing/demos";
+import { LandingFooter } from "@/components/landing/legal-section";
 import { LandingMotion, Tilt } from "@/components/landing/motion";
 import { Pricing } from "@/components/landing/pricing";
 import { ThreadsMark, ThreadsPost } from "@/components/landing/threads-mark";
@@ -57,6 +58,14 @@ const FAQ = [
   {
     q: "Kalau hasilnya tidak cocok, bagaimana menghentikannya?",
     a: "Satu tombol menjeda semua akun. Tiap posting yang sudah dijadwalkan tetap bisa diubah atau dibatalkan dari halaman Jadwal. Akun yang gagal terbit tiga kali berturut-turut dijeda otomatis.",
+  },
+  {
+    q: "Bagaimana cara pembayaran paket dan kapan layanan saya aktif?",
+    a: "Seluruh pembayaran ditagihkan dalam mata uang Rupiah (IDR) dan diproses secara resmi melalui Midtrans (QRIS, GoPay, ShopeePay, serta Virtual Account BCA, BNI, BRI, Mandiri, Permata, dan CIMB Niaga). Begitu pembayaran berstatus lunas, kuota paket langsung aktif otomatis pada workspace Anda dalam hitungan detik tanpa pengiriman fisik.",
+  },
+  {
+    q: "Apakah ada jaminan pengembalian dana (refund) atau biaya pembatalan?",
+    a: "Tidak ada biaya pembatalan maupun penarikan saldo otomatis (non-auto-debit). Kami juga menyediakan jaminan pengembalian dana (refund) hingga 7 hari kalender untuk pembelian paket awal yang belum terpakai, serta pengembalian 100% apabila terjadi kendala teknis aktivasi atau pembayaran ganda.",
   },
 ];
 
@@ -362,14 +371,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-line">
-        <div className={`${WRAP} py-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-faint`}>
-          <p>BotThreads</p>
-          <p className="text-center sm:text-right">
-            Jam dan contoh di halaman ini adalah ilustrasi. Threads adalah merek dagang Meta; layanan ini tidak berafiliasi dengan Meta.
-          </p>
-        </div>
-      </footer>
+      <LandingFooter wrap={WRAP} />
     </LandingMotion>
   );
 }

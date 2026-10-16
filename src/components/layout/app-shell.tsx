@@ -12,9 +12,19 @@ import { useMe } from "./use-me";
 import { FloatingAiBubble } from "@/components/chat/floating-ai-bubble";
 import { ThreadsConnectButton } from "@/components/settings/threads-connect-button";
 
-/** Halaman tanpa sesi (login, terima undangan, reset password) tampil polos: tanpa sidebar/header/bubble. */
+/** Halaman tanpa sesi (login, terima undangan, reset password, kebijakan legal) tampil polos: tanpa sidebar/header/bubble. */
 const BARE_PREFIXES = ["/undangan/", "/reset-password/"];
-const BARE_PAGES = ["/login", "/daftar", "/selamat-datang"];
+const BARE_PAGES = [
+  "/login",
+  "/daftar",
+  "/selamat-datang",
+  "/kebijakan-privasi",
+  "/syarat-ketentuan",
+  "/kebijakan-pengembalian",
+  "/pengiriman-layanan",
+  "/penghapusan-data",
+  "/kontak",
+];
 const isBare = (pathname: string): boolean => BARE_PAGES.includes(pathname) || BARE_PREFIXES.some((p) => pathname.startsWith(p));
 
 /** Pengguna masuk tetapi belum menjadi anggota workspace mana pun: tidak ada data yang boleh dimuat. */
