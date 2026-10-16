@@ -4,6 +4,7 @@ import Link from "next/link";
 import { PAYMENT_METHODS } from "@/lib/billing-types";
 import { LEGAL_DOC_LIST, MERCHANT_INFO } from "@/lib/legal-content";
 import { PaymentLogo } from "@/components/settings/payment-logos";
+import { CopyrightYear } from "@/components/landing/copyright-year";
 
 /**
  * Footer minimalis bergaya editorial: tanpa kotak berlebih, mengandalkan tipografi yang rapi,
@@ -106,7 +107,7 @@ export function LandingFooter({ wrap }: { wrap: string }) {
         <div className="mt-12 pt-6 border-t border-line flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1 text-xs text-faint">
             <p>
-              © {new Date().getFullYear()} {MERCHANT_INFO.brandName} · {MERCHANT_INFO.legalName}. Transaksi resmi dalam
+              © <CopyrightYear /> {MERCHANT_INFO.brandName} · {MERCHANT_INFO.legalName}. Transaksi resmi dalam
               Rupiah (IDR) melalui Midtrans.
             </p>
             <p>
