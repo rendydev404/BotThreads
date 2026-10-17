@@ -9,7 +9,7 @@ export const SIGNAL_SOURCE_LABEL: Record<SignalSource, string> = {
   THREADS_SEARCH: "Viral di Threads",
   GTRENDS: "Lagi ramai di Indonesia",
   JARINGAN: "Viral di akun Anda",
-  WEB: "Ramai di web",
+  WEB: "Viral di medsos",
   MOMEN: "Momen",
   MANUAL: "Inspirasi saya",
 };
@@ -74,6 +74,10 @@ export interface IdeaScoreDetail {
   kecocokan: number;
   /** Kinerja historis kombinasi sudut/formula/pilar di akun ini (0..1, 0,5 = belum ada data). */
   kinerja: number;
+  /** Peluang ramai di Threads menurut perencana (0..1). Tidak ada pada ide lama. */
+  viral?: number;
+  /** Alasan singkat dari perencana: kenapa bakal ramai dan kenapa cocok untuk akun. */
+  alasan?: string;
 }
 
 export interface IdeaDTO {

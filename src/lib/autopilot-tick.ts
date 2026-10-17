@@ -56,7 +56,7 @@ import { WORKER_LATE_MS, isPublishEnabled } from "./content-config";
 import { expiredTenants } from "./plan";
 import { platformFlags } from "./platform";
 import { listPublishAccounts, reasonText, type PublishAccount } from "./publish-accounts";
-import { ideaCandidates, loadRadarState, type IdeaCandidate } from "./radar-store";
+import { ideaCandidates, loadRadarState, signalBriefs, type IdeaCandidate, type SignalBrief } from "./radar-store";
 import { startOfWibDay, wibDayKey } from "./scheduling";
 import { listBrands, type WorkspaceBrand } from "./team-store";
 import { refreshAvatars } from "./threads-avatars";
@@ -297,6 +297,12 @@ async function writeDueSlots(
       }),
     ]);
     const stats = buildStats(statRows);
+    // Konteks tren untuk ide yang akan ditulis (satu kueri; gagal = tulis tanpa konteks tren).
+    const signals = await signalBriefs([...ideas.values()].flat().flatMap((i) => i.signalIds)).catch((err): Map<string, SignalBrief> => {
+      if (isMissingAutopilotSchema(err)) counts.konteksTrenBelumDipasang = 1;
+      else console.error("[autopilot] konteks tren:", err instanceof Error ? err.message : err);
+      return new Map();
+    });
     const workspaceOf = (aid: string) => state.configs.get(aid)?.workspaceId ?? accounts.get(aid)?.tenantId ?? "";
     const peers = new Map<string, PeerDraft[]>();
     const topicsToday: TopicUse[] = [];
@@ -315,6 +321,7 @@ async function writeDueSlots(
       workspaceBanned: new Map([...brands].map(([id, b]) => [id, b.topikTerlarang])),
       knowledge,
       ideas,
+      signals,
       topicsToday,
       critic: criticEnabled(),
       proven: new Map(ids.map((id) => [id, provenPatterns(statRows, id, stats.get(id))])),

@@ -50,6 +50,8 @@ export interface GeminiResult {
   json?: unknown;
   /** Jumlah percobaan sampai berhasil (untuk log/observabilitas). */
   attempts?: number;
+  /** Mode `googleSearch`: domain sumber yang benar-benar dibuka Google Search (grounding). */
+  groundedDomains?: string[];
 }
 
 /** Subset OpenAPI schema yang dipahami Gemini (tipe HURUF BESAR). */
@@ -79,6 +81,12 @@ export interface GenerateOptions {
   signal?: AbortSignal;
   /** Kirim percobaan sejajar bila belum ada balasan setelah sekian ms (memangkas latensi ekor). */
   hedgeMs?: number;
+  /**
+   * Izinkan model mencari di Google (grounding) untuk fakta terkini. Hanya lewat Gemini langsung (router
+   * Hermes tidak punya alat pencarian). Skema JSON tidak dikirim sebagai `responseSchema` (tidak semua
+   * model menerimanya bersama alat), melainkan sebagai instruksi format lalu di-parse seperti biasa.
+   */
+  googleSearch?: boolean;
 }
 
 const listEnv = (name: string): string[] | null => {
@@ -365,12 +373,15 @@ async function viaGemini(opts: GenerateOptions, startedAt: number): Promise<Gemi
           headers: { "Content-Type": "application/json", "x-goog-api-key": key },
           signal: withTimeout(Math.min(opts.timeoutMs ?? 20_000, remaining), opts.signal),
           body: JSON.stringify({
-            systemInstruction: { parts: [{ text: opts.system }] },
+            systemInstruction: {
+              parts: [{ text: opts.googleSearch && opts.responseSchema ? opts.system + jsonInstruction(opts.responseSchema) : opts.system }],
+            },
             contents: opts.contents,
+            ...(opts.googleSearch ? { tools: [{ google_search: {} }] } : {}),
             generationConfig: {
               temperature: opts.temperature ?? 0.5,
               maxOutputTokens: opts.maxOutputTokens ?? 3000,
-              ...(opts.responseSchema
+              ...(opts.responseSchema && !opts.googleSearch
                 ? { responseMimeType: "application/json", responseSchema: opts.responseSchema }
                 : {}),
             },
@@ -395,6 +406,7 @@ async function viaGemini(opts: GenerateOptions, startedAt: number): Promise<Gemi
         .trim();
 
       const result = accept(text, model, opts, attempts);
+      if (result && opts.googleSearch) result.groundedDomains = groundedDomains(data);
       if (result) return result;
       console.warn(`[llm] gemini ${model} membalas kosong/tidak valid, mencoba model berikutnya`);
     } catch (err) {
@@ -406,8 +418,23 @@ async function viaGemini(opts: GenerateOptions, startedAt: number): Promise<Gemi
   return null;
 }
 
+/** Domain sumber grounding (judul potongan web Gemini berisi nama domain, mis. "detik.com"). */
+export function groundedDomains(data: unknown): string[] {
+  const chunks = (data as { candidates?: { groundingMetadata?: { groundingChunks?: { web?: { title?: unknown } }[] } }[] })
+    ?.candidates?.[0]?.groundingMetadata?.groundingChunks;
+  if (!Array.isArray(chunks)) return [];
+  const out = new Set<string>();
+  for (const c of chunks) {
+    const t = c?.web?.title;
+    if (typeof t === "string" && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(t.trim())) out.add(t.trim().toLowerCase().replace(/^www\./, ""));
+  }
+  return [...out];
+}
+
 /** Hasil pertama yang layak dari Hermes lalu Gemini; null bila semua penyedia gagal. */
 export async function generateWithFailover(opts: GenerateOptions): Promise<GeminiResult | null> {
   const startedAt = Date.now();
+  // Pencarian Google hanya tersedia di Gemini langsung.
+  if (opts.googleSearch) return viaGemini(opts, startedAt);
   return (await viaHermes(opts, startedAt)) ?? (await viaGemini(opts, startedAt));
 }

@@ -13,7 +13,7 @@ import {
   topicSimilarity,
 } from "../autopilot-ideas";
 import { groupKnowledge } from "../autopilot-research";
-import { pickPillar, pickPromo, planSlotBrief, promptBlocks } from "../autopilot-writer";
+import { pickPillar, pickPromo, planSlotBrief, promptBlocks, trendLines } from "../autopilot-writer";
 import type { ClaimedSlot, ConfigRow } from "../autopilot-store";
 import { DEFAULT_SETTINGS } from "../autopilot-types";
 import {
@@ -106,7 +106,12 @@ describe("topik dan anti-ulang", () => {
   it("scoreIdea berbobot dan dibatasi 0..1", () => {
     expect(scoreIdea({ sinyal: 1, kebaruan: 1, kecocokan: 1, kinerja: 1 })).toBe(1);
     expect(scoreIdea({ sinyal: 0, kebaruan: 0, kecocokan: 0, kinerja: 0 })).toBe(0);
-    expect(scoreIdea({ sinyal: 2, kebaruan: 1, kecocokan: 0.5, kinerja: 0.5 })).toBe(0.8);
+    // Ide lama tanpa komponen viral: empat bobot dinormalkan ulang.
+    expect(scoreIdea({ sinyal: 2, kebaruan: 1, kecocokan: 0.5, kinerja: 0.5 })).toBe(0.737);
+    expect(scoreIdea({ sinyal: 1, kebaruan: 1, kecocokan: 1, kinerja: 1, viral: 1 })).toBe(1);
+    // Potensi viral ikut menaikkan atau menurunkan skor.
+    const base = { sinyal: 0.8, kebaruan: 0.8, kecocokan: 0.75, kinerja: 0.5 };
+    expect(scoreIdea({ ...base, viral: 1 })).toBeGreaterThan(scoreIdea({ ...base, viral: 0 }));
   });
 });
 
@@ -161,6 +166,22 @@ describe("penyaringan ide", () => {
     expect(ideas[1]).toMatchObject({ formulaHook: null, signalIds: ["s2"] });
   });
 
+  it("ide yang tidak nyambung dengan akun dibuang; potensi viral dan alasan disimpan", () => {
+    const ideas = screenIdeas({
+      ...base,
+      raws: [
+        raw("sambal matah versi rumahan buat teman makan siang", { kecocokan: 2, potensiViral: 5 }),
+        raw("cerita pelanggan pertama yang datang pagi buta", { potensiViral: 5, alasan: "Semua orang punya <b>pelanggan</b> pertama" }),
+        raw("rutinitas buka toko yang tidak terlihat orang", { potensiViral: 1 }),
+      ],
+    });
+    expect(ideas.map((i) => i.topik)).toEqual(["cerita pelanggan pertama yang datang pagi buta", "rutinitas buka toko yang tidak terlihat orang"]);
+    expect(ideas[0].scoreDetail).toMatchObject({ viral: 1, alasan: "Semua orang punya b pelanggan /b pertama" });
+    expect(ideas[1].scoreDetail.viral).toBe(0);
+    expect(ideas[1].scoreDetail.alasan).toBeUndefined();
+    expect(ideas[0].score).toBeGreaterThan(ideas[1].score);
+  });
+
   it("ide yang menunggangi tren ikut kedaluwarsa bersama trennya; tanpa sinyal berumur 7 hari", () => {
     const [trend, free] = screenIdeas({
       ...base,
@@ -195,7 +216,7 @@ describe("penyaringan ide", () => {
       signal({ id: "peer", source: "JARINGAN", accountId: "a2", score: 0.9 }),
     ];
     const picked = selectSignals(many, "a1");
-    expect(picked.filter((s) => s.source === "GTRENDS")).toHaveLength(5);
+    expect(picked.filter((s) => s.source === "GTRENDS")).toHaveLength(4);
     expect(picked.findIndex((s) => s.id === "peer")).toBeLessThan(picked.findIndex((s) => s.id === "own"));
   });
 });
@@ -343,5 +364,21 @@ describe("putusan editor AI", () => {
     expect(toVerdict({ drafts: [] })).toBeNull();
     expect(toVerdict(null)).toBeNull();
     expect(toVerdict({ hook: "4", relevansi: 4, alami: 4, risiko: [] })).toBeNull();
+  });
+});
+
+describe("konteks tren untuk penulis", () => {
+  it("trendLines memuat ringkasan tren rujukan (bukan pemenang jaringan) maks tiga", () => {
+    const signals = new Map([
+      ["w1", { id: "w1", source: "WEB" as const, title: "tren bubur diaduk", summary: "warganet debat bubur", url: null }],
+      ["j1", { id: "j1", source: "JARINGAN" as const, title: "posting lama", summary: null, url: null }],
+      ["t1", { id: "t1", source: "THREADS_SEARCH" as const, title: "tanggal tua", summary: null, url: null }],
+    ]);
+    expect(trendLines({ signalIds: ["w1", "j1", "t1", "hilang"] }, signals)).toEqual([
+      "Viral di medsos: tren bubur diaduk - warganet debat bubur",
+      "Viral di Threads: tanggal tua",
+    ]);
+    expect(trendLines(null, signals)).toEqual([]);
+    expect(trendLines({ signalIds: ["w1"] }, undefined)).toEqual([]);
   });
 });

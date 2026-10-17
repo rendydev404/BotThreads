@@ -32,17 +32,17 @@ import {
   useNotice,
 } from "./shared";
 
-/** Sumber yang diisi server dan ditawarkan sebagai saringan (WEB belum diisi). Urutan = urutan tampil. */
-type OfferedSource = Extract<SignalSource, "THREADS_SEARCH" | "GTRENDS" | "JARINGAN" | "MOMEN" | "MANUAL">;
+/** Sumber yang diisi server dan ditawarkan sebagai saringan. Urutan = urutan tampil. */
+type OfferedSource = Extract<SignalSource, "THREADS_SEARCH" | "WEB" | "GTRENDS" | "JARINGAN" | "MOMEN" | "MANUAL">;
 type SourceFilter = "ALL" | OfferedSource;
 
-const FILTER_SOURCES: OfferedSource[] = ["THREADS_SEARCH", "GTRENDS", "JARINGAN", "MOMEN", "MANUAL"];
+const FILTER_SOURCES: OfferedSource[] = ["THREADS_SEARCH", "WEB", "GTRENDS", "JARINGAN", "MOMEN", "MANUAL"];
 const FILTERS: { value: SourceFilter; label: string }[] = [
   { value: "ALL", label: "Semua" },
   ...FILTER_SOURCES.map((s) => ({ value: s, label: SIGNAL_SOURCE_LABEL[s] })),
 ];
 /** Sumber yang dikumpulkan tick autopilot (inspirasi manual tidak dihitung "pengambilan"). */
-const AUTO_SOURCES: OfferedSource[] = ["THREADS_SEARCH", "GTRENDS", "JARINGAN", "MOMEN"];
+const AUTO_SOURCES: OfferedSource[] = ["THREADS_SEARCH", "WEB", "GTRENDS", "JARINGAN", "MOMEN"];
 
 const URL_MAX = 500;
 const TEXT_MIN = 10;
@@ -57,6 +57,10 @@ const EMPTY_COPY: Record<SourceFilter, { title: string; body: string }> = {
   THREADS_SEARCH: {
     title: "Belum ada posting viral dari Threads.",
     body: "Bagian ini mengambil posting Threads paling populer untuk topik yang sedang naik. Aktif setelah izin pencarian Threads (threads_keyword_search) untuk aplikasi kami disetujui Meta.",
+  },
+  WEB: {
+    title: "Belum ada obrolan viral dari medsos.",
+    body: "AI mencari lewat Google obrolan, meme, dan istilah yang sedang ramai di Threads dan medsos Indonesia, tiap 3 jam pada jam aktif. Butuh kunci Gemini di server.",
   },
   JARINGAN: {
     title: "Belum ada posting Anda yang viral.",

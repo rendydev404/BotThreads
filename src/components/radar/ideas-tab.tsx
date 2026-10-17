@@ -62,8 +62,9 @@ const STATUS_STYLE: Record<IdeaStatus, { cls: string; Icon: React.ComponentType<
   KEDALUWARSA: { cls: "bg-subtle text-muted", Icon: Clock },
 };
 
-const SCORE_PARTS: { key: keyof IdeaScoreDetail; label: string; hint: string }[] = [
+const SCORE_PARTS: { key: Exclude<keyof IdeaScoreDetail, "alasan">; label: string; hint: string }[] = [
   { key: "sinyal", label: "Tren", hint: "Seberapa viral tren yang dirujuk" },
+  { key: "viral", label: "Potensi viral", hint: "Peluang memancing balasan dan repost di Threads" },
   { key: "kebaruan", label: "Kebaruan", hint: "Beda dari postingan dan ide sebelumnya" },
   { key: "kecocokan", label: "Kecocokan", hint: "Kecocokan dengan akun ini" },
   { key: "kinerja", label: "Kinerja", hint: "Kinerja pola serupa di akun ini (50 = belum ada data)" },
@@ -129,6 +130,11 @@ const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error,
             <span className="font-semibold text-fg">Sudut:</span> {idea.sudut}
           </p>
         )}
+        {idea.scoreDetail.alasan && (
+          <p className="mt-1 text-sm text-muted leading-relaxed break-words">
+            <span className="font-semibold text-fg">Kenapa bisa ramai:</span> {idea.scoreDetail.alasan}
+          </p>
+        )}
       </div>
 
       {(hook || idea.pilar) && (
@@ -150,7 +156,7 @@ const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error,
 
       {parts.length > 0 && (
         <div role="group" aria-label="Rincian skor (0 sampai 100)">
-          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2.5">
+          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5">
             {parts.map((p) => {
               const value = toScore100(idea.scoreDetail[p.key]);
               return (

@@ -11,14 +11,16 @@ import { AccountsTab } from "@/components/autopilot/accounts-tab";
 import { AffiliateTab } from "@/components/autopilot/affiliate-tab";
 import { ConfirmModal } from "@/components/autopilot/confirm-modal";
 import { HistoryTab } from "@/components/autopilot/history-tab";
+import { PlanTab } from "@/components/autopilot/plan-tab";
 import { ReviewTab } from "@/components/autopilot/review-tab";
 import { Banner, durationText, timeOf } from "@/components/autopilot/shared";
 import { useAutopilotOverview } from "@/components/autopilot/use-autopilot-overview";
 
-type TabKey = "akun" | "tinjau" | "riwayat" | "affiliate";
+type TabKey = "akun" | "rencana" | "tinjau" | "riwayat" | "affiliate";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "akun", label: "Akun" },
+  { key: "rencana", label: "Rencana" },
   { key: "tinjau", label: "Tinjau" },
   { key: "riwayat", label: "Riwayat" },
   { key: "affiliate", label: "Affiliate" },
@@ -89,7 +91,8 @@ function AutopilotInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const rawTab = searchParams.get("tab");
-  const tab: TabKey = rawTab === "tinjau" || rawTab === "riwayat" || rawTab === "affiliate" ? rawTab : "akun";
+  const tab: TabKey =
+    rawTab === "rencana" || rawTab === "tinjau" || rawTab === "riwayat" || rawTab === "affiliate" ? rawTab : "akun";
 
   const [pauseOpen, setPauseOpen] = useState(false);
   const [pauseBusy, setPauseBusy] = useState(false);
@@ -312,6 +315,11 @@ function AutopilotInner() {
         <Activity mode={tab === "akun" ? "visible" : "hidden"}>
           <div role="tabpanel" id="autopilot-panel-akun" aria-labelledby="autopilot-tab-akun">
             <AccountsTab data={data} loadedAt={loadedAt} refetch={refetch} patch={patch} />
+          </div>
+        </Activity>
+        <Activity mode={tab === "rencana" ? "visible" : "hidden"}>
+          <div role="tabpanel" id="autopilot-panel-rencana" aria-labelledby="autopilot-tab-rencana">
+            <PlanTab data={data} active={tab === "rencana"} />
           </div>
         </Activity>
         <Activity mode={tab === "tinjau" ? "visible" : "hidden"}>

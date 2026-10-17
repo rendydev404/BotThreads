@@ -40,6 +40,7 @@ export function missingSchemaFile(err: unknown): string {
   if (/dash_mu_signup/.test(msg)) return "sql/009_signup.sql";
   if (/dash_mu_|DashboardMembership|DashboardMemberAccount|DashboardInvite|DashboardPasswordReset/.test(msg)) return "sql/008_multiuser.sql";
   if (/dash_(?:learn|notif)_|ContentOutcome|DashboardNotification/.test(msg)) return "sql/007_autopilot_learning.sql";
+  if (/dash_ap_plan_drafts|dash_radar_signal_briefs|dash_idea_details/.test(msg)) return "sql/021_autopilot_plan_view.sql";
   if (/dash_(?:radar|idea|kb|moment)_|TrendSignal|ContentIdea|KnowledgeBase|ContentMoment/.test(msg)) return "sql/006_autopilot_radar.sql";
   return "sql/005_autopilot.sql";
 }
@@ -242,6 +243,25 @@ export async function listSlots(q: SlotListQuery): Promise<SlotRow[]> {
 export async function getSlot(id: string, workspaceId: string | null): Promise<SlotRow | null> {
   const row = await call<RawSlot | null>("dash_ap_slot_get", { p_id: id, p_workspace: workspaceId });
   return row ? toSlot(row) : null;
+}
+
+export interface PlanDraftRow {
+  id: string;
+  ideaId: string | null;
+  text: string | null;
+  angle: string | null;
+  pillar: string | null;
+  promo: boolean;
+  topik: string | null;
+  topicKey: string | null;
+  /** Nama produk affiliate slot ini. */
+  affiliate: string | null;
+}
+
+/** Draf slot satu hari untuk rencana posting, hanya kolom yang ditampilkan (sql/021). */
+export async function planDrafts(workspaceId: string | null, dayKey: string, accountIds: string[]): Promise<PlanDraftRow[]> {
+  if (accountIds.length === 0) return [];
+  return call<PlanDraftRow[]>("dash_ap_plan_drafts", { p_workspace: workspaceId, p_day: dayKey, p_account_ids: accountIds });
 }
 
 /** Draf autopilot yang sudah jadi pada rentang hari (pembanding antar-akun). */

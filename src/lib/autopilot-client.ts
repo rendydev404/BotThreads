@@ -6,6 +6,7 @@ import type {
   AutopilotOverviewResponse,
   AutopilotSettings,
   PlanPreviewResponse,
+  PlanViewResponse,
   SlotAction,
   SlotListResponse,
 } from "./autopilot-types";
@@ -62,3 +63,10 @@ export const actOnSlot = (slotId: string, action: SlotAction, edit?: { text?: st
     method: "POST",
     body: JSON.stringify({ action, ...(edit ?? {}) }),
   });
+
+/** Rencana posting satu hari: draf yang sudah ditulis dan perkiraan topik slot yang belum. */
+export function fetchAutopilotPlan(p: { day: "today" | "tomorrow"; accountId?: string | null }, signal?: AbortSignal) {
+  const q = new URLSearchParams({ day: p.day });
+  if (p.accountId) q.set("accountId", p.accountId);
+  return call<PlanViewResponse>(`/api/autopilot/plan?${q}`, { signal });
+}

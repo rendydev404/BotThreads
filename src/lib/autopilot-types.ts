@@ -3,6 +3,7 @@
  * komponen "use client").
  */
 import type { PublishReason } from "./content-types";
+import type { SignalSource } from "./radar-types";
 
 export type AutopilotMode = "MATI" | "TINJAU" | "OTOMATIS";
 export type SlotStrategy = "JAM_RAMAI" | "JAM_TETAP";
@@ -218,6 +219,47 @@ export interface PlanPreviewResponse {
   slots: PlanPreviewSlot[];
   /** Asal data jam: akun sendiri, jaringan, atau belum ada data. */
   source: "account" | "network" | "none";
+}
+
+/**
+ * Isi rencana satu slot:
+ * - DRAF       teks sudah ditulis AI (menunggu tinjau, terjadwal, atau terbit)
+ * - IDE        belum ditulis; topik dari bank ide yang akan dipakai
+ * - PROMO      belum ditulis; giliran soft-selling promo berjalan
+ * - AFFILIATE  belum ditulis; giliran rekomendasi produk affiliate
+ * - BEBAS      belum ditulis dan bank ide kosong; AI memilih topik dari gaya akun saat menulis
+ */
+export type PlanContentKind = "DRAF" | "IDE" | "PROMO" | "AFFILIATE" | "BEBAS";
+
+export interface PlanSignalDTO {
+  source: SignalSource;
+  title: string;
+  url: string | null;
+}
+
+export interface PlanItemDTO {
+  slotId: string;
+  kind: PlanContentKind;
+  /** Perkiraan: slot belum ditulis, topik bisa berganti bila muncul ide yang lebih panas. */
+  tentative: boolean;
+  topik: string | null;
+  /** Teks draf (hanya untuk DRAF). */
+  text: string | null;
+  sudut: string | null;
+  hook: string | null;
+  pilar: string | null;
+  /** Skor ide 0..100. */
+  score: number | null;
+  /** Potensi viral menurut perencana 0..100. */
+  viral: number | null;
+  alasan: string | null;
+  signals: PlanSignalDTO[];
+}
+
+export interface PlanViewResponse {
+  success: true;
+  dayKey: string;
+  items: PlanItemDTO[];
 }
 
 export type SlotAction = "approve" | "reject" | "rewrite" | "skip";

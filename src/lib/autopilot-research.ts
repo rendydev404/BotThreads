@@ -22,6 +22,7 @@ import { acquireLease, type AutopilotState, type ConfigRow } from "./autopilot-s
 import type { PublishAccount } from "./publish-accounts";
 import { builtinMomentSignals, fetchGoogleTrends, trendsToSignals } from "./radar-sources";
 import { captureThreadsViral } from "./threads-trends";
+import { captureWebTrends } from "./web-trends";
 import {
   activeKnowledge,
   insertIdeas,
@@ -53,6 +54,15 @@ const SIGNALS_FOR_IDEAS = 80;
  */
 const IDEA_RETRY_MS = HOUR_MS;
 const lastIdeaAttempt = new Map<string, number>();
+/**
+ * Tren baru masuk setelah ide akun terakhir disusun: bank ide diisi ulang walau stoknya masih cukup,
+ * paling sering tiap 6 jam per akun dan selama stok belum melimpah. Tanpa ini ide hanya dibuat saat
+ * stok habis, sehingga tren yang sedang panas sering basi sebelum sempat dipakai.
+ */
+const TREND_REFRESH_MS = 6 * HOUR_MS;
+const TREND_REFRESH_MAX_DAYS = IDEA_STOCK_DAYS + 2;
+const TREND_SOURCES = ["THREADS_SEARCH", "WEB", "GTRENDS"] as const;
+const lastIdeaFill = new Map<string, number>();
 
 type Counts = Record<string, number>;
 const bump = (c: Counts, key: string, n = 1): void => {
@@ -68,7 +78,11 @@ const stale = (last: Date | undefined, now: Date): boolean => !last || now.getTi
  */
 export async function runResearch(radar: RadarState, now: Date, counts: Counts): Promise<void> {
   const hour = wibParts(now).h;
-  const anyStale = stale(radar.lastCapture.JARINGAN, now) || stale(radar.lastCapture.MOMEN, now) || stale(radar.lastCapture.GTRENDS, now);
+  const anyStale =
+    stale(radar.lastCapture.JARINGAN, now) ||
+    stale(radar.lastCapture.MOMEN, now) ||
+    stale(radar.lastCapture.GTRENDS, now) ||
+    stale(radar.lastCapture.WEB, now);
   if (!anyStale) return;
   if (!(await acquireLease("riset", randomUUID(), now, new Date(now.getTime() + RESEARCH_INTERVAL_MS)))) return;
   const jobs: Promise<void>[] = [];
@@ -104,6 +118,10 @@ export async function runResearch(radar: RadarState, now: Date, counts: Counts):
         })
       )
     );
+  }
+  // Viral di medsos: obrolan yang sedang ramai di Threads/medsos Indonesia, dicari AI lewat Google Search.
+  if (hour >= RESEARCH_FIRST_HOUR && hour <= RESEARCH_LAST_HOUR && stale(radar.lastCapture.WEB, now)) {
+    jobs.push(guard("viralMedsos", captureWebTrends(now, extraBannedTerms()).then((signals) => upsertSignals(signals, now))));
   }
   if (jobs.length === 0) return;
   await Promise.all(jobs);
@@ -169,6 +187,13 @@ export async function refillIdeas(
   deadline: number,
   counts: Counts
 ): Promise<void> {
+  const trendAt = Math.max(0, ...TREND_SOURCES.map((src) => radar.lastCapture[src]?.getTime() ?? 0));
+  const stock = (c: ConfigRow) => radar.ideaCounts.get(c.accountId) ?? 0;
+  const low = (c: ConfigRow) => stock(c) < c.postsPerDay * IDEA_STOCK_DAYS;
+  const trendDue = (c: ConfigRow) => {
+    const filled = lastIdeaFill.get(c.accountId) ?? 0;
+    return stock(c) < c.postsPerDay * TREND_REFRESH_MAX_DAYS && trendAt > filled && now.getTime() - filled >= TREND_REFRESH_MS;
+  };
   const need = [...state.configs.values()]
     .filter(
       (c) =>
@@ -176,10 +201,11 @@ export async function refillIdeas(
         !c.pausedReason &&
         (state.workspaceActive.get(c.workspaceId) ?? true) &&
         accounts.get(c.accountId)?.ready &&
-        (radar.ideaCounts.get(c.accountId) ?? 0) < c.postsPerDay * IDEA_STOCK_DAYS &&
+        (low(c) || trendDue(c)) &&
         now.getTime() - (lastIdeaAttempt.get(c.accountId) ?? 0) >= IDEA_RETRY_MS
     )
-    .sort((a, b) => (radar.ideaCounts.get(a.accountId) ?? 0) - (radar.ideaCounts.get(b.accountId) ?? 0))
+    // Stok yang menipis didahulukan, lalu yang paling sedikit idenya.
+    .sort((a, b) => Number(low(b)) - Number(low(a)) || stock(a) - stock(b))
     .slice(0, IDEA_ACCOUNTS_PER_TICK);
   if (need.length === 0 || Date.now() >= deadline) return;
 
@@ -221,6 +247,7 @@ export async function refillIdeas(
         bump(counts, "ideGagal");
         return;
       }
+      lastIdeaFill.set(config.accountId, now.getTime());
       const ideas = screenIdeas({
         raws,
         account: { id: config.accountId, workspaceId: config.workspaceId },

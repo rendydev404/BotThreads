@@ -89,6 +89,43 @@ export async function listSignals(q: {
   return rows.map((r) => ({ ...r, capturedAt: iso(r.capturedAt), expiresAt: iso(r.expiresAt) }));
 }
 
+export interface SignalBrief {
+  id: string;
+  source: SignalSource;
+  title: string;
+  summary: string | null;
+  url: string | null;
+}
+
+/** Ringkasan sinyal menurut id (rujukan ide), untuk konteks tulisan dan rencana posting (sql/021). */
+export async function signalBriefs(ids: string[]): Promise<Map<string, SignalBrief>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+  const rows = await call<SignalBrief[]>("dash_radar_signal_briefs", { p_ids: unique.slice(0, 400) });
+  return new Map(rows.map((r) => [r.id, r]));
+}
+
+export interface IdeaDetail {
+  id: string;
+  topik: string;
+  sudut: string | null;
+  formulaHook: string | null;
+  pilar: string | null;
+  signalIds: string[];
+  score: number;
+  /** Potensi viral 0..1 (null pada ide lama). */
+  viral: number | null;
+  alasan: string | null;
+}
+
+/** Rincian ide menurut id, termasuk potensi viral dan alasan dari rincian skor (sql/021). */
+export async function ideaDetails(ids: string[], workspaceId: string | null): Promise<Map<string, IdeaDetail>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+  const rows = await call<IdeaDetail[]>("dash_idea_details", { p_ids: unique.slice(0, 400), p_workspace: workspaceId });
+  return new Map(rows.map((r) => [r.id, { ...r, signalIds: r.signalIds ?? [] }]));
+}
+
 export const deleteManualSignal = (id: string, workspaceId: string | null) =>
   call<boolean>("dash_radar_signal_delete", { p_id: id, p_workspace: workspaceId });
 
