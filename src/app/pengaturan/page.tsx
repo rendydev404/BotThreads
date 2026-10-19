@@ -1,14 +1,13 @@
 "use client";
 
 import React, { Activity, Suspense, useCallback, useEffect, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, RotateCw, Settings, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchTeam, type Role, type TeamResponse } from "@/lib/team-client";
 import { roleAtLeast, useMe } from "@/components/layout/use-me";
 import { Banner } from "@/components/autopilot/shared";
 import { AuditTab } from "@/components/settings/audit-tab";
-import { AccountsTab } from "@/components/settings/accounts-tab";
 import { BrandTab } from "@/components/settings/brand-tab";
 import { HealthTab } from "@/components/settings/health-tab";
 import { KnowledgeTab } from "@/components/settings/knowledge-tab";
@@ -18,15 +17,15 @@ import { SubscriptionTab } from "@/components/settings/subscription-tab";
 import { TeamTab } from "@/components/settings/team-tab";
 import { useRemote } from "@/components/settings/use-remote";
 
-type TabKey = "brand" | "akun" | "langganan" | "pengetahuan" | "tim" | "audit" | "kesehatan";
+type TabKey = "brand" | "langganan" | "pengetahuan" | "tim" | "audit" | "kesehatan";
 
 /**
  * Peran minimal tiap tab mengikuti route API-nya: tim dan audit hanya untuk Admin ke atas; brand,
- * pengetahuan, akun Threads, langganan, dan hasil belajar bisa dibaca semua peran (tombol ubah diatur di dalam tab).
+ * pengetahuan, langganan, dan hasil belajar bisa dibaca semua peran (tombol ubah diatur di dalam tab).
+ * Akun Threads punya halaman sendiri (/akun); ?tab=akun dari tautan lama dialihkan ke sana.
  */
 const TABS: { key: TabKey; label: string; min: Role }[] = [
   { key: "brand", label: "Brand", min: "VIEWER" },
-  { key: "akun", label: "Akun Threads", min: "VIEWER" },
   { key: "langganan", label: "Langganan & Tagihan", min: "VIEWER" },
   { key: "pengetahuan", label: "Pengetahuan", min: "VIEWER" },
   { key: "tim", label: "Tim", min: "ADMIN" },
@@ -79,6 +78,16 @@ function SettingsInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const rawTab = searchParams.get("tab");
+  const router = useRouter();
+
+  // Tautan lama ke tab Akun Threads (mis. hasil login Threads): pindah ke halaman /akun, bawa parameter lain.
+  useEffect(() => {
+    if (rawTab !== "akun") return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("tab");
+    const qs = params.toString();
+    router.replace(qs ? `/akun?${qs}` : "/akun");
+  }, [rawTab, searchParams, router]);
 
   // Tab yang tidak boleh dipakai peran ini disembunyikan; ?tab= yang mengarah ke sana jatuh ke Brand.
   const tabs = TABS.filter((t) => roleAtLeast(role, t.min));
@@ -191,7 +200,7 @@ function SettingsInner() {
       {/* Tab: bilahnya digulir mendatar bila tidak muat (ponsel). */}
       <PlanCard
         onOpenSubscription={tab !== "langganan" ? () => setTab("langganan") : undefined}
-        onOpenAccounts={tab !== "akun" ? () => setTab("akun") : undefined}
+        onOpenAccounts={() => router.push("/akun")}
       />
 
       <div
@@ -229,15 +238,6 @@ function SettingsInner() {
         <Activity mode={tab === "brand" ? "visible" : "hidden"}>
           <div role="tabpanel" id="pengaturan-panel-brand" aria-labelledby="pengaturan-tab-brand">
             <BrandTab />
-          </div>
-        </Activity>
-        <Activity mode={tab === "akun" ? "visible" : "hidden"}>
-          <div role="tabpanel" id="pengaturan-panel-akun" aria-labelledby="pengaturan-tab-akun">
-            <AccountsTab
-              canManage={canEdit}
-              onAccountConnected={() => void reload()}
-              onOpenSubscription={() => setTab("langganan")}
-            />
           </div>
         </Activity>
         <Activity mode={tab === "langganan" ? "visible" : "hidden"}>

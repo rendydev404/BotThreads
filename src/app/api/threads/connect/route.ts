@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { internalError, jsonError, readJson } from "@/lib/api-auth";
 import { withCtx } from "@/lib/request-ctx";
-import { connectThreadsAccount, listWorkspaceThreadsAccounts } from "@/lib/threads-connect";
+import { connectThreadsAccount, listWorkspaceThreadsAccounts, removeThreadsAccount, syncThreadsAccount } from "@/lib/threads-connect";
 import { throttle } from "@/lib/throttle";
 
 const NO_STORE = { "Cache-Control": "no-store" };
@@ -30,5 +30,37 @@ export const POST = withCtx("ADMIN", async (request, ctx) => {
     return NextResponse.json({ success: true, account: res.account }, { headers: NO_STORE });
   } catch (err) {
     return internalError("threads/connect:POST", err);
+  }
+});
+
+/** Sinkronkan profil akun dari Threads (nama, username, foto). Body: { accountId }. */
+export const PATCH = withCtx("ADMIN", async (request, ctx) => {
+  const limit = throttle(`threads-sync:${ctx.userId}`, 20, 60_000);
+  if (!limit.ok) return jsonError(429, "Terlalu banyak percobaan. Coba lagi sebentar.");
+  if (!ctx.workspaceId) return jsonError(403, "Workspace tidak ditemukan.");
+
+  try {
+    const body = (await readJson(request)) as Record<string, unknown> | null;
+    const res = await syncThreadsAccount({ workspaceId: ctx.workspaceId, accountId: body?.accountId });
+    if (!res.ok) return jsonError(res.status, res.error);
+    return NextResponse.json({ success: true, account: res.account }, { headers: NO_STORE });
+  } catch (err) {
+    return internalError("threads/connect:PATCH", err);
+  }
+});
+
+/** Hapus akun Threads dari workspace; slot kuota kosong lagi. Body: { accountId }. */
+export const DELETE = withCtx("ADMIN", async (request, ctx) => {
+  const limit = throttle(`threads-remove:${ctx.userId}`, 10, 60_000);
+  if (!limit.ok) return jsonError(429, "Terlalu banyak percobaan. Coba lagi sebentar.");
+  if (!ctx.workspaceId) return jsonError(403, "Workspace tidak ditemukan.");
+
+  try {
+    const body = (await readJson(request)) as Record<string, unknown> | null;
+    const res = await removeThreadsAccount({ workspaceId: ctx.workspaceId, userId: ctx.userId, accountId: body?.accountId });
+    if (!res.ok) return jsonError(res.status, res.error);
+    return NextResponse.json({ success: true }, { headers: NO_STORE });
+  } catch (err) {
+    return internalError("threads/connect:DELETE", err);
   }
 });

@@ -4,6 +4,10 @@
  * Satu RPC dengan join (ThreadsAccount -> SocialAccount -> Outlet) tanpa N+1, di-cache 60 detik.
  * Dashboard TIDAK memegang token Threads: kolom accessToken tidak pernah dibaca. Penerbitan
  * dikerjakan worker auto-suka; di sini hanya menilai kesiapan akun.
+ *
+ * Kuota akun paket ikut dinilai di sini (kolom overQuota dari sql/026): akun di atas kuota paket yang berlaku
+ * sekarang dianggap belum siap, sehingga posting manual ditolak dan Autopilot dijeda lalu lanjut sendiri saat
+ * kuota cukup lagi. Perubahan paket berlaku paling lambat satu masa cache (60 detik).
  */
 import { accountScope, rpc, tenantIdOf, utc } from "@/lib/supabase";
 import { currentScope } from "@/lib/tenant-scope";
@@ -27,6 +31,8 @@ interface AccountRow {
   outletNama: string | null;
   outletActive: boolean | null;
   workspaceId: string | null;
+  /** Di atas kuota akun paket tenantnya (sql/026; sebelum dipasang kolom ini tidak ada). */
+  overQuota?: boolean;
 }
 
 /** Akun beserta kunci relasi yang dibutuhkan saat membuat antrean. */
@@ -53,7 +59,7 @@ async function load(): Promise<PublishAccount[]> {
   const tenants = new Map<string, string | null>();
   for (const w of new Set(rows.map((r) => r.workspaceId))) if (w) tenants.set(w, await tenantIdOf(w));
   return withoutExcluded(rows).map((r) => {
-    const reason = evaluateReadiness({ ...r, accessExpiresAt: utc(r.accessExpiresAt) }, now, allow);
+    const reason = evaluateReadiness({ ...r, accessExpiresAt: utc(r.accessExpiresAt) }, now, allow) ?? (r.overQuota ? "DI_LUAR_KUOTA" : undefined);
     return {
       id: r.id,
       username: r.username,

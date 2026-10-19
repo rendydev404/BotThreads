@@ -17,6 +17,7 @@ import { generateWithFailover, type GeminiSchema } from "./gemini";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { rpc, sqlTs } from "./supabase";
 import { clipChars } from "./threads-text";
+import { listPublishAccounts } from "./publish-accounts";
 import { ThreadsApiError, accessTokenFor, markReconnect, threads, type AccountRow } from "./threads-publisher";
 
 const REPLY_BATCH = 8;
@@ -270,6 +271,14 @@ async function pool<T>(items: T[], limit: number, worker: (item: T) => Promise<v
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
 }
 
+async function overQuotaAccounts(): Promise<Set<string>> {
+  try {
+    return new Set((await listPublishAccounts()).filter((a) => a.reason === "DI_LUAR_KUOTA").map((a) => a.id));
+  } catch {
+    return new Set();
+  }
+}
+
 const missingSchema = (err: unknown) => /dash_reply_|PGRST202|42883|ThreadsComment/.test(err instanceof Error ? err.message : "");
 
 /** Balas komentar yang siap (antrean di database). Skema belum dipasang (sql/023) = dilewati diam-diam. */
@@ -281,9 +290,15 @@ export async function runReplies(now: Date, deadline: number, counts: Counts): P
       p_gap_sec: REPLY_GAP_SEC,
       p_cap: DAILY_REPLY_CAP,
     });
+    // Akun di atas kuota akun paket tidak membalas komentar (lihat publish-accounts).
+    const over = jobs.length ? await overQuotaAccounts() : new Set<string>();
     await pool(jobs, CONCURRENCY, async (job) => {
       // Waktu habis: kembalikan ke antrean tanpa menambah percobaan yang sia-sia.
       if (Date.now() >= deadline) return void (await done(job.id, "BARU", now).catch(() => undefined));
+      if (over.has(job.accountId)) {
+        await done(job.id, "DILEWATI", now, { error: "Akun melebihi kuota akun paket." });
+        return bump(counts, "komentarDiLuarKuota");
+      }
       await replyOne(job, now, counts);
     });
   } catch (err) {

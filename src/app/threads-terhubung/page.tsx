@@ -23,7 +23,7 @@ async function Result({ searchParams }: Props) {
         tone="success"
         icon={<CheckCircle2 className="w-6 h-6" />}
         title={`@${username} terhubung`}
-        href="/pengaturan?tab=akun"
+        href="/akun"
         action="Buka dashboard"
       >
         Akun Threads sudah tersimpan di workspace Anda. Kembali ke aplikasi atau browser tempat Anda membuka BotThreads, lalu muat ulang
@@ -36,7 +36,7 @@ async function Result({ searchParams }: Props) {
       tone="danger"
       icon={<AlertTriangle className="w-6 h-6" />}
       title="Akun Threads belum terhubung"
-      href="/pengaturan?tab=akun"
+      href="/akun"
       action="Coba lagi dari dashboard"
     >
       {sp.threads_error?.slice(0, 200) || "Login Threads tidak selesai. Silakan ulangi."}

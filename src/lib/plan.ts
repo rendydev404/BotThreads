@@ -13,6 +13,7 @@ import {
   type PlanLimits,
   type PublicPlansResponse,
 } from "./plan-types";
+import { forgetPublishAccounts } from "./publish-accounts";
 import { rpc, utc } from "./supabase";
 import type { Failure } from "./threads-publish";
 
@@ -34,6 +35,8 @@ export function forgetPlans(): void {
   limitCache.clear();
   expiredCache = null;
   missingUntil = 0;
+  // Kesiapan akun memuat kuota akun paket: paket berubah = nilai ulang.
+  forgetPublishAccounts();
 }
 
 /** Jalankan RPC paket; `fallback` dipakai bila skemanya belum dipasang (diingat 5 menit). */

@@ -9,7 +9,9 @@ export type PublishReason =
   | "TOKEN_EXPIRED"
   | "NO_PUBLISH_SCOPE"
   | "OUTLET_INACTIVE"
-  | "TEST_RESTRICTED";
+  | "TEST_RESTRICTED"
+  /** Melebihi kuota akun paket (paket diturunkan atau diubah super admin): akun terbaru dihentikan. */
+  | "DI_LUAR_KUOTA";
 
 export const REASON_LABEL: Record<PublishReason, string> = {
   NOT_MAPPED: "Belum dipetakan ke cabang",
@@ -18,6 +20,7 @@ export const REASON_LABEL: Record<PublishReason, string> = {
   NO_PUBLISH_SCOPE: "Izin posting belum diberikan",
   OUTLET_INACTIVE: "Cabang nonaktif",
   TEST_RESTRICTED: "Dibatasi selama masa uji",
+  DI_LUAR_KUOTA: "Melebihi kuota akun paket",
 };
 
 export interface PublishAccountDTO {

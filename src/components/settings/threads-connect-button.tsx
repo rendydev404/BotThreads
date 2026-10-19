@@ -22,9 +22,12 @@ export function ThreadsConnectButton({
   size = "md",
   disabled,
   disabledTitle,
+  reconnect,
   className,
 }: {
   label?: string;
+  /** Hubungkan ulang akun yang sudah ada: tetap bisa dipakai walau kuota akun paket penuh. */
+  reconnect?: boolean;
   size?: keyof typeof SIZE;
   /** Belum bisa dipakai (mis. fitur belum diaktifkan pengelola): tampil redup, tidak bisa diklik. */
   disabled?: boolean;
@@ -41,7 +44,7 @@ export function ThreadsConnectButton({
     );
   }
   return (
-    <a href="/api/threads/oauth" className={cn(BASE, SIZE[size], className)}>
+    <a href={reconnect ? "/api/threads/oauth?reconnect=1" : "/api/threads/oauth"} className={cn(BASE, SIZE[size], className)}>
       {icon}
       {label}
     </a>

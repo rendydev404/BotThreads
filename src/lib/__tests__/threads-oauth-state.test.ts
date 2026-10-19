@@ -69,10 +69,10 @@ describe("callback OAuth Threads", () => {
     expect(location(res)).toBe("https://bottrit.com/threads-terhubung?threads_connected=sinta");
   });
 
-  it("dengan sesi pengguna yang sama: kembali ke Pengaturan", async () => {
+  it("dengan sesi pengguna yang sama: kembali ke halaman Akun Threads", async () => {
     h.session = { userId: "u1", workspaceId: "ws1", role: "OWNER", accountIds: null };
     const res = await call(signThreadsOAuthState({ userId: "u1", workspaceId: "ws1" }));
-    expect(location(res)).toBe("https://bottrit.com/pengaturan?tab=akun&threads_connected=sinta");
+    expect(location(res)).toBe("https://bottrit.com/akun?threads_connected=sinta");
   });
 
   it("menolak state palsu, sesi pengguna lain, workspace berubah, peran kurang, dan akun nonaktif", async () => {

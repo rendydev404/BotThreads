@@ -30,9 +30,9 @@ export async function GET(request: NextRequest) {
     session = null;
   }
 
-  // Ada sesi: kembali ke Pengaturan seperti biasa. Tanpa sesi (browser lain): halaman hasil yang publik.
+  // Ada sesi: kembali ke halaman Akun Threads. Tanpa sesi (browser lain): halaman hasil yang publik.
   const finish = (query: string) => {
-    const path = session ? `/pengaturan?tab=akun&${query}` : `/threads-terhubung?${query}`;
+    const path = session ? `/akun?${query}` : `/threads-terhubung?${query}`;
     const res = NextResponse.redirect(new URL(path, origin));
     res.cookies.delete({ name: THREADS_OAUTH_COOKIE, path: "/" });
     res.headers.set("Cache-Control", "no-store");

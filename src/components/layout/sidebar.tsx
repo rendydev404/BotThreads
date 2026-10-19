@@ -4,7 +4,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, CalendarClock, Bot, CreditCard, Radar, Settings, ShieldCheck, Sparkles } from "lucide-react";
+import { LayoutDashboard, FileText, CalendarClock, Bot, CreditCard, Radar, Settings, ShieldCheck, Sparkles, AtSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "./use-me";
 
@@ -16,6 +16,7 @@ export const navigationItems = [
   { name: "Autopilot", href: "/autopilot", icon: Bot, mobile: true },
   { name: "Radar", href: "/radar", icon: Radar, mobile: false },
   { name: "Studio AI", href: "/prompt-studio", icon: Sparkles, mobile: true },
+  { name: "Akun Threads", href: "/akun", icon: AtSign, mobile: false },
   { name: "Billing & Paket", href: "/billing", icon: CreditCard, mobile: false },
   { name: "Pengaturan", href: "/pengaturan", icon: Settings, mobile: false },
 ];

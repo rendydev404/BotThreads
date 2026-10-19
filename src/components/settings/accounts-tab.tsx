@@ -3,16 +3,103 @@
 import React, { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, Bot, CheckCircle2, Link2, Loader2, Sparkles, UserCheck } from "lucide-react";
-import { connectWorkspaceThreadsAccount, fetchConnectedThreadsAccounts } from "@/lib/team-client";
+import { cn } from "@/lib/utils";
+import { AlertTriangle, ArrowRight, Bot, CheckCircle2, Link2, Loader2, RefreshCw, Sparkles, Trash2, UserCheck } from "lucide-react";
+import {
+  connectWorkspaceThreadsAccount,
+  fetchConnectedThreadsAccounts,
+  removeWorkspaceThreadsAccount,
+  syncWorkspaceThreadsAccount,
+} from "@/lib/team-client";
 import type { ConnectedThreadsAccountDTO, WorkspaceThreadsAccountsResponse } from "@/lib/threads-connect";
 import { Banner } from "@/components/autopilot/shared";
+import { AccountAvatar } from "@/components/content/post-status-chip";
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { FormError, TextAreaField } from "./fields";
 import { errorText, formatDateWib, formatInt } from "./format";
-import { BTN_OUTLINE, BTN_PRIMARY, EmptyState, LoadError, Pill, RefreshButton } from "./states";
+import { BTN_PRIMARY, EmptyState, LoadError, Pill, RefreshButton } from "./states";
 import { ThreadsConnectButton, ThreadsMobileHelp } from "./threads-connect-button";
 import { useRemote } from "./use-remote";
+
+const BTN_SM =
+  "h-9 px-3 rounded-full border border-line-strong text-xs font-semibold text-fg inline-flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors hover:border-accent hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed";
+
+function AccountRow({
+  acc,
+  canManage,
+  oneClickReady,
+  busy,
+  onSync,
+  onRemove,
+}: {
+  acc: ConnectedThreadsAccountDTO;
+  canManage: boolean;
+  oneClickReady: boolean;
+  busy: boolean;
+  onSync: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <li className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div className="flex items-start gap-3 min-w-0">
+        <AccountAvatar name={acc.displayName} src={acc.avatarUrl} size="w-11 h-11" className="text-sm" />
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-sm font-bold text-fg truncate">{acc.displayName}</span>
+            <span className="text-xs font-mono text-muted">@{acc.username}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Pill
+              tone={acc.needsReconnect ? "danger" : "success"}
+              icon={acc.needsReconnect ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+            >
+              {acc.needsReconnect ? "Perlu Hubungkan Ulang" : "Terhubung & Siap"}
+            </Pill>
+            {acc.overQuota && (
+              <Pill tone="warning" icon={<AlertTriangle className="w-3 h-3" />}>
+                Di luar kuota paket
+              </Pill>
+            )}
+            <Pill tone={acc.autopilotMode !== "MATI" ? "accent" : "neutral"}>Autopilot: {acc.autopilotMode}</Pill>
+          </div>
+          <p className="text-xs text-muted">
+            {acc.connectedAt ? `Terhubung ${formatDateWib(acc.connectedAt)} · ` : ""}Token berlaku s/d {formatDateWib(acc.accessExpiresAt)} · Target{" "}
+            {acc.postsPerDay} posting/hari
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 shrink-0 lg:justify-end">
+        <Link href="/autopilot" className={BTN_SM}>
+          <Bot className="w-3.5 h-3.5" />
+          Atur Autopilot
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+        {canManage && (
+          <>
+            {oneClickReady && <ThreadsConnectButton label="Hubungkan ulang" size="sm" reconnect />}
+            <button type="button" onClick={onSync} disabled={busy} className={BTN_SM} title="Ambil ulang nama, username, dan foto dari Threads">
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              Sinkronkan
+            </button>
+            {acc.owned && (
+              <button
+                type="button"
+                onClick={onRemove}
+                disabled={busy}
+                className={cn(BTN_SM, "hover:border-danger hover:text-danger")}
+                aria-label={`Hapus akun @${acc.username}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Hapus
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </li>
+  );
+}
 
 export function AccountsTab({
   canManage,
@@ -37,6 +124,9 @@ export function AccountsTab({
   const [accessToken, setAccessToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<ConnectedThreadsAccountDTO | null>(null);
   const [notice, setNotice] = useState<string | null>(() =>
     oauthConnected ? `Akun Threads @${oauthConnected} berhasil dihubungkan.` : null
   );
@@ -108,8 +198,51 @@ export function AccountsTab({
     }
   };
 
+  const syncAccount = async (acc: ConnectedThreadsAccountDTO) => {
+    if (rowBusy) return;
+    setRowBusy(acc.id);
+    setRowError(null);
+    try {
+      const res = await syncWorkspaceThreadsAccount(acc.id);
+      mutate((prev) => ({ ...prev, accounts: prev.accounts.map((a) => (a.id === acc.id ? { ...a, ...res.account } : a)) }));
+      setNotice(`Profil @${res.account.username} diperbarui dari Threads.`);
+    } catch (e) {
+      setRowError(errorText(e, "Gagal menyinkronkan profil."));
+      reload();
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
+  const confirmRemove = async () => {
+    const acc = removing;
+    if (!acc || rowBusy) return;
+    setRowBusy(acc.id);
+    setRowError(null);
+    try {
+      await removeWorkspaceThreadsAccount(acc.id);
+      mutate((prev) => {
+        const nextAccounts = prev.accounts.filter((a) => a.id !== acc.id);
+        return { ...prev, accounts: nextAccounts, quota: { ...prev.quota, used: nextAccounts.length } };
+      });
+      setRemoving(null);
+      setNotice(`Akun @${acc.username} dihapus dari workspace. Slot kuotanya bisa dipakai untuk akun lain.`);
+      onAccountConnected?.();
+    } catch (e) {
+      setRowError(errorText(e, "Gagal menghapus akun."));
+      setRemoving(null);
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
   return (
     <div className="space-y-5">
+      {rowError && (
+        <Banner tone="danger" onClose={() => setRowError(null)}>
+          {rowError}
+        </Banner>
+      )}
       {notice && (
         <Banner tone="success" onClose={() => setNotice(null)}>
           {notice}
@@ -173,6 +306,19 @@ export function AccountsTab({
         </div>
       </div>
 
+      {quota.max !== null && quota.used > quota.max && !quota.expired && (
+        <Banner tone="warning">
+          Paket {quota.planNama ?? "Anda"} sekarang maksimal {formatInt(quota.max)} akun, sedangkan ada {formatInt(quota.used)} akun terhubung.{" "}
+          {formatInt(quota.used - quota.max)} akun terbaru (bertanda &quot;Di luar kuota paket&quot;) dihentikan sementara: tidak bisa posting,
+          Autopilot dijeda, dan komentar tidak dibalas. Hapus akun yang tidak dipakai atau upgrade paket, dan akun itu otomatis aktif lagi.
+        </Banner>
+      )}
+      {canManage && quotaFull && quota.used === quota.max && !quota.expired && accounts.some((a) => a.owned) && (
+        <Banner tone="info">
+          Kuota akun paket sudah penuh. Hapus akun yang tidak dipakai untuk mengosongkan slot, atau upgrade paket untuk menambah kuota.
+        </Banner>
+      )}
+
       {canManage && oneClickReady && !quotaFull && !quota.expired && <ThreadsMobileHelp className="sm:hidden" />}
 
       {/* Daftar Akun */}
@@ -202,42 +348,47 @@ export function AccountsTab({
         </EmptyState>
       ) : (
         <ul className="card divide-y divide-line">
-          {accounts.map((acc: ConnectedThreadsAccountDTO) => (
-            <li key={acc.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-full bg-accent-soft text-accent font-bold text-sm flex items-center justify-center shrink-0">
-                  {acc.username.slice(0, 2).toUpperCase()}
-                </div>
-                <div className="min-w-0 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-bold text-fg truncate">{acc.displayName}</span>
-                    <span className="text-xs font-mono text-muted">@{acc.username}</span>
-                    <Pill tone={acc.needsReconnect ? "danger" : "success"} icon={<CheckCircle2 className="w-3 h-3" />}>
-                      {acc.needsReconnect ? "Perlu Hubungkan Ulang" : "Terhubung & Siap"}
-                    </Pill>
-                    <Pill tone={acc.autopilotMode !== "MATI" ? "accent" : "neutral"}>
-                      Autopilot: {acc.autopilotMode}
-                    </Pill>
-                  </div>
-                  <p className="text-xs text-muted">
-                    Token berlaku s/d {formatDateWib(acc.accessExpiresAt)} · Target {acc.postsPerDay} posting/hari
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                {acc.needsReconnect && canManage && oneClickReady && (
-                  <ThreadsConnectButton label="Hubungkan ulang" />
-                )}
-                <Link href="/autopilot" className={BTN_OUTLINE}>
-                  <Bot className="w-3.5 h-3.5" />
-                  Atur Autopilot
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            </li>
+          {accounts.map((acc) => (
+            <AccountRow
+              key={acc.id}
+              acc={acc}
+              canManage={canManage}
+              oneClickReady={oneClickReady}
+              busy={rowBusy === acc.id}
+              onSync={() => void syncAccount(acc)}
+              onRemove={() => setRemoving(acc)}
+            />
           ))}
         </ul>
+      )}
+
+      {/* Konfirmasi hapus akun */}
+      {removing && (
+        <ModalShell
+          open
+          onClose={() => !rowBusy && setRemoving(null)}
+          busy={!!rowBusy}
+          title={`Hapus akun @${removing.username}?`}
+          description="Akun dilepas dari workspace ini dan slot kuotanya bisa dipakai akun lain."
+          footer={
+            <>
+              <ModalButton onClick={() => setRemoving(null)} disabled={!!rowBusy}>
+                Batal
+              </ModalButton>
+              <ModalButton variant="danger" onClick={() => void confirmRemove()} disabled={!!rowBusy}>
+                {rowBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {rowBusy ? "Menghapus..." : "Hapus akun"}
+              </ModalButton>
+            </>
+          }
+        >
+          <ul className="space-y-1.5 text-sm text-fg list-disc pl-5">
+            <li>Posting terjadwal dan Autopilot akun ini dihentikan.</li>
+            <li>Balas komentar otomatis untuk akun ini dimatikan.</li>
+            <li>Riwayat posting yang sudah terbit tetap tersimpan.</li>
+            <li>Postingan di Threads tidak ikut terhapus. Akun bisa dihubungkan lagi kapan saja.</li>
+          </ul>
+        </ModalShell>
       )}
 
       {/* Modal Hubungkan Akun Threads */}

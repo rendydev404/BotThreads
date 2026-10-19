@@ -19,7 +19,7 @@ export const GET = withCtx("ADMIN", async (request, ctx) => {
   const back = (code: string) =>
     asLink
       ? NextResponse.json({ success: false, error: code }, { status: 400, headers: { "Cache-Control": "no-store" } })
-      : NextResponse.redirect(new URL(`/pengaturan?tab=akun&threads_error=${encodeURIComponent(code)}`, origin));
+      : NextResponse.redirect(new URL(`/akun?threads_error=${encodeURIComponent(code)}`, origin));
 
   if (!ctx.workspaceId) return back("Workspace tidak ditemukan.");
   if (!cfg.threadsOauth.enabled || !cfg.threadsOauth.appId || !cfg.threadsOauth.appSecret) return back("threads_oauth_off");
@@ -28,10 +28,11 @@ export const GET = withCtx("ADMIN", async (request, ctx) => {
   if (!origin.startsWith("https://")) return back("threads_insecure");
 
   // Cek paket sebelum ke Threads, supaya pengguna tidak sudah memberi izin lalu baru ditolak.
-  // Kuota penuh tetap boleh lanjut bila ada akun yang perlu dihubungkan ulang (tidak menambah kuota).
+  // Kuota penuh tetap boleh lanjut untuk hubungkan ulang (tidak menambah kuota); akun baru tetap ditolak saat disimpan.
+  const reconnect = request.nextUrl.searchParams.get("reconnect") === "1";
   const { quota, accounts } = await listWorkspaceThreadsAccounts(ctx.workspaceId);
   if (quota.expired) return back("Masa berlaku paket sudah habis. Perpanjang paket di tab Langganan & Tagihan.");
-  if (quota.max !== null && quota.used >= quota.max && !accounts.some((a) => a.needsReconnect)) {
+  if (quota.max !== null && quota.used >= quota.max && !reconnect && !accounts.some((a) => a.needsReconnect)) {
     return back(`Kuota akun paket ${quota.planNama ?? "Anda"} sudah penuh (${quota.used}/${quota.max}). Naikkan paket untuk menambah akun.`);
   }
 

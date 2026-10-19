@@ -11,6 +11,7 @@
  * dipetakan". Worker juga yang memperpanjang token sebelum kedaluwarsa.
  *
  * Setiap akun BARU memeriksa kuota `maxAkun` paket workspace; menghubungkan ulang akun yang sama tidak.
+ * Akun milik workspace sendiri bisa disinkronkan profilnya dan dihapus (slot kuota kosong lagi, sql/026).
  */
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { getRawIntegrations } from "./integrations";
@@ -18,7 +19,7 @@ import { planLimits } from "./plan";
 import { forgetPublishAccounts } from "./publish-accounts";
 import { forgetMembership } from "./request-ctx";
 import { db, forgetAccountCaches, nowTs, rpc, sqlTs } from "./supabase";
-import { encryptThreadsToken, tokenKeyConfigured, tokenKeyMatches } from "./threads-token";
+import { decryptThreadsToken, encryptThreadsToken, tokenKeyConfigured, tokenKeyMatches } from "./threads-token";
 import type { Failure } from "./threads-publish";
 
 const GRAPH = "https://graph.threads.net";
@@ -97,6 +98,10 @@ export interface ConnectedThreadsAccountDTO {
   connectedAt: string | null;
   autopilotMode: string;
   postsPerDay: number;
+  /** Di atas kuota akun paket yang berlaku sekarang: posting, Autopilot, dan balas komentar dihentikan. */
+  overQuota: boolean;
+  /** Milik workspace ini (bukan workspace lain dalam kelompok tenant): boleh dihapus dari dashboard. */
+  owned: boolean;
 }
 
 export interface WorkspaceThreadsAccountsResponse {
@@ -138,14 +143,25 @@ export async function listWorkspaceThreadsAccounts(workspaceId: string): Promise
 
   const { data: rawAccounts } = await db()
     .from("ThreadsAccount")
-    .select("id, threadsUserId, username, displayName, avatarUrl, needsReconnect, accessExpiresAt, scopes, connectedAt")
+    .select("id, workspaceId, threadsUserId, username, displayName, avatarUrl, needsReconnect, accessExpiresAt, scopes, connectedAt, createdAt")
     .in("workspaceId", [...linked])
     .order("displayName", { ascending: true });
 
   const cfgMap = new Map(configs.map((c) => [c.accountId, c]));
+  // Sama dengan dash_plan_over_quota (sql/026): akun terlama dalam kuota, akun terbaru di atasnya dihentikan.
+  const maxAkun = limits.plan?.maxAkun ?? null;
+  const rows = (rawAccounts ?? []) as Record<string, unknown>[];
+  const over = new Set(
+    maxAkun === null
+      ? []
+      : [...rows]
+          .sort((a, b) => String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? "")) || String(a.id).localeCompare(String(b.id)))
+          .slice(maxAkun)
+          .map((r) => String(r.id))
+  );
   const asIso = (v: unknown): string | null => (typeof v === "string" && v ? `${v.replace(/Z$/, "")}Z` : null);
 
-  const accounts: ConnectedThreadsAccountDTO[] = ((rawAccounts ?? []) as Record<string, unknown>[]).map((r) => {
+  const accounts: ConnectedThreadsAccountDTO[] = rows.map((r) => {
     const id = String(r.id);
     const cfg = cfgMap.get(id);
     return {
@@ -160,6 +176,8 @@ export async function listWorkspaceThreadsAccounts(workspaceId: string): Promise
       connectedAt: asIso(r.connectedAt),
       autopilotMode: cfg?.mode ?? "MATI",
       postsPerDay: cfg?.postsPerDay ?? 3,
+      overQuota: over.has(id),
+      owned: r.workspaceId === workspaceId,
     };
   });
 
@@ -299,6 +317,13 @@ export async function exchangeThreadsOAuthCode(
 
 /* ------------------------------------------------------------------ hubungkan */
 
+/** Cache akun, akun posting, dan keanggotaan memuat daftar akun: kosongkan setelah akun berubah. */
+const forgetAll = () => {
+  forgetAccountCaches();
+  forgetPublishAccounts();
+  forgetMembership();
+};
+
 /**
  * Hubungkan (atau hubungkan ulang) akun Threads ke workspace aktif dari sebuah access token.
  * `expiresInSeconds` diketahui pada alur OAuth; token tempelan dianggap long-lived 60 hari.
@@ -390,9 +415,7 @@ export async function connectThreadsAccount(
     p_now: now,
   }).catch(() => null);
 
-  forgetAccountCaches();
-  forgetPublishAccounts();
-  forgetMembership();
+  forgetAll();
 
   const prev = current.accounts.find((a) => a.id === accountId);
   return {
@@ -409,6 +432,81 @@ export async function connectThreadsAccount(
       connectedAt: `${stamp}Z`,
       autopilotMode: prev?.autopilotMode ?? "MATI",
       postsPerDay: prev?.postsPerDay ?? 3,
+      overQuota: false,
+      owned: workspaceId === params.workspaceId,
     },
   };
+}
+
+/* ------------------------------------------------------------------ kelola */
+
+/**
+ * Hapus akun Threads dari workspace (sql/026): antrean posting dan Autopilot akun ini dihentikan, riwayat
+ * posting tetap ada, slot kuota kosong lagi. Hanya akun milik workspace ini sendiri.
+ */
+export async function removeThreadsAccount(
+  params: { workspaceId: string; userId: string; accountId: unknown },
+  now = new Date()
+): Promise<{ ok: true; username: string | null } | Failure> {
+  if (typeof params.accountId !== "string" || !params.accountId || params.accountId.length > 100) {
+    return failure(400, "Akun tidak valid.");
+  }
+  let res: { status: string; username?: string | null };
+  try {
+    res = await rpc<{ status: string; username?: string | null }>("dash_tc_remove", {
+      p_workspace: params.workspaceId,
+      p_account: params.accountId,
+      p_user: params.userId,
+      p_now: sqlTs(now),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/PGRST202|42883|dash_tc_remove/.test(msg)) {
+      return failure(503, "Fitur hapus akun belum dipasang di database (sql/026_threads_account_remove.sql). Hubungi pengelola platform.");
+    }
+    throw err;
+  }
+  if (res.status === "NOT_FOUND") return failure(404, "Akun Threads tidak ditemukan. Muat ulang halaman.");
+  if (res.status === "BUKAN_MILIK") return failure(403, "Akun ini milik workspace lain dalam kelompok Anda dan hanya bisa dihapus dari sana.");
+  forgetAll();
+  return { ok: true, username: res.username ?? null };
+}
+
+/**
+ * Perbarui nama, username, dan foto profil dari Threads memakai token tersimpan. Token yang ditolak Threads
+ * menandai akun "Perlu Hubungkan Ulang".
+ */
+export async function syncThreadsAccount(
+  params: { workspaceId: string; accountId: unknown }
+): Promise<{ ok: true; account: Pick<ConnectedThreadsAccountDTO, "id" | "username" | "displayName" | "avatarUrl"> } | Failure> {
+  if (typeof params.accountId !== "string" || !params.accountId || params.accountId.length > 100) {
+    return failure(400, "Akun tidak valid.");
+  }
+  if (!tokenKeyConfigured()) return failure(503, NO_KEY);
+  const linked = await linkedWorkspaces(params.workspaceId);
+  const { data } = await db()
+    .from("ThreadsAccount")
+    .select("id, accessToken")
+    .eq("id", params.accountId)
+    .in("workspaceId", [...linked])
+    .maybeSingle();
+  const row = data as { id: string; accessToken: string | null } | null;
+  if (!row) return failure(404, "Akun Threads tidak ditemukan. Muat ulang halaman.");
+
+  let profile: ThreadsProfile;
+  try {
+    if (!row.accessToken) throw new Error("token kosong");
+    profile = await verifyThreadsAccessToken(decryptThreadsToken(row.accessToken));
+  } catch (err) {
+    console.warn("[threads-connect] sinkron profil gagal:", err instanceof Error ? err.message : err);
+    await db().from("ThreadsAccount").update({ needsReconnect: true, updatedAt: nowTs() }).eq("id", row.id);
+    forgetAll();
+    return failure(409, "Threads menolak sesi akun ini. Klik Hubungkan ulang untuk login kembali.");
+  }
+
+  const fields = { username: profile.username, displayName: profile.displayName, avatarUrl: profile.avatarUrl, updatedAt: nowTs() };
+  const { error } = await db().from("ThreadsAccount").update(fields).eq("id", row.id);
+  if (error) return failure(500, `Gagal memperbarui profil: ${error.message}`);
+  forgetAll();
+  return { ok: true, account: { id: row.id, username: profile.username, displayName: profile.displayName, avatarUrl: profile.avatarUrl } };
 }

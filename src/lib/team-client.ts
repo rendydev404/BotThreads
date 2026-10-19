@@ -151,3 +151,12 @@ export const fetchConnectedThreadsAccounts = (signal?: AbortSignal) =>
 
 export const connectWorkspaceThreadsAccount = (body: { accessToken: string }) =>
   call<{ success: true; account: ConnectedThreadsAccountDTO }>("/api/threads/connect", { method: "POST", body: JSON.stringify(body) });
+
+export const syncWorkspaceThreadsAccount = (accountId: string) =>
+  call<{ success: true; account: Pick<ConnectedThreadsAccountDTO, "id" | "username" | "displayName" | "avatarUrl"> }>(
+    "/api/threads/connect",
+    { method: "PATCH", body: JSON.stringify({ accountId }) }
+  );
+
+export const removeWorkspaceThreadsAccount = (accountId: string) =>
+  call<{ success: true }>("/api/threads/connect", { method: "DELETE", body: JSON.stringify({ accountId }) });
