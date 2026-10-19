@@ -1,93 +1,110 @@
 /**
- * Balas komentar otomatis untuk postingan yang diterbitkan dashboard. Berjalan di putaran penerbit (tiap menit):
- * 1. Ambil komentar baru dari postingan 7 hari terakhir. Webhook komentar Threads baru tersedia setelah App Review,
- *    jadi komentar diambil berkala: tiap 2 menit di 24 jam pertama, tiap 15 menit sampai 3 hari, lalu tiap jam.
- * 2. Tulis balasan dengan AI (singkat, gaya akun, tanpa jualan) lalu kirim sebagai balasan di Threads.
+ * Balas komentar otomatis untuk postingan yang diterbitkan dashboard, tanpa polling:
+ * 1. Meta mengirim webhook Threads (topik "replies") ke /api/webhooks/threads untuk tiap komentar baru.
+ *    Tanda tangan diverifikasi, komentar dicocokkan ke postingan dashboard dan disimpan (sql/024).
+ * 2. Balasan ditulis AI (singkat, gaya akun, tanpa jualan) dan dikirim tepat setelah webhook dijawab.
  *    Spam, promosi orang lain, dan komentar kasar dilewati. Satu akun dibalas paling cepat tiap 20 detik dan
- *    paling banyak 100 balasan per hari, supaya tidak terlihat seperti bot.
+ *    paling banyak 100 balasan per hari; komentar yang tertahan jeda dikirim putaran penerbit berikutnya
+ *    (satu kueri database, tanpa panggilan API ke Threads).
  *
  * Saklar per akun (tanpa pengaturan = menyala bila mode autopilot akun OTOMATIS), klaim, dan status dikerjakan
- * fungsi SQL (sql/023_threads_replies.sql). Satu komentar dibalas paling banyak sekali.
+ * fungsi SQL (sql/023 dan sql/024). Satu komentar dibalas paling banyak sekali.
  */
 import { VOICE_STYLES, type VoiceStyle } from "./autopilot-types";
 import { generateWithFailover, type GeminiSchema } from "./gemini";
-import { rpc, sqlTs, toDate } from "./supabase";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { rpc, sqlTs } from "./supabase";
 import { clipChars } from "./threads-text";
 import { ThreadsApiError, accessTokenFor, markReconnect, threads, type AccountRow } from "./threads-publisher";
 
-const WATCH_BATCH = 15;
 const REPLY_BATCH = 8;
 const CONCURRENCY = 4;
 /** Jeda minimal antar-balasan satu akun. */
 export const REPLY_GAP_SEC = 20;
 /** Batas balasan satu akun per hari (WIB). */
 export const DAILY_REPLY_CAP = 100;
-/** Komentar yang lebih tua dari ini saat pertama terlihat tidak dibalas (mis. postingan lama saat fitur dinyalakan). */
-const STALE_COMMENT_MS = 24 * 60 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
-const MIN = 60_000;
-const HOUR = 60 * MIN;
-
-/** Kapan komentar postingan ini diambil lagi (murni). */
-export function nextWatchAt(tayangPada: Date, now: Date): Date {
-  const age = now.getTime() - tayangPada.getTime();
-  const gap = age < 24 * HOUR ? 2 * MIN : age < 72 * HOUR ? 15 * MIN : HOUR;
-  return new Date(now.getTime() + gap);
-}
-
-/* ------------------------------------------------------------------ ambil komentar */
-
-interface WatchJob {
-  dispatchId: string;
-  postId: string;
-  mediaId: string;
-  tayangPada: string;
-  accountId: string;
-  workspaceId: string;
-  account: AccountRow & { username: string | null };
-}
 
 type Counts = Record<string, number>;
 const bump = (c: Counts, k: string, n = 1) => {
   if (n) c[k] = (c[k] ?? 0) + n;
 };
 
-async function watchOne(job: WatchJob, now: Date, counts: Counts): Promise<void> {
-  let next = nextWatchAt(toDate(job.tayangPada), now);
-  try {
-    const token = await accessTokenFor(job.account, now);
-    if (!token) {
-      next = new Date(now.getTime() + 6 * HOUR);
-      return;
-    }
-    const own = (job.account.username ?? "").toLowerCase();
-    const items = (await threads.replies(job.mediaId, token))
-      .filter((r) => r.id && (r.username ?? "").toLowerCase() !== own)
-      .map((r) => {
-        const at = r.timestamp ? new Date(r.timestamp) : now;
-        const text = (r.text ?? "").trim();
-        const stale = now.getTime() - at.getTime() > STALE_COMMENT_MS;
-        return {
-          workspaceId: job.workspaceId,
-          accountId: job.accountId,
-          dispatchId: job.dispatchId,
-          postId: job.postId,
-          mediaId: job.mediaId,
-          commentId: r.id,
-          username: r.username ?? "",
-          text,
-          commentedAt: sqlTs(Number.isNaN(at.getTime()) ? now : at),
-          ...(stale ? { status: "DILEWATI", error: "Komentar lama (sebelum balas otomatis berjalan)." } : !text ? { status: "DILEWATI", error: "Komentar tanpa teks." } : {}),
-        };
-      });
-    if (items.length) bump(counts, "komentarBaru", await rpc<number>("dash_reply_ingest", { p_items: items, p_now: sqlTs(now) }));
-  } catch (err) {
-    if (err instanceof ThreadsApiError && err.isAuthError) await markReconnect(job.accountId, now);
-    bump(counts, "ambilKomentarGagal");
-    console.warn(`[replies] ambil komentar ${job.dispatchId}:`, err instanceof Error ? err.message : err);
-  } finally {
-    await rpc("dash_reply_watch_done", { p_dispatch: job.dispatchId, p_next: sqlTs(next), p_now: sqlTs(now) }).catch(() => undefined);
+/* ------------------------------------------------------------------ webhook */
+
+/** Tanda tangan `X-Hub-Signature-256` Meta: "sha256=" + HMAC-SHA256(App Secret, isi mentah). */
+export function validSignature(rawBody: string, header: string | null, appSecret: string): boolean {
+  if (!header || !appSecret || !header.startsWith("sha256=")) return false;
+  const expected = Buffer.from(`sha256=${createHmac("sha256", appSecret).update(rawBody, "utf8").digest("hex")}`);
+  const given = Buffer.from(header);
+  return expected.length === given.length && timingSafeEqual(expected, given);
+}
+
+export interface WebhookReply {
+  mediaId: string;
+  commentId: string;
+  username: string;
+  text: string;
+  commentedAt: string | null;
+}
+
+interface RawReplyValue {
+  id?: unknown;
+  username?: unknown;
+  text?: unknown;
+  timestamp?: unknown;
+  replied_to?: { id?: unknown };
+  root_post?: { id?: unknown };
+}
+
+const str = (v: unknown): string => (typeof v === "string" || typeof v === "number" ? String(v) : "");
+
+/**
+ * Komentar tingkat atas dari payload webhook Threads (murni). Bentuk dokumentasi: satu objek dengan
+ * `values: { field: "replies", value }`; bentuk larik/`entry[].changes[]` juga diterima. Balasan untuk balasan
+ * (replied_to bukan postingan utama) diabaikan supaya tidak terjadi percakapan bot tanpa ujung.
+ */
+export function parseWebhook(body: unknown): WebhookReply[] {
+  const out: WebhookReply[] = [];
+  const take = (field: unknown, value: unknown) => {
+    if (field !== "replies" || typeof value !== "object" || value === null) return;
+    const v = value as RawReplyValue;
+    const mediaId = str(v.root_post?.id);
+    const commentId = str(v.id);
+    if (!mediaId || !commentId) return;
+    const repliedTo = str(v.replied_to?.id);
+    if (repliedTo && repliedTo !== mediaId) return;
+    const at = typeof v.timestamp === "string" ? new Date(v.timestamp) : null;
+    out.push({
+      mediaId,
+      commentId,
+      username: str(v.username),
+      text: str(v.text).trim(),
+      commentedAt: at && !Number.isNaN(at.getTime()) ? sqlTs(at) : null,
+    });
+  };
+  const visit = (node: unknown) => {
+    if (Array.isArray(node)) return node.forEach(visit);
+    if (typeof node !== "object" || node === null) return;
+    const n = node as { values?: unknown; field?: unknown; value?: unknown; entry?: unknown; changes?: unknown };
+    if (n.field !== undefined) take(n.field, n.value);
+    if (n.values !== undefined) visit(n.values);
+    if (n.entry !== undefined) visit(n.entry);
+    if (n.changes !== undefined) visit(n.changes);
+  };
+  visit(body);
+  return out;
+}
+
+/** Simpan komentar dari webhook. Hasil: akun yang punya komentar baru untuk dibalas. */
+export async function ingestWebhook(items: WebhookReply[], now: Date, counts: Counts = {}): Promise<string[]> {
+  const accounts = new Set<string>();
+  for (const item of items) {
+    const res = await rpc<{ status: string; accountId?: string }>("dash_reply_webhook_ingest", { p_item: item, p_now: sqlTs(now) });
+    bump(counts, `webhook${res.status}`);
+    if (res.status === "OK" && res.accountId) accounts.add(res.accountId);
   }
+  return [...accounts];
 }
 
 /* ------------------------------------------------------------------ tulis balasan */
@@ -232,13 +249,9 @@ async function pool<T>(items: T[], limit: number, worker: (item: T) => Promise<v
 
 const missingSchema = (err: unknown) => /dash_reply_|PGRST202|42883|ThreadsComment/.test(err instanceof Error ? err.message : "");
 
-/** Satu putaran: ambil komentar baru lalu balas yang siap. Skema belum dipasang (sql/023) = dilewati diam-diam. */
+/** Balas komentar yang siap (antrean di database). Skema belum dipasang (sql/023) = dilewati diam-diam. */
 export async function runReplies(now: Date, deadline: number, counts: Counts): Promise<void> {
   try {
-    const watch = await rpc<WatchJob[]>("dash_reply_watch_due", { p_now: sqlTs(now), p_limit: WATCH_BATCH });
-    await pool(watch, CONCURRENCY, (job) => (Date.now() < deadline ? watchOne(job, now, counts) : Promise.resolve()));
-    if (Date.now() >= deadline) return;
-
     const jobs = await rpc<ReplyJob[]>("dash_reply_claim", {
       p_now: sqlTs(now),
       p_limit: REPLY_BATCH,

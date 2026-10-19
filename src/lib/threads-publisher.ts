@@ -93,11 +93,6 @@ export const threads = {
       return null;
     }
   },
-  /** Komentar tingkat atas di satu postingan (halaman pertama, terlama dulu). */
-  async replies(mediaId: string, token: string): Promise<{ id: string; text?: string; username?: string; timestamp?: string }[]> {
-    const q = new URLSearchParams({ fields: "id,text,username,timestamp", reverse: "false", limit: "50", access_token: token });
-    return (await graph<{ data?: { id: string; text?: string; username?: string; timestamp?: string }[] }>(`${API}/${mediaId}/replies?${q}`)).data ?? [];
-  },
   refresh(token: string) {
     return graph<{ access_token: string; expires_in?: number }>(
       `${GRAPH}/refresh_access_token?${new URLSearchParams({ grant_type: "th_refresh_token", access_token: token })}`

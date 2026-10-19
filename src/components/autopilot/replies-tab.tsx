@@ -197,7 +197,7 @@ export function RepliesTab({ active, canManage }: { active: boolean; canManage: 
               <MessageCircle className="w-6 h-6" />
             </div>
             <p className="mt-3 text-sm font-semibold text-fg">Belum ada komentar</p>
-            <p className="mt-1 text-sm text-muted">Komentar baru di postingan 7 hari terakhir muncul di sini dan dibalas dalam beberapa menit.</p>
+            <p className="mt-1 text-sm text-muted">Komentar baru dikirim Threads ke sini lewat webhook dan dibalas dalam hitungan detik.</p>
           </div>
         ) : (
           <ul className="divide-y divide-line">

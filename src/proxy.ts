@@ -22,6 +22,8 @@ const PUBLIC_API = [
   "/api/billing/webhook",
   // Callback OAuth Threads: di HP bisa selesai di browser/aplikasi lain tanpa sesi; diamankan state bertanda tangan.
   "/api/threads/oauth/callback",
+  // Webhook Threads dari Meta: diamankan tanda tangan X-Hub-Signature-256 (App Secret).
+  "/api/webhooks/threads",
 ];
 
 // Halaman yang dibuka dari tautan undangan/reset oleh orang yang belum punya sesi.

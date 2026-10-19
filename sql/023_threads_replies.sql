@@ -1,12 +1,9 @@
 -- =============================================================================
--- Balas komentar otomatis (src/lib/threads-replies.ts, dijalankan di putaran penerbit tiap menit).
---
--- Komentar di postingan yang diterbitkan dashboard diambil berkala (webhook komentar Threads baru tersedia
--- setelah App Review), dibalas AI dengan jeda per akun dan batas harian. Satu komentar dibalas paling
--- banyak sekali (commentId unik + status bersyarat).
+-- Balas komentar otomatis (src/lib/threads-replies.ts). Komentar masuk lewat webhook Threads
+-- (/api/webhooks/threads, fungsi penerimanya di sql/024), dibalas AI dengan jeda per akun dan batas harian.
+-- Satu komentar dibalas paling banyak sekali (commentId unik + status bersyarat).
 --
 --   ThreadsReplySetting  saklar per akun; tanpa baris = menyala bila mode autopilot akun OTOMATIS
---   ThreadsReplyWatch    jadwal ambil komentar per postingan (dispatch)
 --   ThreadsComment       komentar masuk + balasannya
 --
 -- ADITIF dan idempoten. Prasyarat: sql/005_autopilot.sql dan sql/022_threads_publisher.sql.
@@ -19,14 +16,6 @@ CREATE TABLE IF NOT EXISTS "ThreadsReplySetting" (
   aktif         boolean NOT NULL,
   "updatedBy"   text,
   "updatedAt"   timestamp(3) NOT NULL DEFAULT (now() AT TIME ZONE 'UTC')
-);
-
-CREATE TABLE IF NOT EXISTS "ThreadsReplyWatch" (
-  "dispatchId"  text PRIMARY KEY,
-  "nextAt"      timestamp(3) NOT NULL,
-  "lastAt"      timestamp(3),
-  "lockedAt"    timestamp(3),
-  "createdAt"   timestamp(3) NOT NULL DEFAULT (now() AT TIME ZONE 'UTC')
 );
 
 CREATE TABLE IF NOT EXISTS "ThreadsComment" (
@@ -58,9 +47,8 @@ CREATE INDEX IF NOT EXISTS "ThreadsComment_balas_idx" ON "ThreadsComment" ("acco
 CREATE INDEX IF NOT EXISTS "ThreadsComment_ws_idx" ON "ThreadsComment" ("workspaceId", "createdAt" DESC, id DESC);
 
 ALTER TABLE "ThreadsReplySetting" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "ThreadsReplyWatch"   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "ThreadsComment"      ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE "ThreadsReplySetting", "ThreadsReplyWatch", "ThreadsComment" FROM anon, authenticated;
+REVOKE ALL ON TABLE "ThreadsReplySetting", "ThreadsComment" FROM anon, authenticated;
 
 -- Balas otomatis menyala untuk akun ini? Baris saklar menang; tanpa baris = mode autopilot OTOMATIS.
 CREATE OR REPLACE FUNCTION dash_reply_on(p_account text) RETURNS boolean
@@ -69,68 +57,6 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
     (SELECT s.aktif FROM "ThreadsReplySetting" s WHERE s."accountId" = p_account),
     (SELECT c.mode = 'OTOMATIS' FROM "AutopilotConfig" c WHERE c."accountId" = p_account),
     false)
-$$;
-
--- Postingan yang waktunya diambil komentarnya (7 hari terakhir, akun dengan balas otomatis menyala), lalu dikunci.
-CREATE OR REPLACE FUNCTION dash_reply_watch_due(p_now timestamp, p_limit integer) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE v_out jsonb;
-BEGIN
-  WITH due AS (
-    SELECT d.id AS "dispatchId", d."postId", d."platformPostId" AS "mediaId", p."tayangPada", p.caption,
-           ta.id AS "accountId", ta."workspaceId", ta.username, ta."threadsUserId", ta."accessToken",
-           ta."accessExpiresAt", ta."needsReconnect", ta."updatedAt" AS "accountUpdatedAt"
-    FROM "PostDispatch" d
-    JOIN "ScheduledPost" p ON p.id = d."postId" AND p.source = 'DASHBOARD_AI'
-    JOIN "SocialAccount" sa ON sa.id = d."socialAccountId"
-    JOIN "ThreadsAccount" ta ON ta.id = sa."threadsAccountId" AND NOT ta."needsReconnect"
-    LEFT JOIN "ThreadsReplyWatch" w ON w."dispatchId" = d.id
-    WHERE d.publisher = 'THREADS' AND d.status = 'TERBIT' AND d."platformPostId" IS NOT NULL
-      AND p."tayangPada" >= p_now - interval '7 days'
-      AND (w."dispatchId" IS NULL OR (w."nextAt" <= p_now AND (w."lockedAt" IS NULL OR w."lockedAt" < p_now - interval '5 minutes')))
-      AND dash_reply_on(ta.id)
-    ORDER BY COALESCE(w."nextAt", p."tayangPada"), d.id
-    LIMIT LEAST(GREATEST(COALESCE(p_limit, 10), 1), 50)
-  ), locked AS (
-    INSERT INTO "ThreadsReplyWatch" ("dispatchId", "nextAt", "lockedAt", "createdAt")
-    SELECT "dispatchId", p_now, p_now, p_now FROM due
-    ON CONFLICT ("dispatchId") DO UPDATE SET "lockedAt" = p_now
-      WHERE "ThreadsReplyWatch"."lockedAt" IS NULL OR "ThreadsReplyWatch"."lockedAt" < p_now - interval '5 minutes'
-    RETURNING "dispatchId", "createdAt"
-  )
-  SELECT COALESCE(jsonb_agg(jsonb_build_object(
-           'dispatchId', due."dispatchId", 'postId', due."postId", 'mediaId', due."mediaId", 'tayangPada', due."tayangPada",
-           'watchSince', l."createdAt", 'caption', due.caption, 'accountId', due."accountId", 'workspaceId', due."workspaceId",
-           'account', jsonb_build_object('id', due."accountId", 'username', due.username, 'threadsUserId', due."threadsUserId",
-             'accessToken', due."accessToken", 'accessExpiresAt', due."accessExpiresAt", 'needsReconnect', due."needsReconnect",
-             'updatedAt', due."accountUpdatedAt"))), '[]'::jsonb)
-  INTO v_out
-  FROM due JOIN locked l ON l."dispatchId" = due."dispatchId";
-  RETURN v_out;
-END
-$$;
-
-CREATE OR REPLACE FUNCTION dash_reply_watch_done(p_dispatch text, p_next timestamp, p_now timestamp) RETURNS void
-LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-  UPDATE "ThreadsReplyWatch" SET "nextAt" = p_next, "lastAt" = p_now, "lockedAt" = NULL WHERE "dispatchId" = p_dispatch
-$$;
-
--- Simpan komentar baru (yang sudah ada diabaikan). p_items: [{workspaceId, accountId, dispatchId, postId, mediaId,
--- commentId, username, text, commentedAt, status?, error?}]. Hasil: jumlah komentar baru.
-CREATE OR REPLACE FUNCTION dash_reply_ingest(p_items jsonb, p_now timestamp) RETURNS integer
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE v_n integer;
-BEGIN
-  INSERT INTO "ThreadsComment" ("workspaceId", "accountId", "dispatchId", "postId", "mediaId", "commentId", username, text,
-                                "commentedAt", status, error, "createdAt", "updatedAt")
-  SELECT it->>'workspaceId', it->>'accountId', it->>'dispatchId', it->>'postId', it->>'mediaId', it->>'commentId',
-         NULLIF(it->>'username', ''), LEFT(COALESCE(it->>'text', ''), 1000), (it->>'commentedAt')::timestamp,
-         COALESCE(it->>'status', 'BARU'), it->>'error', p_now, p_now
-  FROM jsonb_array_elements(COALESCE(p_items, '[]'::jsonb)) it
-  ON CONFLICT ("commentId") DO NOTHING;
-  GET DIAGNOSTICS v_n = ROW_COUNT;
-  RETURN v_n;
-END
 $$;
 
 -- Ambil komentar yang siap dibalas: paling banyak satu per akun per panggilan, akun yang sudah lewat jeda
@@ -243,12 +169,6 @@ $$;
 
 REVOKE ALL ON FUNCTION dash_reply_on(text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION dash_reply_on(text) TO service_role;
-REVOKE ALL ON FUNCTION dash_reply_watch_due(timestamp, integer) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION dash_reply_watch_due(timestamp, integer) TO service_role;
-REVOKE ALL ON FUNCTION dash_reply_watch_done(text, timestamp, timestamp) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION dash_reply_watch_done(text, timestamp, timestamp) TO service_role;
-REVOKE ALL ON FUNCTION dash_reply_ingest(jsonb, timestamp) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION dash_reply_ingest(jsonb, timestamp) TO service_role;
 REVOKE ALL ON FUNCTION dash_reply_claim(timestamp, integer, integer, integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION dash_reply_claim(timestamp, integer, integer, integer) TO service_role;
 REVOKE ALL ON FUNCTION dash_reply_done(text, text, text, text, text, timestamp) FROM PUBLIC, anon, authenticated;
