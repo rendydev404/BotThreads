@@ -10,6 +10,7 @@ const FALLBACK_PLANS: PublicPlansResponse["items"] = [
     id: "starter",
     nama: "Starter",
     deskripsi: "Untuk pemilik satu brand atau UMKM yang ingin mulai rutin posting setiap hari dengan pengawasan.",
+    label: null,
     hargaBulanan: 99_000,
     maxAkun: 1,
     maxPostingPerHari: 3,
@@ -20,6 +21,7 @@ const FALLBACK_PLANS: PublicPlansResponse["items"] = [
     id: "pro",
     nama: "Pro",
     deskripsi: "Untuk brand berkembang dan tim konten yang membutuhkan autopilot penuh di beberapa akun sekaligus.",
+    label: null,
     hargaBulanan: 249_000,
     maxAkun: 5,
     maxPostingPerHari: 6,
@@ -30,6 +32,7 @@ const FALLBACK_PLANS: PublicPlansResponse["items"] = [
     id: "agensi",
     nama: "Agensi",
     deskripsi: "Untuk agensi kreatif dan jaringan multi-cabang yang mengelola banyak akun Threads dalam satu ruang kerja.",
+    label: null,
     hargaBulanan: 599_000,
     maxAkun: 15,
     maxPostingPerHari: 6,
@@ -100,11 +103,15 @@ export async function Pricing({ wrap }: { wrap: string }) {
               <div>
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="lp-display text-xl font-bold">{p.nama}</h3>
-                  {on && (
+                  {p.label ? (
+                    <span className="lp-mono px-2.5 py-1 rounded-md bg-accent text-on-accent text-[10px] font-bold tracking-wider uppercase">
+                      {p.label === "REKOMENDASI" ? "Rekomendasi" : "Terlaris"}
+                    </span>
+                  ) : on ? (
                     <span className="lp-mono px-2.5 py-1 rounded-md bg-accent text-on-accent text-[10px] font-bold tracking-wider uppercase">
                       Populer
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 {p.deskripsi && <p className="mt-2 text-xs text-muted leading-relaxed min-h-[2.25rem]">{p.deskripsi}</p>}
                 <div className="mt-5 pt-5 border-t border-line">

@@ -300,6 +300,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
               const isCurrent = currentPlanId === p.id && !wsPlan.data?.kedaluwarsa;
               const pricing = calculateCyclePrice(p.hargaBulanan, cycle);
               const isPopular = p.id === "pro";
+              const badge = p.label === "REKOMENDASI" ? "Rekomendasi" : p.label === "TERLARIS" ? "Terlaris" : null;
 
               return (
                 <article
@@ -315,15 +316,22 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
                         <h4 className="text-base font-bold text-fg">{p.nama}</h4>
                         <p className="text-[11px] font-mono text-faint">{p.id}</p>
                       </div>
-                      {isCurrent ? (
-                        <Pill tone="success" icon={<CheckCircle2 className="w-3 h-3" />}>
-                          {isDefaultPlan ? "Bawaan" : "Aktif"}
-                        </Pill>
-                      ) : isPopular ? (
-                        <Pill tone="accent" icon={<Sparkles className="w-3 h-3" />}>
-                          Populer
-                        </Pill>
-                      ) : null}
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        {isCurrent && (
+                          <Pill tone="success" icon={<CheckCircle2 className="w-3 h-3" />}>
+                            {isDefaultPlan ? "Bawaan" : "Aktif"}
+                          </Pill>
+                        )}
+                        {badge ? (
+                          <Pill tone="accent" icon={<Sparkles className="w-3 h-3" />}>
+                            {badge}
+                          </Pill>
+                        ) : isPopular ? (
+                          <Pill tone="accent" icon={<Sparkles className="w-3 h-3" />}>
+                            Populer
+                          </Pill>
+                        ) : null}
+                      </div>
                     </div>
 
                     {p.deskripsi && <p className="text-xs text-muted leading-relaxed min-h-[2.25rem]">{p.deskripsi}</p>}

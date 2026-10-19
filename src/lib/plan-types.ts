@@ -7,6 +7,8 @@ export interface PlanDTO {
   id: string;
   nama: string;
   deskripsi: string | null;
+  /** Label promosi yang ditentukan super admin. */
+  label: "REKOMENDASI" | "TERLARIS" | null;
   /** Rupiah per bulan; 0 = gratis. Hanya untuk ditampilkan. */
   hargaBulanan: number;
   /** Akun Threads yang autopilot-nya boleh menyala bersamaan. */
@@ -47,7 +49,7 @@ export interface WorkspacePlanResponse extends PlanLimits {
 
 export interface PublicPlansResponse {
   success: true;
-  items: Pick<PlanDTO, "id" | "nama" | "deskripsi" | "hargaBulanan" | "maxAkun" | "maxPostingPerHari" | "maxAnggota" | "modeOtomatis">[];
+  items: Pick<PlanDTO, "id" | "nama" | "deskripsi" | "label" | "hargaBulanan" | "maxAkun" | "maxPostingPerHari" | "maxAnggota" | "modeOtomatis">[];
 }
 
 export interface AdminPlansResponse {

@@ -176,7 +176,7 @@ beforeAll(async () => {
     INSERT INTO "DashboardUser" (id, username, email, "passwordHash", "createdAt") VALUES
       ('u-admin', 'admin', 'admin@contoh.id', 'x', '2026-01-01');
   `);
-  for (const f of ["002_dashboard_post_log", "003_dashboard_rpc", "005_autopilot", "006_autopilot_radar", "007_autopilot_learning", "008_multiuser", "009_signup", "010_superadmin", "011_plans", "012_billing_and_integrations"]) {
+  for (const f of ["002_dashboard_post_log", "003_dashboard_rpc", "005_autopilot", "006_autopilot_radar", "007_autopilot_learning", "008_multiuser", "009_signup", "010_superadmin", "011_plans", "012_billing_and_integrations", "018_plan_labels"]) {
     await db.exec(fs.readFileSync(path.join(REPO, `sql/${f}.sql`), "utf8"));
   }
   for (const p of [

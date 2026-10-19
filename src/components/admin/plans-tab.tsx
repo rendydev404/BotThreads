@@ -8,7 +8,7 @@ import { PLAN_DESC_MAX, PLAN_ID_PATTERN, PLAN_NAME_MAX, PLAN_POSTS_MAX, formatRu
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { ConfirmModal } from "@/components/autopilot/confirm-modal";
 import { Banner, ListSkeleton, Segmented, type SegmentedOption } from "@/components/autopilot/shared";
-import { ControlLabel, FormError, TextAreaField, TextField } from "@/components/settings/fields";
+import { ControlLabel, FormError, INPUT_CLS, TextAreaField, TextField } from "@/components/settings/fields";
 import { errorText, formatInt } from "@/components/settings/format";
 import { BTN_PRIMARY, EmptyState, NotInstalled, Pill, RefreshButton } from "@/components/settings/states";
 import {
@@ -81,6 +81,7 @@ interface PlanForm {
   id: string;
   nama: string;
   deskripsi: string;
+  label: PlanDTO["label"];
   harga: string;
   maxAkun: string;
   posts: number | null;
@@ -96,6 +97,7 @@ const formOf = (plan: PlanDTO | null): PlanForm => ({
   id: plan?.id ?? "",
   nama: plan?.nama ?? "",
   deskripsi: plan?.deskripsi ?? "",
+  label: plan?.label ?? null,
   harga: plan ? String(plan.hargaBulanan) : "",
   maxAkun: plan ? String(plan.maxAkun) : "",
   posts: plan?.maxPostingPerHari ?? null,
@@ -155,6 +157,7 @@ function PlanDialog({ plan, existing, onClose, onSaved }: PlanDialogProps) {
       id,
       nama,
       deskripsi: deskripsi || null,
+      label: form.label,
       hargaBulanan: harga,
       maxAkun,
       maxPostingPerHari: form.posts,
@@ -264,6 +267,21 @@ function PlanDialog({ plan, existing, onClose, onSaved }: PlanDialogProps) {
           className="min-h-16"
           disabled={busy}
         />
+
+        <div>
+          <ControlLabel hint="Label ini ditampilkan pada kartu paket di halaman publik dan menu langganan pengguna.">Label paket</ControlLabel>
+          <select
+            value={form.label ?? ""}
+            onChange={(e) => update({ label: e.target.value === "" ? null : (e.target.value as PlanDTO["label"]) })}
+            disabled={busy}
+            className={cn(INPUT_CLS, "sm:max-w-sm")}
+            aria-label="Label paket"
+          >
+            <option value="">Tanpa label</option>
+            <option value="REKOMENDASI">Rekomendasi</option>
+            <option value="TERLARIS">Terlaris</option>
+          </select>
+        </div>
 
         <TextField
           label="Harga per bulan (rupiah)"
@@ -577,6 +595,7 @@ export function PlansTab({ plans: given }: { plans?: PlansRemote }) {
                       Bawaan
                     </Pill>
                   )}
+                  {p.label && <Pill tone="accent">{p.label === "REKOMENDASI" ? "Rekomendasi" : "Terlaris"}</Pill>}
                   <Pill tone={p.publik ? "accent" : "neutral"}>{p.publik ? "Publik" : "Tersembunyi"}</Pill>
                   {!p.aktif && <Pill tone="danger">Nonaktif</Pill>}
                 </div>

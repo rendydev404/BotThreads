@@ -16,7 +16,7 @@ import {
 import { rpc, utc } from "./supabase";
 import type { Failure } from "./threads-publish";
 
-const SQL_FILE = "sql/011_plans.sql";
+const SQL_FILE = "sql/018_plan_labels.sql";
 const TTL_MS = 30_000;
 const MISSING_TTL_MS = 5 * 60_000;
 const UNLIMITED: PlanLimits = { plan: null, bawaan: true, berakhir: null, kedaluwarsa: false, pakai: { akun: 0, anggota: 0 } };
@@ -72,8 +72,8 @@ export async function publicPlans(): Promise<PublicPlansResponse> {
   const rows = await read<PlanDTO[]>("dash_plan_list", { p_public: true }, []);
   return {
     success: true,
-    items: rows.map(({ id, nama, deskripsi, hargaBulanan, maxAkun, maxPostingPerHari, maxAnggota, modeOtomatis }) => ({
-      id, nama, deskripsi, hargaBulanan, maxAkun, maxPostingPerHari, maxAnggota, modeOtomatis,
+    items: rows.map(({ id, nama, deskripsi, label, hargaBulanan, maxAkun, maxPostingPerHari, maxAnggota, modeOtomatis }) => ({
+      id, nama, deskripsi, label, hargaBulanan, maxAkun, maxPostingPerHari, maxAnggota, modeOtomatis,
     })),
   };
 }
@@ -112,6 +112,9 @@ export async function actOnPlans(adminId: string, body: unknown, now = new Date(
     if (!PLAN_ID_PATTERN.test(id)) return failure(400, "Kode paket 2-32 karakter: huruf kecil, angka, atau tanda hubung.");
     const nama = text(p.nama, PLAN_NAME_MAX);
     if (nama.length < 2) return failure(400, `Nama paket harus 2-${PLAN_NAME_MAX} karakter.`);
+    if (p.label !== null && p.label !== undefined && p.label !== "REKOMENDASI" && p.label !== "TERLARIS") {
+      return failure(400, "Label paket tidak valid.");
+    }
     if (!intIn(p.hargaBulanan, 0, 1_000_000_000)) return failure(400, "Harga per bulan harus bilangan bulat rupiah, 0 atau lebih.");
     if (!intIn(p.maxAkun, 1, 1000)) return failure(400, "Jumlah akun harus 1-1000.");
     if (!intIn(p.maxPostingPerHari, 1, PLAN_POSTS_MAX)) return failure(400, `Posting per hari harus 1-${PLAN_POSTS_MAX}.`);
@@ -119,10 +122,10 @@ export async function actOnPlans(adminId: string, body: unknown, now = new Date(
     for (const key of ["modeOtomatis", "publik", "aktif"] as const) {
       if (typeof p[key] !== "boolean") return failure(400, "Nilai saklar paket tidak valid.");
     }
-    result = await write<string>("dash_sa_plan_upsert", {
+    result = await write<string>("dash_sa_plan_upsert_v2", {
       p_actor: adminId,
       p_plan: {
-        id, nama, deskripsi: text(p.deskripsi, PLAN_DESC_MAX) || null, hargaBulanan: p.hargaBulanan, maxAkun: p.maxAkun,
+        id, nama, deskripsi: text(p.deskripsi, PLAN_DESC_MAX) || null, label: p.label ?? null, hargaBulanan: p.hargaBulanan, maxAkun: p.maxAkun,
         maxPostingPerHari: p.maxPostingPerHari, maxAnggota: p.maxAnggota, modeOtomatis: p.modeOtomatis, publik: p.publik, aktif: p.aktif,
         urutan: intIn(p.urutan, 0, 999) ? p.urutan : 0,
       },
