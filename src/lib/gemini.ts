@@ -354,12 +354,16 @@ async function viaGemini(opts: GenerateOptions, startedAt: number): Promise<Gemi
 
   const now = Date.now();
   const all = modelChain();
-  // Model yang sedang istirahat dicoba paling akhir, bukan dibuang total.
-  const ready = all.filter((m) => (blockedUntil.get(m) ?? 0) <= now);
+  // Kuota pencarian Google (grounding) terpisah dari kuota biasa: dicatat dengan kunci sendiri, supaya
+  // kuota pencarian yang habis tidak membuat model diistirahatkan untuk panggilan biasa.
+  const restKey = (m: string) => (opts.googleSearch ? `${m}#search` : m);
+  const ready = all.filter((m) => (blockedUntil.get(restKey(m)) ?? 0) <= now);
   const resting = all.filter((m) => !ready.includes(m));
   let attempts = 0;
 
-  for (const model of [...ready, ...resting]) {
+  // Model yang sedang istirahat dicoba paling akhir, bukan dibuang total; kecuali untuk pencarian, yang
+  // kuotanya habis per kunci API dan tidak pulih dalam hitungan menit (pemanggil punya jalur cadangan).
+  for (const model of opts.googleSearch ? ready : [...ready, ...resting]) {
     if (opts.signal?.aborted) return null;
     const remaining = opts.deadlineMs ? opts.deadlineMs - (Date.now() - startedAt) : Infinity;
     if (remaining < MIN_ATTEMPT_MS) break;
@@ -391,7 +395,7 @@ async function viaGemini(opts: GenerateOptions, startedAt: number): Promise<Gemi
 
       if (!res.ok) {
         const quota = res.status === 429;
-        blockedUntil.set(model, Date.now() + (quota ? COOLDOWN_QUOTA_MS : COOLDOWN_ERROR_MS));
+        blockedUntil.set(restKey(model), Date.now() + (quota ? COOLDOWN_QUOTA_MS : COOLDOWN_ERROR_MS));
         console.warn(`[llm] gemini ${model} -> ${res.status}, mencoba model berikutnya`);
         continue;
       }
@@ -411,7 +415,7 @@ async function viaGemini(opts: GenerateOptions, startedAt: number): Promise<Gemi
       console.warn(`[llm] gemini ${model} membalas kosong/tidak valid, mencoba model berikutnya`);
     } catch (err) {
       if (opts.signal?.aborted) return null;
-      blockedUntil.set(model, Date.now() + COOLDOWN_ERROR_MS);
+      blockedUntil.set(restKey(model), Date.now() + COOLDOWN_ERROR_MS);
       console.warn(`[llm] gemini ${model} gagal:`, (err as Error).message);
     }
   }

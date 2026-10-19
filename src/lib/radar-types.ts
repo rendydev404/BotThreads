@@ -2,10 +2,11 @@
  * Tipe bersama server dan klien untuk radar tren, bank ide, dan knowledge base. Tanpa import server.
  */
 
-export type SignalSource = "JARINGAN" | "GTRENDS" | "WEB" | "THREADS_SEARCH" | "MOMEN" | "MANUAL";
+export type SignalSource = "JARINGAN" | "GTRENDS" | "WEB" | "THREADS_SEARCH" | "MOMEN" | "MANUAL" | "NICHE";
 
 /** Nama sumber tren seperti yang dilihat pengguna (tanpa istilah teknis "sinyal"). */
 export const SIGNAL_SOURCE_LABEL: Record<SignalSource, string> = {
+  NICHE: "Naik di niche Anda",
   THREADS_SEARCH: "Viral di Threads",
   GTRENDS: "Lagi ramai di Indonesia",
   JARINGAN: "Viral di akun Anda",

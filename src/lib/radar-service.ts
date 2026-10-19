@@ -40,7 +40,7 @@ import {
   type SignalListResponse,
   type SignalSource,
 } from "./radar-types";
-import type { RequestCtx } from "./request-ctx";
+import { canAccessAccount, type RequestCtx } from "./request-ctx";
 import { wibDayKey } from "./scheduling";
 import { decodeCursor, encodeCursor, type Failure } from "./threads-publish";
 
@@ -79,7 +79,7 @@ const NO_WORKSPACE = "Workspace belum bisa ditentukan. Pastikan ada akun yang su
 
 /* ------------------------------------------------------------------ sinyal */
 
-const SOURCES: SignalSource[] = ["JARINGAN", "GTRENDS", "WEB", "THREADS_SEARCH", "MOMEN", "MANUAL"];
+const SOURCES: SignalSource[] = ["NICHE", "JARINGAN", "GTRENDS", "WEB", "THREADS_SEARCH", "MOMEN", "MANUAL"];
 export const isSignalSource = (v: string): v is SignalSource => (SOURCES as string[]).includes(v);
 
 export async function listSignalPage(
@@ -102,10 +102,12 @@ export async function listSignalPage(
     ]);
     const page = rows.slice(0, RADAR_PAGE_SIZE);
     const last = page.at(-1);
+    // Tren niche milik akun yang tidak dikelola pengguna berlingkup akun tidak ditampilkan.
+    const visible = page.filter((s) => s.source !== "NICHE" || (!!s.accountId && canAccessAccount(ctx, s.accountId)));
     return {
       success: true,
       installed: true,
-      items: page.map((s) => ({
+      items: visible.map((s) => ({
         id: s.id,
         source: s.source,
         title: s.title,

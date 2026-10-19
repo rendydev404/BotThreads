@@ -647,7 +647,10 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
             )}
           </Field>
 
-          <Field label="Tema akun">
+          <Field
+            label="Tema akun"
+            hint="AI memakai tema dan pilar ini untuk mencari tren yang lagi naik di niche akun, lalu menyusun ide dari tren itu. Bila kosong, niche disimpulkan dari postingan akun."
+          >
             {(labelId) => (
               <div className="rounded-xl border border-line-strong bg-surface transition-colors focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/15">
                 <textarea

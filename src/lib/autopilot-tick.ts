@@ -29,7 +29,14 @@ import { criticEnabled } from "./autopilot-critic";
 import { buildStats, loadLearnStats, notify, provenPatterns, runLearning, type NotificationWrite, type StatRow } from "./autopilot-learning";
 import type { TopicUse } from "./autopilot-ideas";
 import { planDay } from "./autopilot-plan";
-import { loadKnowledge, refillIdeas, runResearch, type AccountKnowledge } from "./autopilot-research";
+import {
+  loadKnowledge,
+  planNiche,
+  refillIdeas,
+  researchNiches,
+  runResearch,
+  type AccountKnowledge,
+} from "./autopilot-research";
 import {
   acquireLease,
   claimSlots,
@@ -454,7 +461,18 @@ export async function runTick(opts: { now?: Date; budgetMs?: number } = {}): Pro
       try {
         const radar = await loadRadarState(now);
         await runResearch(radar, now, counts);
-        if (isPublishEnabled()) await refillIdeas(state, accounts, radar, now, deadline, counts);
+        if (isPublishEnabled()) {
+          // Riset tren niche dan pengisian ide berjalan sejajar untuk akun yang berbeda: akun yang trennya
+          // sedang diriset menunggu tick berikutnya, supaya penulisan slot tidak tertunda dua kali.
+          const niche = planNiche(state, accounts, radar, now);
+          await Promise.all([
+            researchNiches(niche, now, deadline, counts).catch((err) => {
+              bump(counts, "risetNicheGagal");
+              console.error("[autopilot] riset niche:", err instanceof Error ? err.message : err);
+            }),
+            refillIdeas(state, accounts, radar, niche, now, deadline, counts),
+          ]);
+        }
       } catch (err) {
         if (isMissingAutopilotSchema(err)) bump(counts, "radarBelumDipasang");
         else {

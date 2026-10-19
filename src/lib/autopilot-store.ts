@@ -41,6 +41,7 @@ export function missingSchemaFile(err: unknown): string {
   if (/dash_mu_signup/.test(msg)) return "sql/009_signup.sql";
   if (/dash_mu_|DashboardMembership|DashboardMemberAccount|DashboardInvite|DashboardPasswordReset/.test(msg)) return "sql/008_multiuser.sql";
   if (/dash_(?:learn|notif)_|ContentOutcome|DashboardNotification/.test(msg)) return "sql/007_autopilot_learning.sql";
+  if (/dash_radar_niche/.test(msg)) return "sql/027_radar_niche_trends.sql";
   if (/dash_ap_plan_drafts|dash_radar_signal_briefs|dash_idea_details/.test(msg)) return "sql/021_autopilot_plan_view.sql";
   if (/dash_(?:radar|idea|kb|moment)_|TrendSignal|ContentIdea|KnowledgeBase|ContentMoment/.test(msg)) return "sql/006_autopilot_radar.sql";
   return "sql/005_autopilot.sql";

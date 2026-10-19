@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useCallback, useId, useLayoutEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Loader2, Plus, Radar, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { addRadarSignal, deleteRadarSignal, listRadarSignals } from "@/lib/radar-client";
@@ -15,7 +15,8 @@ import {
 import { ThreadsMark } from "@/components/landing/threads-mark";
 import { formatWibFull } from "@/lib/scheduling";
 import { ConfirmModal } from "@/components/autopilot/confirm-modal";
-import { Banner, ListSkeleton, LoadMoreButton } from "@/components/autopilot/shared";
+import { Banner, ListSkeleton, LoadMoreButton, accountHandle } from "@/components/autopilot/shared";
+import { usePublishAccounts } from "@/components/content/use-publish-accounts";
 import { FormError, TextAreaField, TextField } from "@/components/settings/fields";
 import { errorDetails, errorStatus, errorText, formatDateWib, toScore100 } from "@/components/settings/format";
 import { usePaged } from "@/components/settings/use-remote";
@@ -33,16 +34,16 @@ import {
 } from "./shared";
 
 /** Sumber yang diisi server dan ditawarkan sebagai saringan. Urutan = urutan tampil. */
-type OfferedSource = Extract<SignalSource, "THREADS_SEARCH" | "WEB" | "GTRENDS" | "JARINGAN" | "MOMEN" | "MANUAL">;
+type OfferedSource = Extract<SignalSource, "NICHE" | "THREADS_SEARCH" | "WEB" | "GTRENDS" | "JARINGAN" | "MOMEN" | "MANUAL">;
 type SourceFilter = "ALL" | OfferedSource;
 
-const FILTER_SOURCES: OfferedSource[] = ["THREADS_SEARCH", "WEB", "GTRENDS", "JARINGAN", "MOMEN", "MANUAL"];
+const FILTER_SOURCES: OfferedSource[] = ["NICHE", "THREADS_SEARCH", "WEB", "GTRENDS", "JARINGAN", "MOMEN", "MANUAL"];
 const FILTERS: { value: SourceFilter; label: string }[] = [
   { value: "ALL", label: "Semua" },
   ...FILTER_SOURCES.map((s) => ({ value: s, label: SIGNAL_SOURCE_LABEL[s] })),
 ];
 /** Sumber yang dikumpulkan tick autopilot (inspirasi manual tidak dihitung "pengambilan"). */
-const AUTO_SOURCES: OfferedSource[] = ["THREADS_SEARCH", "WEB", "GTRENDS", "JARINGAN", "MOMEN"];
+const AUTO_SOURCES: OfferedSource[] = ["NICHE", "THREADS_SEARCH", "WEB", "GTRENDS", "JARINGAN", "MOMEN"];
 
 const URL_MAX = 500;
 const TEXT_MIN = 10;
@@ -52,7 +53,11 @@ const SHORT_TITLE = 80;
 const EMPTY_COPY: Record<SourceFilter, { title: string; body: string }> = {
   ALL: {
     title: "Belum ada tren yang tertangkap.",
-    body: "Tren diperbarui otomatis tiap beberapa jam: yang viral di Threads, yang lagi ramai di Indonesia, dan posting akun Anda yang sedang meledak.",
+    body: "Tren diperbarui otomatis tiap beberapa jam: yang lagi naik di niche tiap akun, yang viral di Threads, yang lagi ramai di Indonesia, dan posting akun Anda yang sedang meledak.",
+  },
+  NICHE: {
+    title: "Belum ada tren di niche akun.",
+    body: "AI mencari lewat Google apa yang sedang naik di niche tiap akun yang autopilotnya menyala, tiap 8 jam pada jam aktif. Niche diambil dari Tema akun dan pilar di pengaturan Autopilot, atau disimpulkan dari postingan akun bila tema kosong. Ide AI disusun dari tren ini lebih dulu.",
   },
   THREADS_SEARCH: {
     title: "Belum ada posting viral dari Threads.",
@@ -60,7 +65,7 @@ const EMPTY_COPY: Record<SourceFilter, { title: string; body: string }> = {
   },
   WEB: {
     title: "Belum ada obrolan viral dari medsos.",
-    body: "AI mencari lewat Google obrolan, meme, dan istilah yang sedang ramai di Threads dan medsos Indonesia, tiap 3 jam pada jam aktif. Butuh kunci Gemini di server.",
+    body: "AI mencari obrolan, meme, dan istilah yang sedang ramai di Threads dan medsos Indonesia lewat Google Search, atau dari berita viral Google News bila pencarian tidak tersedia, tiap 3 jam pada jam aktif. Butuh kunci Gemini di server.",
   },
   JARINGAN: {
     title: "Belum ada posting Anda yang viral.",
@@ -247,11 +252,13 @@ const ThreadsViralRow = memo(function ThreadsViralRow({ signal }: { signal: Sign
 
 interface SignalRowProps {
   signal: SignalDTO;
+  /** Tren niche: akun tujuan (mis. "@nama"), bila dikenal. */
+  forAccount: string | null;
   canDelete: boolean;
   onDelete: (signal: SignalDTO) => void;
 }
 
-const SignalRow = memo(function SignalRow({ signal, canDelete, onDelete }: SignalRowProps) {
+const SignalRow = memo(function SignalRow({ signal, forAccount, canDelete, onDelete }: SignalRowProps) {
   const [open, setOpen] = useState(false);
   // Inspirasi manual yang panjang: `title` hanya potongan awal, teks lengkapnya ada di `summary`.
   const full =
@@ -269,6 +276,7 @@ const SignalRow = memo(function SignalRow({ signal, canDelete, onDelete }: Signa
               {signal.source === "GTRENDS" ? `#${signal.rank} di Indonesia` : `Peringkat ${signal.rank}`}
             </span>
           )}
+          {forAccount && <span className="min-w-0 truncate text-xs font-semibold text-fg">untuk {forAccount}</span>}
           <span className="text-xs font-semibold text-muted tabular-nums">
             Skor viral {toScore100(signal.score)}
             <span className="sr-only"> dari 100</span>
@@ -374,6 +382,9 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
     "Gagal memuat tren viral."
   );
   const { data, items, mutate, reload } = list;
+  // Cache modul 30 detik yang juga dipakai halaman lain; gagal memuatnya hanya menyembunyikan nama akun.
+  const { accounts } = usePublishAccounts();
+  const handleById = useMemo(() => new Map(accounts.map((a) => [a.id, accountHandle(a)])), [accounts]);
 
   // Tab atau halaman yang disembunyikan tidak boleh kembali dengan dialog konfirmasi masih terbuka.
   useLayoutEffect(() => () => setDeleteTarget(null), []);
@@ -515,7 +526,13 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
                 s.source === "THREADS_SEARCH" ? (
                   <ThreadsViralRow key={s.id} signal={s} />
                 ) : (
-                  <SignalRow key={s.id} signal={s} canDelete={canEdit && s.removable} onDelete={askDelete} />
+                  <SignalRow
+                    key={s.id}
+                    signal={s}
+                    forAccount={s.source === "NICHE" && s.accountId ? handleById.get(s.accountId) ?? null : null}
+                    canDelete={canEdit && s.removable}
+                    onDelete={askDelete}
+                  />
                 )
               )}
             </ul>

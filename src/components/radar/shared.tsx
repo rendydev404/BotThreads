@@ -12,6 +12,7 @@ import {
   Lock,
   RefreshCw,
   RotateCw,
+  Target,
   TrendingUp,
 } from "lucide-react";
 import { ThreadsMark } from "@/components/landing/threads-mark";
@@ -210,6 +211,8 @@ export function LoadFailure({ status, message, onRetry }: { status: number | nul
 const SOURCE_STYLE: Record<SignalSource, { cls: string; Icon: React.ComponentType<{ className?: string }> }> = {
   // Warna merek Threads (hitam/putih), supaya jelas datanya dari Threads.
   THREADS_SEARCH: { cls: "bg-black text-white dark:bg-white dark:text-black", Icon: ThreadsMark },
+  // Tren di niche akun sendiri: warna berbeda supaya mudah dibedakan dari tren umum.
+  NICHE: { cls: "bg-success-soft text-success", Icon: Target },
   GTRENDS: { cls: "bg-accent-soft text-accent", Icon: TrendingUp },
   JARINGAN: { cls: "bg-danger-soft text-danger", Icon: Flame },
   WEB: { cls: "bg-accent-soft text-accent", Icon: Globe },

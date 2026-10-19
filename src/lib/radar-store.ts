@@ -30,16 +30,20 @@ export interface RadarState {
   lastCapture: Partial<Record<SignalSource, Date>>;
   /** Stok ide BARU per akun. */
   ideaCounts: Map<string, number>;
+  /** Riset tren niche terakhir per akun (yang sinyalnya masih berlaku); null = sql/027 belum dipasang. */
+  nicheAt: Map<string, Date> | null;
 }
 
 export async function loadRadarState(now: Date): Promise<RadarState> {
-  const raw = await call<{ lastCapture: Record<string, string>; ideaCounts: { accountId: string; baru: number }[] }>(
-    "dash_radar_state",
-    { p_now: now }
-  );
+  const raw = await call<{
+    lastCapture: Record<string, string>;
+    ideaCounts: { accountId: string; baru: number }[];
+    nicheAt?: Record<string, string>;
+  }>("dash_radar_state", { p_now: now });
   return {
     lastCapture: Object.fromEntries(Object.entries(raw.lastCapture).map(([k, v]) => [k, utc(v)])),
     ideaCounts: new Map(raw.ideaCounts.map((c) => [c.accountId, c.baru])),
+    nicheAt: raw.nicheAt ? new Map(Object.entries(raw.nicheAt).map(([k, v]) => [k, utc(v)])) : null,
   };
 }
 
@@ -87,6 +91,19 @@ export async function listSignals(q: {
     p_limit: q.limit,
   });
   return rows.map((r) => ({ ...r, capturedAt: iso(r.capturedAt), expiresAt: iso(r.expiresAt) }));
+}
+
+/** Sinyal NICHE yang masih berlaku per akun, paling baru dulu (sql/027). */
+export async function listNicheSignals(accountIds: string[], now: Date, perAccount: number): Promise<Map<string, SignalRow[]>> {
+  const out = new Map<string, SignalRow[]>();
+  if (accountIds.length === 0) return out;
+  const rows = await call<SignalRow[]>("dash_radar_niche", { p_account_ids: accountIds, p_now: now, p_per: perAccount });
+  for (const r of rows) {
+    if (!r.accountId) continue;
+    const row = { ...r, capturedAt: iso(r.capturedAt), expiresAt: iso(r.expiresAt) };
+    out.set(r.accountId, [...(out.get(r.accountId) ?? []), row]);
+  }
+  return out;
 }
 
 export interface SignalBrief {

@@ -2,7 +2,9 @@
  * Langkah riset dan penyusunan ide dalam tick autopilot.
  *
  * RISET  - menyegarkan sinyal radar bila sudah basi (pemenang jaringan, tren pencarian, momen).
- * IDE    - mengisi ulang bank ide akun yang stoknya menipis, beberapa akun per tick.
+ * NICHE  - mencari tren yang lagi naik di niche tiap akun (tema dan pilar di pengaturan, atau
+ *          disimpulkan dari postingan akun), beberapa akun per tick.
+ * IDE    - mengisi ulang bank ide akun yang stoknya menipis atau yang trennya baru diperbarui.
  *
  * Keduanya tambahan: bila sumber luar gagal, AI tidak membalas, atau skema radar belum dipasang,
  * langkah ini dilewati dan penulisan tetap berjalan dengan topik dari gaya akun.
@@ -19,13 +21,15 @@ import {
 import { buildStats, ideaPerformance, loadLearnStats, type StatRow } from "./autopilot-learning";
 import { randomUUID } from "node:crypto";
 import { acquireLease, type AutopilotState, type ConfigRow } from "./autopilot-store";
+import { nicheKey, nicheProfile, nicheTopicsToSignals, researchNiche, type NicheProfile } from "./niche-trends";
 import type { PublishAccount } from "./publish-accounts";
-import { builtinMomentSignals, fetchGoogleTrends, trendsToSignals } from "./radar-sources";
+import { builtinMomentSignals, fetchGoogleTrends, trendsToSignals, type SignalDraft } from "./radar-sources";
 import { captureThreadsViral } from "./threads-trends";
 import { captureWebTrends } from "./web-trends";
 import {
   activeKnowledge,
   insertIdeas,
+  listNicheSignals,
   listSignals,
   loadIdeaContext,
   pruneRadar,
@@ -36,6 +40,7 @@ import {
   type RadarState,
   type SignalRow,
 } from "./radar-store";
+import type { SignalSource } from "./radar-types";
 import { wibDayKey, wibParts } from "./scheduling";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -60,9 +65,26 @@ const lastIdeaAttempt = new Map<string, number>();
  * stok habis, sehingga tren yang sedang panas sering basi sebelum sempat dipakai.
  */
 const TREND_REFRESH_MS = 6 * HOUR_MS;
-const TREND_REFRESH_MAX_DAYS = IDEA_STOCK_DAYS + 2;
+/** Batas stok untuk penyegaran karena tren: longgar, supaya ide lama tanpa tren tidak menahan ide tren baru. */
+const TREND_REFRESH_MAX_DAYS = IDEA_STOCK_DAYS + 4;
 const TREND_SOURCES = ["THREADS_SEARCH", "WEB", "GTRENDS"] as const;
 const lastIdeaFill = new Map<string, number>();
+/** Sumber sinyal bersama (global dan milik workspace) untuk prompt ide; tren niche dibaca terpisah per akun. */
+const SHARED_SOURCES: SignalSource[] = ["JARINGAN", "GTRENDS", "WEB", "THREADS_SEARCH", "MOMEN", "MANUAL"];
+
+/** Tren niche tiap akun dicari ulang paling sering tiap 8 jam, pada jam aktif. */
+export const NICHE_REFRESH_MS = 8 * HOUR_MS;
+/** Niche yang diriset per tick (satu panggilan AI ber-grounding per niche; akun bertema sama berbagi). */
+const NICHE_PER_TICK = 3;
+/** Sinyal niche terbaru per akun yang dibaca untuk prompt ide. */
+const NICHE_SIGNALS_PER_ACCOUNT = 10;
+const NICHE_DEADLINE_MS = 80_000;
+/** Riset niche hanya dimulai bila sisa anggaran tick masih cukup untuk ide dan penulisan slot. */
+const NICHE_MIN_BUDGET_MS = 150_000;
+/** Riset gagal (AI tidak membalas) dicoba lagi setelah ini; berhasil tetapi kosong menunggu jadwal biasa. */
+const NICHE_RETRY_MS = HOUR_MS;
+/** Waktu paling awal riset niche akun boleh dicoba lagi (di memori; hilang saat server dimulai ulang). */
+const nicheNextTry = new Map<string, number>();
 
 type Counts = Record<string, number>;
 const bump = (c: Counts, key: string, n = 1): void => {
@@ -129,6 +151,127 @@ export async function runResearch(radar: RadarState, now: Date, counts: Counts):
   await pruneRadar(now).catch(() => undefined);
 }
 
+/* ------------------------------------------------------------------ tren niche */
+
+/** Akun yang autopilotnya berjalan dan siap diisi ide. */
+function activeConfigs(state: AutopilotState, accounts: Map<string, PublishAccount>): ConfigRow[] {
+  return [...state.configs.values()].filter(
+    (c) =>
+      c.mode !== "MATI" &&
+      !c.pausedReason &&
+      (state.workspaceActive.get(c.workspaceId) ?? true) &&
+      !!accounts.get(c.accountId)?.ready
+  );
+}
+
+export interface NicheState {
+  /** sql/027 terpasang (riset dan sinyal niche tersedia). */
+  installed: boolean;
+  /**
+   * Akun yang tren nichenya basi dan menunggu riset, yang paling mendesak dulu. Idenya ditunda sampai
+   * riset selesai (atau gagal), supaya disusun dari tren niche yang baru, bukan yang sudah basi.
+   */
+  due: ConfigRow[];
+}
+
+/**
+ * Tentukan akun yang perlu diriset ulang tren nichenya. Tanpa query: waktu riset terakhir per akun sudah
+ * ikut di `radar.nicheAt` (dash_radar_state). Tanpa sql/027, kunci Gemini, atau di luar jam aktif, tidak
+ * ada yang menunggu dan ide disusun dari tren yang ada.
+ */
+export function planNiche(state: AutopilotState, accounts: Map<string, PublishAccount>, radar: RadarState, now: Date): NicheState {
+  const nicheAt = radar.nicheAt;
+  if (!nicheAt) return { installed: false, due: [] };
+  const hour = wibParts(now).h;
+  if (!process.env.GEMINI_API_KEY || hour < RESEARCH_FIRST_HOUR || hour > RESEARCH_LAST_HOUR) return { installed: true, due: [] };
+  const last = (c: ConfigRow) => nicheAt.get(c.accountId)?.getTime() ?? 0;
+  const critical = (c: ConfigRow) => (radar.ideaCounts.get(c.accountId) ?? 0) < c.postsPerDay;
+  const due = activeConfigs(state, accounts)
+    .filter((c) => now.getTime() - last(c) >= NICHE_REFRESH_MS && now.getTime() >= (nicheNextTry.get(c.accountId) ?? 0))
+    // Akun yang idenya hampir habis dulu, lalu yang paling lama tidak diriset.
+    .sort((a, b) => Number(critical(b)) - Number(critical(a)) || last(a) - last(b));
+  return { installed: true, due };
+}
+
+export interface NicheJob {
+  profile: NicheProfile;
+  targets: ConfigRow[];
+}
+
+/** Kelompokkan akun yang perlu diriset: akun dengan tema dan pilar yang sama persis berbagi satu riset. */
+export function nicheJobs(
+  due: ConfigRow[],
+  recents: Map<string, string[]>,
+  limit: number
+): { jobs: NicheJob[]; skipped: ConfigRow[] } {
+  const jobs: NicheJob[] = [];
+  const byKey = new Map<string, NicheJob>();
+  const skipped: ConfigRow[] = [];
+  for (const c of due) {
+    const profile = nicheProfile(c, recents.get(c.accountId) ?? []);
+    if (!profile) {
+      skipped.push(c);
+      continue;
+    }
+    const key = nicheKey(profile);
+    const shared = key ? byKey.get(key) : undefined;
+    if (shared) {
+      shared.targets.push(c);
+      continue;
+    }
+    if (jobs.length >= limit) continue;
+    const job = { profile, targets: [c] };
+    jobs.push(job);
+    if (key) byKey.set(key, job);
+  }
+  return { jobs, skipped };
+}
+
+/**
+ * Riset tren niche untuk akun yang jatuh tempo, paling banyak `NICHE_PER_TICK` niche per tick dan
+ * sejajar satu sama lain. Ide akun-akun ini disusun pada tick berikutnya (lihat `refillIdeas`).
+ */
+export async function researchNiches(niche: NicheState, now: Date, deadline: number, counts: Counts): Promise<void> {
+  if (niche.due.length === 0 || deadline - Date.now() < NICHE_MIN_BUDGET_MS) return;
+  // Profil hanya untuk akun yang mungkin diriset tick ini (akun bertema sama ikut dalam satu riset).
+  const candidates = niche.due.slice(0, NICHE_PER_TICK * 4);
+  const [context, kb] = await Promise.all([
+    loadIdeaContext(candidates.map((c) => c.accountId), now),
+    loadKnowledge(candidates, now).catch(() => new Map<string, AccountKnowledge>()),
+  ]);
+  const { jobs, skipped } = nicheJobs(candidates, context.recents, NICHE_PER_TICK);
+  // Tanpa tema, pilar, maupun cukup postingan: tidak ada niche untuk diriset. Dicoba lagi pada jadwal biasa.
+  for (const c of skipped) nicheNextTry.set(c.accountId, now.getTime() + NICHE_REFRESH_MS);
+  if (jobs.length === 0) return;
+
+  const extraBanned = extraBannedTerms();
+  await Promise.all(
+    jobs.map(async (job) => {
+      for (const c of job.targets) nicheNextTry.set(c.accountId, now.getTime() + NICHE_RETRY_MS);
+      try {
+        const research = await researchNiche(job.profile, now, Math.min(NICHE_DEADLINE_MS, deadline - Date.now() - 60_000));
+        bump(counts, "risetNiche");
+        if (!research) {
+          bump(counts, "risetNicheGagal");
+          return;
+        }
+        const drafts: SignalDraft[] = job.targets.flatMap((c) =>
+          nicheTopicsToSignals(research, { accountId: c.accountId, workspaceId: c.workspaceId }, now, [
+            ...extraBanned,
+            ...(kb.get(c.accountId)?.banned ?? []),
+          ])
+        );
+        bump(counts, "trenNiche", await upsertSignals(drafts, now));
+        // Berhasil (termasuk bila kosong karena niche sepi atau semua tersaring): tunggu jadwal biasa.
+        for (const c of job.targets) nicheNextTry.set(c.accountId, now.getTime() + NICHE_REFRESH_MS);
+      } catch (err) {
+        bump(counts, "risetNicheGagal");
+        console.error("[autopilot] riset niche:", err instanceof Error ? err.message : err);
+      }
+    })
+  );
+}
+
 /** Butir knowledge base yang berlaku untuk satu akun, sudah dipilah menurut kegunaannya. */
 export interface AccountKnowledge {
   /** Fakta, produk, dan promo: sumber klaim yang sah (gerbang + prompt). */
@@ -176,32 +319,36 @@ async function pool<T>(items: T[], limit: number, worker: (item: T) => Promise<v
 }
 
 /**
- * Isi ulang bank ide akun yang stoknya di bawah kebutuhan `IDEA_STOCK_DAYS` hari, paling tipis dulu.
- * Dibatasi `IDEA_ACCOUNTS_PER_TICK` akun per tick supaya beban AI tersebar.
+ * Isi ulang bank ide akun yang stoknya di bawah kebutuhan `IDEA_STOCK_DAYS` hari, atau yang trennya
+ * (umum maupun niche) baru diperbarui sejak ide terakhir disusun. Paling tipis dulu, dibatasi
+ * `IDEA_ACCOUNTS_PER_TICK` akun per tick supaya beban AI tersebar.
+ *
+ * Akun yang tren nichenya sedang menunggu riset ditunda (kecuali stoknya tinggal kurang dari sehari),
+ * supaya idenya disusun dari tren niche yang baru, bukan dari tren yang sudah basi.
  */
 export async function refillIdeas(
   state: AutopilotState,
   accounts: Map<string, PublishAccount>,
   radar: RadarState,
+  niche: NicheState,
   now: Date,
   deadline: number,
   counts: Counts
 ): Promise<void> {
-  const trendAt = Math.max(0, ...TREND_SOURCES.map((src) => radar.lastCapture[src]?.getTime() ?? 0));
+  const sharedTrendAt = Math.max(0, ...TREND_SOURCES.map((src) => radar.lastCapture[src]?.getTime() ?? 0));
+  const waiting = new Set(niche.due.map((c) => c.accountId));
   const stock = (c: ConfigRow) => radar.ideaCounts.get(c.accountId) ?? 0;
   const low = (c: ConfigRow) => stock(c) < c.postsPerDay * IDEA_STOCK_DAYS;
   const trendDue = (c: ConfigRow) => {
     const filled = lastIdeaFill.get(c.accountId) ?? 0;
+    const trendAt = Math.max(sharedTrendAt, radar.nicheAt?.get(c.accountId)?.getTime() ?? 0);
     return stock(c) < c.postsPerDay * TREND_REFRESH_MAX_DAYS && trendAt > filled && now.getTime() - filled >= TREND_REFRESH_MS;
   };
-  const need = [...state.configs.values()]
+  const need = activeConfigs(state, accounts)
     .filter(
       (c) =>
-        c.mode !== "MATI" &&
-        !c.pausedReason &&
-        (state.workspaceActive.get(c.workspaceId) ?? true) &&
-        accounts.get(c.accountId)?.ready &&
         (low(c) || trendDue(c)) &&
+        !waiting.has(c.accountId) &&
         now.getTime() - (lastIdeaAttempt.get(c.accountId) ?? 0) >= IDEA_RETRY_MS
     )
     // Stok yang menipis didahulukan, lalu yang paling sedikit idenya.
@@ -211,12 +358,16 @@ export async function refillIdeas(
 
   const ids = need.map((c) => c.accountId);
   const workspaces = [...new Set(need.map((c) => c.workspaceId))];
-  const [context, knowledge, statRows, ...signalLists] = await Promise.all([
+  const [context, knowledge, statRows, nicheSignals, ...signalLists] = await Promise.all([
     loadIdeaContext(ids, now),
     loadKnowledge(need, now),
     // Skema belajar belum dipasang atau kosong: ide dinilai tanpa komponen kinerja (0,5).
     loadLearnStats(ids, now).catch(() => [] as StatRow[]),
-    ...workspaces.map((w) => listSignals({ workspaceId: w, sources: null, now, cursor: null, limit: SIGNALS_FOR_IDEAS })),
+    // Tren niche dibaca per akun (bukan lewat daftar workspace) supaya tidak berebut batas baris.
+    niche.installed
+      ? listNicheSignals(ids, now, NICHE_SIGNALS_PER_ACCOUNT).catch(() => new Map<string, SignalRow[]>())
+      : new Map<string, SignalRow[]>(),
+    ...workspaces.map((w) => listSignals({ workspaceId: w, sources: SHARED_SOURCES, now, cursor: null, limit: SIGNALS_FOR_IDEAS })),
   ]);
   const signalsByWorkspace = new Map<string, SignalRow[]>(workspaces.map((w, i) => [w, signalLists[i]]));
   const extraBanned = extraBannedTerms();
@@ -228,7 +379,10 @@ export async function refillIdeas(
     const account = accounts.get(config.accountId)!;
     const kb = knowledge.get(config.accountId);
     const banned = [...extraBanned, ...(kb?.banned ?? [])];
-    const signals = selectSignals(signalsByWorkspace.get(config.workspaceId) ?? [], config.accountId);
+    const signals = selectSignals(
+      [...(signalsByWorkspace.get(config.workspaceId) ?? []), ...(nicheSignals.get(config.accountId) ?? [])],
+      config.accountId
+    );
     const recents = context.recents.get(config.accountId) ?? [];
     const topics = context.topics.get(config.accountId) ?? [];
     try {
@@ -237,6 +391,7 @@ export async function refillIdeas(
           account,
           config,
           signals,
+          samples: recents.slice(0, 8),
           avoid: [...topics, ...recents.slice(0, 30)],
           facts: kb?.sources ?? [],
           count: IDEAS_PER_CALL,

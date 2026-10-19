@@ -28,7 +28,9 @@ export const HARD_NEWS_TERMS = [
 
 export interface SignalDraft {
   workspaceId?: string | null;
-  source: "GTRENDS" | "MOMEN" | "MANUAL" | "THREADS_SEARCH" | "WEB";
+  source: "GTRENDS" | "MOMEN" | "MANUAL" | "THREADS_SEARCH" | "WEB" | "NICHE";
+  /** NICHE: akun tujuan tren. */
+  accountId?: string | null;
   title: string;
   summary?: string | null;
   url?: string | null;
