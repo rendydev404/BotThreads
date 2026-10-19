@@ -8,6 +8,7 @@ import {
   describeVoice,
   pickAngles,
   rankCandidates,
+  blandness,
   screenDrafts,
   voiceProfile,
 } from "../content-ai";
@@ -252,6 +253,14 @@ describe("rankCandidates", () => {
     const long = cand("kata ".repeat(60).trim());
     const short = cand("Pendek saja kok ini isinya");
     expect(rankCandidates([long, short], [], 30)[0]).toBe(short);
+  });
+
+  it("kandidat dengan pembuka dan penutup klise kalah dari yang spesifik", () => {
+    const bland = cand("Pernah nggak sih kalian ngerasa lapar tengah malam? Tetap semangat ya");
+    const fresh = cand("Tukang parkir depan cabang hafal pesanan saya, padahal saya belum hafal namanya");
+    expect(rankCandidates([bland, fresh], [], null)[0]).toBe(fresh);
+    expect(blandness(bland.text)).toBe(1);
+    expect(blandness(fresh.text)).toBe(0);
   });
 });
 

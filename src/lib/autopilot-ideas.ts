@@ -116,6 +116,7 @@ ATURAN
 - Ide harus bisa ditulis sebagai obrolan santai, bukan iklan. Jangan membuat ide promo, diskon, atau jualan kecuali ada butir PROMO di FAKTA BRAND.
 - Jangan memakai sinyal berita politik, hukum, bencana, kecelakaan, atau kabar duka. Jangan menyerang orang atau kelompok.
 - Jangan mengulang topik pada daftar JANGAN ULANGI. Tiap ide harus berbeda satu sama lain.
+- Hindari ide generik yang aman dan membosankan ("tips sehat", "semangat pagi", "makanan favorit kalian apa"). Ide yang bagus punya sudut spesifik dan sedikit ketegangan: pendapat yang bisa dibantah, detail yang tak terduga, atau keresahan yang belum pernah diucapkan. Campur jenisnya: debat ringan, cerita, pengakuan, tebak-tebakan, ranking, mitos vs fakta.
 - "formulaHook" pilih satu dari daftar FORMULA HOOK. "sudut" adalah arah cerita singkat (maks 60 karakter) yang menjelaskan jembatan topik ke akun.
 - "pilar" isi persis salah satu nama pada PILAR, atau kosong bila tidak ada pilar.
 - "sinyal" berisi nomor sinyal yang dipakai (boleh kosong).

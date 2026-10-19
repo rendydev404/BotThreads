@@ -271,6 +271,16 @@ export const CREATIVE_ANGLES = [
   "daftar mini tiga hal dengan butir terakhir yang nyeleneh",
   "ajakan bercerita: lempar satu pengalaman lalu minta versi pembaca",
   "rutinitas biasa dilihat dari sudut pandang orang atau benda lain",
+  "hot take yang bikin orang pengen membantah, tapi argumennya masuk akal",
+  "red flag vs green flag versi niche akun, satu contoh spesifik masing-masing",
+  "drama mini lewat dialog dua baris (percakapan nyata yang lucu atau nyesek)",
+  "plot twist: kalimat awal menggiring ke satu arah, kalimat akhir membalikkannya",
+  "ranking jujur: urutkan beberapa pilihan, posisi terakhir yang pasti diprotes",
+  "tebak-tebakan atau tantangan kecil yang jawabannya bikin orang pengen pamer",
+  "keresahan spesifik yang semua orang rasain tapi belum pernah ada yang bilang",
+  "hal kecil yang bikin hari ini jauh lebih baik, diceritakan detail dan hangat",
+  "mitos yang masih dipercaya banyak orang di niche akun, lalu dibantah santai",
+  "tips orang dalam: satu trik praktis yang cuma diketahui orang yang sudah lama di bidang ini",
 ];
 
 /** Sudut untuk agen ke-`index`: agen bersebelahan mendapat potongan daftar yang berbeda. */
@@ -292,6 +302,9 @@ SUARA AKUN
 KREATIVITAS
 - Tiap kandidat memakai SUDUT KREATIF yang berbeda, sesuai urutan daftar yang diberikan.
 - Kalimat pertama adalah hook yang konkret (detail kecil, momen nyata, benda sehari-hari), bukan kalimat umum yang bisa ditulis siapa saja.
+- ANTI GARING: tiap kandidat wajib punya satu hal yang bikin orang berhenti scroll: detail spesifik yang tak terduga, ketegangan (dua pilihan, pendapat yang bisa dibantah), humor receh khas warganet, atau belokan di akhir. Bila kalimatnya bisa diposting akun mana pun tanpa diubah, tulis ulang.
+- Jangan menulis kalimat normatif dan aman ("semoga harimu menyenangkan", "tetap semangat ya", "jangan lupa bersyukur", "kalian tim mana nih?"). Penutup pertanyaan harus spesifik dan gampang dijawab dalam satu kata atau satu cerita singkat.
+- Variasikan bentuk: jangan semua kandidat dibuka dengan pertanyaan atau "pernah nggak sih". Pakai pernyataan berani, cerita, dialog, atau daftar pendek sesuai SUDUT KREATIF.
 - Dilarang klise ("di era", "siapa sangka", "tak hanya itu", "yuk", "jangan lupa", "tahukah kamu", "halo sobat", "hai guys") dan kata iklan ("dijamin", "terbaik", "buruan", "wajib coba"). Dilarang markdown, daftar poin, hashtag, tanda seru beruntun, huruf kapital semua.
 - PENTING: JANGAN PERNAH membuat postingan tentang promo, diskon, "buy 1 get 1", penawaran spesial, atau grand opening KECUALI pengguna secara eksplisit memintanya di dalam <brief>. Jika tidak diminta, buat postingan interaktif biasa yang menarik.
 - Jangan mengarang harga, promo, alamat, tanggal, klaim fakta, atau janji hasil dan keuntungan.
@@ -675,6 +688,20 @@ const isVoiceSample = (text: string): boolean => !/https?:\/\//i.test(text);
  * Urutkan kandidat: paling berbeda dari draf akun lain dulu, lalu yang panjangnya paling dekat
  * dengan kebiasaan akun. Deterministik, tanpa panggilan AI tambahan.
  */
+/** Pembuka dan penutup "aman" yang membuat postingan terasa garing dan seragam antar-akun. */
+const BLAND_OPENERS = /^(pernah (nggak|gak|ga) sih|siapa (di sini|disini) yang|selamat (pagi|siang|sore|malam)|hari ini|guys|teman-teman|kalian)\b/i;
+const BLAND_CLOSERS =
+  /(tetap semangat|semoga (hari|harimu|kalian)|jangan lupa bersyukur|kalian tim mana( nih)?|gimana menurut kalian|setuju (nggak|gak|ga)|ada yang sama)(\s+(ya+|nih|deh|guys))?\W*$/i;
+
+/** 0 (segar) sampai 1 (garing): pembuka/penutup klise dan pembuka berupa pertanyaan umum. */
+export function blandness(text: string): number {
+  const t = text.trim();
+  let s = 0;
+  if (BLAND_OPENERS.test(t)) s += 0.5;
+  if (BLAND_CLOSERS.test(t)) s += 0.5;
+  return s;
+}
+
 export function rankCandidates(
   candidates: AcceptedDraft[],
   peers: string[],
@@ -683,7 +710,7 @@ export function rankCandidates(
   const score = (d: AcceptedDraft): number => {
     const overlap = peers.reduce((max, p) => Math.max(max, jaccard(d.text, p)), 0);
     const off = targetChars ? Math.min(1, Math.abs(charLength(d.text) - targetChars) / targetChars) : 0;
-    return overlap + 0.3 * off;
+    return overlap + 0.3 * off + 0.4 * blandness(d.text);
   };
   return candidates
     .map((d) => ({ d, s: score(d) }))
