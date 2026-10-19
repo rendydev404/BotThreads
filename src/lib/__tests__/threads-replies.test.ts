@@ -1,13 +1,15 @@
 /**
  * Balas komentar otomatis lewat webhook Threads (src/lib/threads-replies.ts, /api/webhooks/threads,
- * sql/023 + sql/024): SQL asli di Postgres in-memory, API Threads dan AI tiruan. Memastikan tanda tangan Meta
- * diperiksa, komentar dibalas tepat sekali, komentar sendiri/bersarang/spam tidak dibalas, saklar per akun
- * dihormati, dan jeda antar-balasan per akun berlaku. Tidak ada polling ke Threads.
+ * sql/023 + sql/024 + sql/025): SQL asli di Postgres in-memory, API Threads dan AI tiruan. Memastikan tanda tangan
+ * Meta diperiksa, komentar dibalas tepat sekali, komentar sendiri/spam dan balasan untuk komentar orang lain tidak
+ * dibalas, balasan untuk balasan AI dilanjutkan dengan riwayat obrolan (dibatasi), saklar per akun dihormati, dan jeda
+ * antar-balasan per akun berlaku. Tidak ada polling ke Threads.
  */
 import { createHmac } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { generateWithFailover } from "@/lib/gemini";
 import type { TestDb } from "./helpers/pg";
 
 const SECRET = "rahasia-aplikasi-threads";
@@ -66,7 +68,7 @@ beforeAll(async () => {
     CREATE TABLE "DashboardAuditLog" (id bigserial, "workspaceId" text, actor text, action text, target text, detail jsonb, "createdAt" timestamp(3));
   `);
   // Dipasang dua kali: harus idempoten.
-  for (const f of ["sql/023_threads_replies.sql", "sql/024_threads_reply_webhook.sql"]) {
+  for (const f of ["sql/023_threads_replies.sql", "sql/024_threads_reply_webhook.sql", "sql/025_threads_reply_thread.sql"]) {
     const sql = fs.readFileSync(path.join(REPO, f), "utf8");
     for (let i = 0; i < 2; i++) await db.exec(sql);
   }
@@ -158,7 +160,7 @@ describe("webhook Threads", () => {
     expect(api.calls).toEqual([]);
   });
 
-  it("tidak disimpan: komentar akun sendiri, balasan bersarang, media bukan postingan dashboard, saklar mati", async () => {
+  it("tidak disimpan: komentar akun sendiri, balasan untuk komentar orang lain, media bukan postingan dashboard, saklar mati", async () => {
     await deliver(payload("k-sendiri", { username: "akun" }));
     await deliver(payload("k-bersarang", { repliedTo: "k-lain" }));
     await deliver(payload("k-asing", { media: "m-lain" }));
@@ -197,13 +199,64 @@ describe("webhook Threads", () => {
   });
 });
 
+describe("lanjutan obrolan", () => {
+  /** Balasan AI terakhir untuk komentar `commentId` (id media balasan di Threads). */
+  const replyIdOf = async (commentId: string) =>
+    (await rows<{ replyId: string }>(`SELECT "replyId" FROM "ThreadsComment" WHERE "commentId" = '${commentId}'`))[0].replyId;
+  /** Lewati jeda per akun supaya balasan berikutnya langsung terkirim. */
+  const skipGap = () => db.exec(`UPDATE "ThreadsComment" SET "repliedAt" = "repliedAt" - interval '1 minute' WHERE "repliedAt" IS NOT NULL`);
+  const lastPrompt = () => {
+    const calls = vi.mocked(generateWithFailover).mock.calls;
+    return calls[calls.length - 1][0].contents[0].parts[0].text as string;
+  };
+
+  it("orang yang membalas balasan AI dibalas lagi, dengan riwayat obrolan di prompt", async () => {
+    await deliver(payload("k1"));
+    const r1 = await replyIdOf("k1");
+    await skipGap();
+
+    h.ai = { balas: true, teks: "Kopi dulu biar kuat 😆", alasan: "" };
+    api.calls = [];
+    await deliver(payload("k1b", { repliedTo: r1, text: "Iya, kamu gimana ngatasinnya?" }));
+    const row = (await rows<{ status: string; depth: number; parentId: string | null; replyText: string }>(
+      `SELECT status, depth, "parentId", "replyText" FROM "ThreadsComment" WHERE "commentId" = 'k1b'`
+    ))[0];
+    expect(row).toMatchObject({ status: "DIBALAS", depth: 1, replyText: "Kopi dulu biar kuat 😆" });
+    expect(row.parentId).not.toBeNull();
+    const create = new URLSearchParams(api.calls.find((c) => c.url.endsWith("/1789/threads"))!.body);
+    expect(create.get("reply_to_id")).toBe("k1b");
+
+    const prompt = lastPrompt();
+    expect(prompt).toContain("<obrolan>");
+    expect(prompt).toContain("@pembaca: Sama banget, Senin tuh berat");
+    expect(prompt).toContain("@akun (Anda): Wkwk sama, aku juga gitu tiap Senin 😅");
+    expect(prompt).toContain("Iya, kamu gimana ngatasinnya?");
+  });
+
+  it("obrolan dibatasi 5 balasan AI; selebihnya disimpan sebagai dilewati", async () => {
+    await deliver(payload("t0"));
+    let prev = "t0";
+    for (let i = 1; i <= 5; i++) {
+      await skipGap();
+      await deliver(payload(`t${i}`, { repliedTo: await replyIdOf(prev) }));
+      prev = `t${i}`;
+    }
+    const all = await rows<{ commentId: string; status: string; depth: number; error: string | null }>(
+      `SELECT "commentId", status, depth, error FROM "ThreadsComment" ORDER BY depth`
+    );
+    expect(all.map((r) => r.status)).toEqual(["DIBALAS", "DIBALAS", "DIBALAS", "DIBALAS", "DIBALAS", "DILEWATI"]);
+    expect(all[5]).toMatchObject({ commentId: "t5", depth: 5, error: "Obrolan sudah panjang, tidak dibalas lagi." });
+  });
+});
+
 describe("pembantu", () => {
   it("parseWebhook menerima bentuk dokumentasi, larik, dan entry/changes; mengabaikan topik lain", () => {
     expect(parseWebhook(payload("k1"))).toEqual([
-      { mediaId: "m1", commentId: "k1", username: "pembaca", text: "Sama banget, Senin tuh berat", commentedAt: "2026-10-19T02:55:00.000" },
+      { mediaId: "m1", commentId: "k1", repliedTo: null, username: "pembaca", text: "Sama banget, Senin tuh berat", commentedAt: "2026-10-19T02:55:00.000" },
     ]);
     expect(parseWebhook([payload("k1"), payload("k2")]).map((r) => r.commentId)).toEqual(["k1", "k2"]);
     expect(parseWebhook({ entry: [{ changes: [{ field: "replies", value: payload("k3").values.value }] }] }).map((r) => r.commentId)).toEqual(["k3"]);
+    expect(parseWebhook(payload("k5", { repliedTo: "r9" }))[0].repliedTo).toBe("r9");
     expect(parseWebhook({ values: { field: "mentions", value: payload("k4").values.value } })).toEqual([]);
   });
 

@@ -22,6 +22,8 @@ export interface CommentDTO {
   error: string | null;
   repliedAt: string | null;
   createdAt: string;
+  /** 0 = komentar langsung ke postingan; >0 = membalas balasan AI (sql/025, belum terpasang = tidak ada). */
+  depth?: number;
   releaseUrl: string | null;
 }
 

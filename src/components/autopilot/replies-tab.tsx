@@ -51,6 +51,7 @@ function CommentRow({ c, handle }: { c: CommentDTO; handle: string }) {
         <span className="font-semibold text-fg">@{c.username ?? "pengguna"}</span>
         <span>di {handle}</span>
         <span className="tabular-nums">· {whenText(c.commentedAt)}</span>
+        {(c.depth ?? 0) > 0 && <span>· membalas balasan AI</span>}
         <span className={cn("h-6 px-2 rounded-full text-[11px] font-semibold inline-flex items-center", s.cls)}>{s.label}</span>
         {c.releaseUrl && (
           <a href={c.releaseUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
