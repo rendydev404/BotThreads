@@ -123,6 +123,10 @@ Coolify membatasi perintah tugas terjadwal maksimal 255 karakter; perintah di at
 
 Endpoint itu hanya menerima `POST` dengan rahasia yang benar (401 bila salah, 503 bila `AUTOPILOT_CRON_SECRET` belum dipasang). Aman dipanggil ganda: tick kedua langsung selesai. Halaman Autopilot menampilkan peringatan bila tick terakhir lebih dari 15 menit yang lalu.
 
+### Penerbit Threads (wajib supaya antrean terbit)
+
+Database BotThreads tidak dibaca worker auto-suka, jadi dashboard menerbitkan antreannya sendiri (`src/lib/threads-publisher.ts`, fungsi SQL di `sql/022_threads_publisher.sql`). Tambah Scheduled Task kedua dengan Frequency `* * * * *` dan perintah yang sama, ganti path menjadi `/api/internal/publisher/tick`. Hanya postingan `DASHBOARD_AI` teks yang diterbitkan; yang belum diproses lebih dari 2 jam setelah jam tayang ditandai gagal, bukan diterbitkan terlambat. Token dibaca dengan `TOKEN_ENCRYPTION_KEY` dan diperpanjang otomatis bila tersisa kurang dari 7 hari.
+
 ### Variabel lingkungan
 
 | Variabel | Default | Fungsi |
