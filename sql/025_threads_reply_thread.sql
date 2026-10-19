@@ -133,7 +133,7 @@ BEGIN
 END
 $$;
 
--- Sama dengan sql/023, ditambah depth per komentar (lanjutan obrolan ditandai di dashboard).
+-- Sama dengan sql/023, ditambah parentId dan depth per komentar (dashboard menampilkannya sebagai utas).
 CREATE OR REPLACE FUNCTION dash_reply_overview(p_account_ids text[], p_limit integer, p_now timestamp) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT jsonb_build_object(
@@ -146,7 +146,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
                FROM "ThreadsComment" WHERE "accountId" = ANY(p_account_ids) AND "createdAt" >= p_now - interval '30 days'),
     'items', COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t."createdAt" DESC, t.id DESC) FROM (
                SELECT c.id, c."accountId", c.username, c.text, c."commentedAt", c.status, c."replyText", c.error,
-                      c."repliedAt", c."createdAt", c.depth, d."releaseUrl"
+                      c."repliedAt", c."createdAt", c."parentId", c.depth, d."releaseUrl"
                FROM "ThreadsComment" c LEFT JOIN "PostDispatch" d ON d.id = c."dispatchId"
                WHERE c."accountId" = ANY(p_account_ids)
                ORDER BY c."createdAt" DESC, c.id DESC

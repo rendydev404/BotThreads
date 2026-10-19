@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { CornerDownRight, ExternalLink, MessageCircle, RotateCw } from "lucide-react";
+import { ExternalLink, MessageCircle, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CommentDTO, CommentStatus, RepliesResponse } from "@/lib/replies-service";
 import { AccountAvatar } from "@/components/content/post-status-chip";
@@ -43,30 +43,96 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "su
   );
 }
 
-function CommentRow({ c, handle }: { c: CommentDTO; handle: string }) {
+type Account = RepliesResponse["accounts"][number];
+interface ThreadNode {
+  c: CommentDTO;
+  kids: ThreadNode[];
+}
+
+/**
+ * Susun komentar jadi utas: lanjutan obrolan (parentId) di bawah komentar induknya, urut waktu. Induk di luar
+ * halaman daftar = komentar itu tampil sebagai awal utas. Utas diurutkan dari aktivitas terbaru.
+ */
+function buildThreads(items: CommentDTO[]): ThreadNode[] {
+  const nodes = new Map(items.map((c) => [c.id, { c, kids: [] as ThreadNode[] }]));
+  const roots: ThreadNode[] = [];
+  for (const n of nodes.values()) {
+    const parent = n.c.parentId ? nodes.get(n.c.parentId) : undefined;
+    (parent ? parent.kids : roots).push(n);
+  }
+  const latest = new Map<ThreadNode, string>();
+  const walk = (n: ThreadNode): string => {
+    n.kids.sort((a, b) => a.c.commentedAt.localeCompare(b.c.commentedAt));
+    return n.kids.reduce((max, k) => {
+      const t = walk(k);
+      return t > max ? t : max;
+    }, n.c.createdAt);
+  };
+  for (const r of roots) latest.set(r, walk(r));
+  return roots.sort((a, b) => latest.get(b)!.localeCompare(latest.get(a)!));
+}
+
+/** Urutan pesan dalam utas: komentar, balasan AI-nya, lalu lanjutan obrolan (kedalaman dulu). */
+type Message = { kind: "komentar"; c: CommentDTO; root: boolean } | { kind: "balasan"; c: CommentDTO };
+function flatten(n: ThreadNode, root = true, out: Message[] = []): Message[] {
+  out.push({ kind: "komentar", c: n.c, root });
+  if (n.c.replyText) out.push({ kind: "balasan", c: n.c });
+  for (const k of n.kids) flatten(k, false, out);
+  return out;
+}
+
+function MessageRow({ m, account, last }: { m: Message; account: Account | undefined; last: boolean }) {
+  const c = m.c;
+  const mine = m.kind === "balasan";
+  const name = mine ? (account ? accountHandle(account) : "@akun") : `@${c.username ?? "pengguna"}`;
   const s = STATUS[c.status];
   return (
-    <li className="p-4 space-y-2">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-        <span className="font-semibold text-fg">@{c.username ?? "pengguna"}</span>
-        <span>di {handle}</span>
-        <span className="tabular-nums">· {whenText(c.commentedAt)}</span>
-        {(c.depth ?? 0) > 0 && <span>· membalas balasan AI</span>}
-        <span className={cn("h-6 px-2 rounded-full text-[11px] font-semibold inline-flex items-center", s.cls)}>{s.label}</span>
-        {c.releaseUrl && (
-          <a href={c.releaseUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
-            Postingan <ExternalLink className="w-3 h-3" />
-          </a>
-        )}
+    <div className="flex gap-3">
+      {/* Kolom avatar + garis penyambung ke pesan berikutnya, seperti utas di Threads. */}
+      <div className="flex flex-col items-center shrink-0">
+        <AccountAvatar
+          name={mine ? (account?.displayName ?? "A") : (c.username ?? "?")}
+          src={mine ? account?.avatarUrl : null}
+          size="w-8 h-8"
+          className={mine ? "ring-2 ring-accent-soft" : undefined}
+        />
+        {!last && <span aria-hidden className="mt-1.5 w-0.5 flex-1 min-h-3 rounded-full bg-line" />}
       </div>
-      <p className="text-sm text-fg break-words">{c.text || <span className="text-muted">(tanpa teks)</span>}</p>
-      {c.replyText && (
-        <p className="flex items-start gap-1.5 text-sm text-fg rounded-xl bg-subtle px-3 py-2 break-words">
-          <CornerDownRight className="w-4 h-4 mt-0.5 shrink-0 text-accent" />
-          <span>{c.replyText}</span>
-        </p>
-      )}
-      {c.error && c.status !== "DIBALAS" && <p className="text-xs text-muted">{c.error}</p>}
+      <div className={cn("min-w-0 flex-1", !last && "pb-4")}>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted min-h-8">
+          <span className="font-semibold text-fg">{name}</span>
+          {mine ? (
+            <span className="h-5 px-1.5 rounded-full text-[10px] font-semibold inline-flex items-center bg-accent-soft text-accent">AI</span>
+          ) : (
+            <>
+              <span className="tabular-nums">{whenText(c.commentedAt)}</span>
+              {c.status !== "DIBALAS" && (
+                <span className={cn("h-5 px-2 rounded-full text-[11px] font-semibold inline-flex items-center", s.cls)}>{s.label}</span>
+              )}
+              {m.root && (c.depth ?? 0) > 0 && <span>· membalas balasan AI</span>}
+              {m.root && c.releaseUrl && (
+                <a href={c.releaseUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
+                  Postingan <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </>
+          )}
+          {mine && c.repliedAt && <span className="tabular-nums">{whenText(c.repliedAt)}</span>}
+        </div>
+        <p className="text-sm text-fg break-words">{(mine ? c.replyText : c.text) || <span className="text-muted">(tanpa teks)</span>}</p>
+        {!mine && c.error && c.status !== "DIBALAS" && <p className="mt-1 text-xs text-muted">{c.error}</p>}
+      </div>
+    </div>
+  );
+}
+
+function CommentThread({ node, account }: { node: ThreadNode; account: Account | undefined }) {
+  const messages = flatten(node);
+  return (
+    <li className="p-4">
+      {messages.map((m, i) => (
+        <MessageRow key={`${m.kind}-${m.c.id}`} m={m} account={account} last={i === messages.length - 1} />
+      ))}
     </li>
   );
 }
@@ -202,10 +268,9 @@ export function RepliesTab({ active, canManage }: { active: boolean; canManage: 
           </div>
         ) : (
           <ul className="divide-y divide-line">
-            {data.items.map((c) => {
-              const a = byId.get(c.accountId);
-              return <CommentRow key={c.id} c={c} handle={a ? accountHandle(a) : "akun"} />;
-            })}
+            {buildThreads(data.items).map((t) => (
+              <CommentThread key={t.c.id} node={t} account={byId.get(t.c.accountId)} />
+            ))}
           </ul>
         )}
       </section>

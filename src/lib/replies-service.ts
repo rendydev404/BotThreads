@@ -24,6 +24,8 @@ export interface CommentDTO {
   createdAt: string;
   /** 0 = komentar langsung ke postingan; >0 = membalas balasan AI (sql/025, belum terpasang = tidak ada). */
   depth?: number;
+  /** Komentar yang balasan AI-nya dibalas komentar ini (sql/025). */
+  parentId?: string | null;
   releaseUrl: string | null;
 }
 
