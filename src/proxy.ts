@@ -20,6 +20,8 @@ const PUBLIC_API = [
   "/api/plans",
   // Notifikasi pembayaran Midtrans: signature dicek, lalu status diverifikasi ulang ke API Midtrans.
   "/api/billing/webhook",
+  // Callback OAuth Threads: di HP bisa selesai di browser/aplikasi lain tanpa sesi; diamankan state bertanda tangan.
+  "/api/threads/oauth/callback",
 ];
 
 // Halaman yang dibuka dari tautan undangan/reset oleh orang yang belum punya sesi.
@@ -35,6 +37,8 @@ const PUBLIC_PAGES = [
   "/pengiriman-layanan",
   "/penghapusan-data",
   "/kontak",
+  // Hasil hubungkan akun Threads bila login selesai di browser tanpa sesi dashboard.
+  "/threads-terhubung",
 ];
 
 export async function proxy(request: NextRequest) {

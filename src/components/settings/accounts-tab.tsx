@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useId, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, Bot, CheckCircle2, Link2, Loader2, Sparkles, UserCheck } from "lucide-react";
@@ -11,7 +11,7 @@ import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { FormError, TextAreaField } from "./fields";
 import { errorText, formatDateWib, formatInt } from "./format";
 import { BTN_OUTLINE, BTN_PRIMARY, EmptyState, LoadError, Pill, RefreshButton } from "./states";
-import { ThreadsConnectButton } from "./threads-connect-button";
+import { ThreadsConnectButton, ThreadsMobileHelp } from "./threads-connect-button";
 import { useRemote } from "./use-remote";
 
 export function AccountsTab({
@@ -41,6 +41,15 @@ export function AccountsTab({
     oauthConnected ? `Akun Threads @${oauthConnected} berhasil dihubungkan.` : null
   );
   const formId = useId();
+
+  // Login Threads di HP bisa selesai di browser/aplikasi lain: begitu pengguna kembali ke tab ini, muat ulang daftar.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") reload();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [reload]);
 
   if (loading && !data) {
     return (
@@ -163,6 +172,8 @@ export function AccountsTab({
           )}
         </div>
       </div>
+
+      {canManage && oneClickReady && !quotaFull && !quota.expired && <ThreadsMobileHelp className="sm:hidden" />}
 
       {/* Daftar Akun */}
       {accounts.length === 0 ? (

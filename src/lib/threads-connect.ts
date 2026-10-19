@@ -12,7 +12,7 @@
  *
  * Setiap akun BARU memeriksa kuota `maxAkun` paket workspace; menghubungkan ulang akun yang sama tidak.
  */
-import { randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { getRawIntegrations } from "./integrations";
 import { planLimits } from "./plan";
 import { forgetPublishAccounts } from "./publish-accounts";
@@ -26,8 +26,53 @@ const FETCH_TIMEOUT_MS = 10_000;
 /** Umur token long-lived Threads bila API tidak menyebutkan `expires_in`. */
 const LONG_LIVED_SECONDS = 60 * 86_400;
 
-/** Cookie httpOnly berisi `state` OAuth Threads + workspace yang memulainya. */
+/** Cookie lama berisi `state` OAuth Threads; kini hanya dihapus saat callback (state sudah bertanda tangan). */
 export const THREADS_OAUTH_COOKIE = "th_oauth";
+/** Umur `state` OAuth Threads: login di halaman Threads harus selesai dalam waktu ini. */
+const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
+
+export interface ThreadsOAuthState {
+  /** Pengguna yang memulai. */
+  userId: string;
+  /** Workspace yang akan menerima akun. */
+  workspaceId: string;
+}
+
+const stateKey = (): string => {
+  const secret = process.env.AUTH_SECRET ?? "";
+  if (secret.length < 32) throw new Error("AUTH_SECRET belum diisi.");
+  return secret;
+};
+const stateSig = (payload: string): string => createHmac("sha256", stateKey()).update(`threads-oauth:${payload}`).digest("base64url");
+
+/**
+ * `state` OAuth bertanda tangan (HMAC AUTH_SECRET) berisi pengguna + workspace + masa berlaku. Di HP, halaman
+ * izin Threads sering terbuka di aplikasi Threads atau browser lain, sehingga callback datang tanpa cookie dari
+ * browser yang memulai; dengan state bertanda tangan callback tetap tahu siapa dan ke workspace mana akunnya.
+ */
+export function signThreadsOAuthState(s: ThreadsOAuthState, now = Date.now()): string {
+  const payload = Buffer.from(
+    JSON.stringify({ u: s.userId, w: s.workspaceId, e: now + OAUTH_STATE_TTL_MS, n: randomBytes(9).toString("base64url") })
+  ).toString("base64url");
+  return `${payload}.${stateSig(payload)}`;
+}
+
+/** Kebalikan `signThreadsOAuthState`; null bila tanda tangan salah, rusak, atau kedaluwarsa. */
+export function verifyThreadsOAuthState(raw: string | null, now = Date.now()): ThreadsOAuthState | null {
+  if (!raw || raw.length > 600) return null;
+  const [payload, sig, extra] = raw.split(".");
+  if (!payload || !sig || extra !== undefined) return null;
+  const expected = Buffer.from(stateSig(payload));
+  const given = Buffer.from(sig);
+  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
+  try {
+    const v = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { u?: unknown; w?: unknown; e?: unknown };
+    if (typeof v.u !== "string" || typeof v.w !== "string" || typeof v.e !== "number" || v.e < now) return null;
+    return { userId: v.u, workspaceId: v.w };
+  } catch {
+    return null;
+  }
+}
 
 /** Izin yang diminta saat OAuth (sama dengan worker auto-suka). */
 export const THREADS_SCOPES = [

@@ -153,6 +153,14 @@ export async function getCtx(request: NextRequest): Promise<RequestCtx | null> {
   return { userId, ...(await loadMembership(userId)) };
 }
 
+/**
+ * Konteks pengguna tanpa sesi di permintaan ini (mis. callback OAuth yang terbuka di browser lain).
+ * Hanya untuk pengguna yang identitasnya sudah dibuktikan dengan cara lain (state bertanda tangan).
+ */
+export async function ctxForUser(userId: string): Promise<RequestCtx> {
+  return { userId, ...(await loadMembership(userId)) };
+}
+
 /** Pelaku konsol admin: id, peran platform, dan pemeriksa izin (sql/014_admin_rbac.sql). */
 export interface AdminActor {
   userId: string;

@@ -24,6 +24,7 @@ const BARE_PAGES = [
   "/pengiriman-layanan",
   "/penghapusan-data",
   "/kontak",
+  "/threads-terhubung",
 ];
 const isBare = (pathname: string): boolean => BARE_PAGES.includes(pathname) || BARE_PREFIXES.some((p) => pathname.startsWith(p));
 

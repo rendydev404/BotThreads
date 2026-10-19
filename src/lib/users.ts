@@ -70,6 +70,11 @@ async function currentStatus(userId: string) {
   return entry;
 }
 
+/** Akun masih aktif (tidak dinonaktifkan/diblokir)? Untuk alur tanpa sesi, mis. callback OAuth bertanda tangan. */
+export async function isUserActive(userId: string): Promise<boolean> {
+  return (await currentStatus(userId)).ok;
+}
+
 export function forgetUserStatus(userId: string) {
   statusCache.delete(userId);
 }
