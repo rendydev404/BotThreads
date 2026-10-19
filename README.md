@@ -127,6 +127,8 @@ Endpoint itu hanya menerima `POST` dengan rahasia yang benar (401 bila salah, 50
 
 Database BotThreads tidak dibaca worker auto-suka, jadi dashboard menerbitkan antreannya sendiri (`src/lib/threads-publisher.ts`, fungsi SQL di `sql/022_threads_publisher.sql`). Tambah Scheduled Task kedua dengan Frequency `* * * * *` dan perintah yang sama, ganti path menjadi `/api/internal/publisher/tick`. Hanya postingan `DASHBOARD_AI` teks yang diterbitkan; yang belum diproses lebih dari 2 jam setelah jam tayang ditandai gagal, bukan diterbitkan terlambat. Token dibaca dengan `TOKEN_ENCRYPTION_KEY` dan diperpanjang otomatis bila tersisa kurang dari 7 hari.
 
+Putaran yang sama juga **membalas komentar otomatis** (`src/lib/threads-replies.ts`, SQL di `sql/023_threads_replies.sql`): komentar postingan 7 hari terakhir diambil berkala (tiap 2 menit di 24 jam pertama), dibalas AI dengan jeda 20 detik per akun dan maksimal 100 balasan per akun per hari. Spam, promosi akun lain, dan komentar kasar dilewati. Bawaannya menyala untuk akun bermode Otomatis; saklar per akun ada di Autopilot > Komentar. Akun Threads butuh izin `threads_read_replies` dan `threads_manage_replies`.
+
 ### Variabel lingkungan
 
 | Variabel | Default | Fungsi |

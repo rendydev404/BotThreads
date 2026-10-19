@@ -35,6 +35,7 @@ export class MissingAutopilotSchemaError extends Error {
 export function missingSchemaFile(err: unknown): string {
   if (err instanceof MissingAutopilotSchemaError) return err.file;
   const msg = err instanceof Error ? err.message : "";
+  if (/dash_reply_|ThreadsComment|ThreadsReply(?:Setting|Watch)/.test(msg)) return "sql/023_threads_replies.sql";
   if (/dash_aff_|Affiliate(?:Product|Config|Workspace|Use)/.test(msg)) return "sql/019_affiliate.sql";
   if (/dash_sa_|Platform(?:Settings|AuditLog)/.test(msg)) return "sql/010_superadmin.sql";
   if (/dash_mu_signup/.test(msg)) return "sql/009_signup.sql";
@@ -51,7 +52,7 @@ export function isMissingAutopilotSchema(err: unknown): boolean {
   // PGRST202 = fungsi tidak ada di cache skema PostgREST; 42883/42P01 = fungsi/tabel tidak ada.
   return (
     /PGRST202|42883|42P01/.test(msg) &&
-    /dash_(?:ap|radar|idea|kb|moment|learn|notif|mu|aff)_|Autopilot|Affiliate|WorkspaceSettings|DashboardAuditLog|TrendSignal|ContentIdea|KnowledgeBase|ContentMoment|ContentOutcome|DashboardNotification|DashboardMembership|DashboardInvite/.test(
+    /dash_(?:ap|radar|idea|kb|moment|learn|notif|mu|aff|reply)_|Autopilot|Affiliate|ThreadsComment|ThreadsReply|WorkspaceSettings|DashboardAuditLog|TrendSignal|ContentIdea|KnowledgeBase|ContentMoment|ContentOutcome|DashboardNotification|DashboardMembership|DashboardInvite/.test(
       msg
     )
   );

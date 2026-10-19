@@ -324,3 +324,29 @@ export function ListSkeleton({ label, rows = 3 }: { label: string; rows?: number
     </div>
   );
 }
+
+/** Saklar nyala/mati dengan area sentuh 48x40 dan indikator sibuk. */
+export function Switch({ on, onChange, label, busy, disabled }: { on: boolean; onChange: (next: boolean) => void; label: string; busy?: boolean; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled || busy}
+      onClick={() => onChange(!on)}
+      className="w-12 h-10 -my-2 shrink-0 inline-flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <span className={cn("relative w-10 h-6 rounded-full transition-colors", on ? "bg-accent" : "bg-line-strong")}>
+        <span
+          className={cn(
+            "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-surface shadow-sm transition-transform inline-flex items-center justify-center",
+            on && "translate-x-4"
+          )}
+        >
+          {busy && <Loader2 className="w-3 h-3 animate-spin text-muted" />}
+        </span>
+      </span>
+    </button>
+  );
+}

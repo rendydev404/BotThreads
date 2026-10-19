@@ -53,7 +53,7 @@ import { ContentApiError } from "@/lib/content-client";
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { AccountAvatar } from "@/components/content/post-status-chip";
 import { ConfirmModal } from "./confirm-modal";
-import { Banner, Checkbox, HandleText, ListSkeleton, accountHandle, timeOf } from "./shared";
+import { Banner, Checkbox, HandleText, ListSkeleton, Switch, accountHandle, timeOf } from "./shared";
 
 const FIELD =
   "w-full h-10 px-3 rounded-xl border border-line-strong bg-surface text-sm text-fg placeholder-faint outline-none focus:border-accent focus:ring-4 focus:ring-accent/15 transition-colors";
@@ -71,31 +71,6 @@ const REPLY_LABEL: Record<AffiliateReplyStatus, { label: string; cls: string }> 
 };
 
 /* ------------------------------------------------------------------ kontrol kecil */
-
-function Switch({ on, onChange, label, busy, disabled }: { on: boolean; onChange: (next: boolean) => void; label: string; busy?: boolean; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      disabled={disabled || busy}
-      onClick={() => onChange(!on)}
-      className="w-12 h-10 -my-2 shrink-0 inline-flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      <span className={cn("relative w-10 h-6 rounded-full transition-colors", on ? "bg-accent" : "bg-line-strong")}>
-        <span
-          className={cn(
-            "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-surface shadow-sm transition-transform inline-flex items-center justify-center",
-            on && "translate-x-4"
-          )}
-        >
-          {busy && <Loader2 className="w-3 h-3 animate-spin text-muted" />}
-        </span>
-      </span>
-    </button>
-  );
-}
 
 function Stepper({ value, min, max, onChange, label, unit }: { value: number; min: number; max: number; onChange: (n: number) => void; label: string; unit: string }) {
   const btn =

@@ -15,6 +15,7 @@
 import { isPublishEnabled } from "./content-config";
 import { rpc, sqlTs, toDate } from "./supabase";
 import { firstValidTopic, charLength, THREADS_MAX_TEXT } from "./threads-text";
+import { runReplies } from "./threads-replies";
 import { decryptThreadsToken, encryptThreadsToken } from "./threads-token";
 
 const API = "https://graph.threads.net/v1.0";
@@ -36,6 +37,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const AFFILIATE_BATCH = 5;
 const AFFILIATE_RETRY_MS = 5 * 60 * 1000;
 const BRANCH_TAG = /{nama_(?:cabang|outlet)}/g;
+/** Batas waktu putaran sampai balas komentar berhenti mengambil pekerjaan baru. */
+const REPLIES_BUDGET_MS = 45_000;
 
 /* ------------------------------------------------------------------ Threads API */
 
@@ -67,7 +70,8 @@ async function graph<T>(url: string, init?: RequestInit): Promise<T> {
 
 type ContainerStatus = "FINISHED" | "PUBLISHED" | "IN_PROGRESS" | "ERROR" | "EXPIRED";
 
-const threads = {
+/** Panggilan Threads API yang dipakai penerbit dan balas komentar. */
+export const threads = {
   async createText(userId: string, token: string, text: string, extra: Record<string, string> = {}): Promise<string> {
     const body = new URLSearchParams({ access_token: token, media_type: "TEXT", text, ...extra });
     return (await graph<{ id: string }>(`${API}/${userId}/threads`, { method: "POST", body })).id;
@@ -89,6 +93,11 @@ const threads = {
       return null;
     }
   },
+  /** Komentar tingkat atas di satu postingan (halaman pertama, terlama dulu). */
+  async replies(mediaId: string, token: string): Promise<{ id: string; text?: string; username?: string; timestamp?: string }[]> {
+    const q = new URLSearchParams({ fields: "id,text,username,timestamp", reverse: "false", limit: "50", access_token: token });
+    return (await graph<{ data?: { id: string; text?: string; username?: string; timestamp?: string }[] }>(`${API}/${mediaId}/replies?${q}`)).data ?? [];
+  },
   refresh(token: string) {
     return graph<{ access_token: string; expires_in?: number }>(
       `${GRAPH}/refresh_access_token?${new URLSearchParams({ grant_type: "th_refresh_token", access_token: token })}`
@@ -98,7 +107,7 @@ const threads = {
 
 /* ------------------------------------------------------------------ data */
 
-interface AccountRow {
+export interface AccountRow {
   id: string;
   threadsUserId: string;
   accessToken: string;
@@ -131,7 +140,7 @@ const result = (id: string, o: Outcome, now: Date): Promise<string> => {
   return rpc<string>("dash_pub_result", { p_id: id, p_outcome: kind, p_patch: patch, p_now: sqlTs(now) });
 };
 
-const markReconnect = (accountId: string, now: Date) =>
+export const markReconnect = (accountId: string, now: Date) =>
   rpc("dash_pub_token", { p_id: accountId, p_token: null, p_expires: null, p_reconnect: true, p_now: sqlTs(now) }).catch(() => undefined);
 
 /** Token akses yang masih berlaku, diperpanjang bila hampir habis. Null = akun harus dihubungkan ulang. */
@@ -360,7 +369,9 @@ export async function runPublisher(opts: { now?: Date } = {}): Promise<Publisher
   });
 
   await sendAffiliateReplies(now, counts);
+  // Balas komentar otomatis (sql/023); dibatasi waktu supaya putaran selesai sebelum batas route 60 detik.
+  await runReplies(now, started + REPLIES_BUDGET_MS, counts);
   const ms = Date.now() - started;
-  if (jobs.length || counts.balasanAffiliate) console.info(`[publisher] ${ms} ms ${JSON.stringify(counts)}`);
+  if (Object.keys(counts).length > 1 || jobs.length) console.info(`[publisher] ${ms} ms ${JSON.stringify(counts)}`);
   return { ok: true, ms, counts };
 }
