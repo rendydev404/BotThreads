@@ -29,7 +29,8 @@ const TABS: { key: TabKey; label: string }[] = [
 function PageHeader({ children }: { children?: React.ReactNode }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      <div className="flex items-center gap-3 min-w-0">
+      {/* Di layar kecil judul sudah tampil di bilah atas; di sini cukup untuk pembaca layar. */}
+      <div className="flex items-center gap-3 min-w-0 max-sm:sr-only">
         <div className="w-11 h-11 rounded-2xl bg-accent-soft text-accent flex items-center justify-center shrink-0">
           <Bot className="w-5 h-5" />
         </div>
@@ -45,11 +46,11 @@ function PageHeader({ children }: { children?: React.ReactNode }) {
 
 function SummaryTile({ label, value, tone }: { label: string; value: string | number; tone?: "accent" | "success" | "danger" }) {
   return (
-    <div className="card p-4">
-      <p className="text-xs font-semibold text-muted">{label}</p>
+    <div className="card p-2.5 sm:p-4 min-w-0 flex flex-col">
+      <p className="text-[11px] sm:text-xs font-semibold text-muted leading-tight line-clamp-2">{label}</p>
       <p
         className={cn(
-          "mt-1 text-2xl font-bold tabular-nums",
+          "mt-auto pt-1 text-lg sm:text-2xl font-bold tabular-nums leading-tight",
           tone === "danger" ? "text-danger" : tone === "success" ? "text-success" : tone === "accent" ? "text-accent" : "text-fg"
         )}
       >
@@ -63,7 +64,7 @@ function PageSkeleton() {
   return (
     <div className="space-y-5" aria-busy="true" aria-label="Memuat autopilot">
       <PageHeader />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="card p-4 animate-pulse">
             <div className="h-3 w-20 rounded bg-subtle" />
@@ -265,7 +266,7 @@ function AutopilotInner() {
 
       {/* Ringkasan */}
       {summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-2 sm:gap-3">
           <SummaryTile label="Akun aktif" value={`${summary.active}/${summary.total}`} tone="accent" />
           <SummaryTile label="Slot hari ini" value={summary.slotsToday} />
           <SummaryTile label="Terbit hari ini" value={summary.publishedToday} tone="success" />
@@ -274,7 +275,13 @@ function AutopilotInner() {
       )}
 
       {/* Tab */}
-      <div role="tablist" aria-label="Bagian autopilot" onKeyDown={onTabKey} className="flex gap-6 border-b border-line">
+      {/* Layar sempit: bar tab digeser di dalam barnya sendiri, halaman tidak ikut melebar. */}
+      <div
+        role="tablist"
+        aria-label="Bagian autopilot"
+        onKeyDown={onTabKey}
+        className="flex gap-5 sm:gap-6 border-b border-line overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-4 px-4 sm:mx-0 sm:px-0"
+      >
         {TABS.map((t) => {
           const active = tab === t.key;
           return (
@@ -288,7 +295,7 @@ function AutopilotInner() {
               tabIndex={active ? 0 : -1}
               onClick={() => setTab(t.key)}
               className={cn(
-                "relative h-11 inline-flex items-center gap-2 text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer",
+                "relative h-11 shrink-0 inline-flex items-center gap-2 text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer",
                 active ? "text-accent" : "text-muted hover:text-fg"
               )}
             >

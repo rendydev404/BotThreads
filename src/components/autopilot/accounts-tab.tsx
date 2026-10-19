@@ -51,12 +51,12 @@ const TABLE_COLS =
   "xl:grid-cols-[1.25rem_minmax(0,1.5fr)_13.5rem_3.75rem_minmax(11.5rem,1.2fr)_5rem_4.5rem] xl:gap-x-3 xl:items-center";
 /**
  * Satu pohon DOM untuk tiga tata letak (tanpa menggandakan baris):
- * - < lg  : kartu bertumpuk (akun, mode, ringkasan + Atur, garis waktu)
+ * - < lg  : kartu bertumpuk (akun + Atur, mode, ringkasan, garis waktu)
  * - lg-xl : dua baris ringkas (akun | mode | Atur, lalu ringkasan | garis waktu)
  * - >= xl : tabel tujuh kolom
  */
 const ROW_GRID =
-  "grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-3 items-start p-4 lg:max-xl:grid-cols-[1.25rem_minmax(0,1fr)_14rem_4.5rem] lg:max-xl:items-center xl:py-3 xl:gap-y-2";
+  "grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-2.5 items-start p-3.5 sm:p-4 lg:gap-y-3 lg:max-xl:grid-cols-[1.25rem_minmax(0,1fr)_14rem_4.5rem] lg:max-xl:items-center xl:py-3 xl:gap-y-2";
 
 const BULK_COPY: Record<AutopilotMode, { title: (n: number) => string; body: (n: number, total: number) => string; confirm: string }> = {
   OTOMATIS: {
@@ -127,10 +127,10 @@ const AccountRow = memo(function AccountRow({
         <Checkbox checked={selected} onChange={(next) => onToggle(account.id, next)} label={`Pilih ${handle}`} />
       </div>
 
-      <div className="min-w-0 flex items-start gap-2.5 max-lg:col-span-2">
+      <div className="min-w-0 flex items-start gap-2.5">
         <AccountAvatar name={account.displayName} src={account.avatarUrl} size="w-9 h-9" />
         <div className="min-w-0 leading-tight">
-          <p className="text-sm font-semibold text-fg break-words line-clamp-2" title={handle}>
+          <p className="text-sm font-semibold text-fg truncate lg:whitespace-normal lg:break-words lg:line-clamp-2" title={handle}>
             <HandleText account={account} />
           </p>
           <p className="text-xs text-muted truncate">{account.outletNama ?? account.displayName}</p>
@@ -157,13 +157,13 @@ const AccountRow = memo(function AccountRow({
 
       <p className="hidden xl:block text-sm font-semibold text-fg text-center tabular-nums">{config.postsPerDay}</p>
 
-      <div className="min-w-0 max-lg:col-span-full max-lg:row-start-4 lg:max-xl:col-start-3 lg:max-xl:col-span-2 lg:max-xl:row-start-2">
+      <div className="min-w-0 max-lg:col-span-full max-lg:row-start-4 max-lg:-mt-1 lg:max-xl:col-start-3 lg:max-xl:col-span-2 lg:max-xl:row-start-2">
         <SlotTimeline slots={slots} dayLabel={dayLabel} nowMs={nowMs} dimmed={config.mode === "MATI"} />
         <TimelineScale className="xl:hidden" />
       </div>
 
       <p
-        className="text-xs text-muted max-lg:col-span-2 max-lg:row-start-3 max-lg:self-center lg:max-xl:col-start-2 lg:max-xl:row-start-2 xl:leading-tight"
+        className="text-xs text-muted max-lg:col-span-full max-lg:row-start-3 lg:max-xl:col-start-2 lg:max-xl:row-start-2 xl:leading-tight"
         title={stats7d ? `7 hari terakhir: ${stats7d.terbit} terbit, ${stats7d.gagal} gagal, ${stats7d.dilewati} dilewati` : undefined}
       >
         <span className="xl:hidden">
@@ -187,10 +187,10 @@ const AccountRow = memo(function AccountRow({
         type="button"
         onClick={() => onSettings(account.id)}
         aria-label={`Atur autopilot ${handle}`}
-        className="max-lg:col-start-3 max-lg:row-start-3 lg:max-xl:col-start-4 lg:max-xl:row-start-1 lg:w-full h-10 xl:h-9 px-3 rounded-full border border-line-strong text-[13px] font-semibold text-fg inline-flex items-center justify-center gap-1.5 hover:border-accent hover:text-accent transition-colors cursor-pointer"
+        className="max-lg:col-start-3 max-lg:row-start-1 lg:max-xl:col-start-4 lg:max-xl:row-start-1 lg:w-full h-9 lg:h-10 xl:h-9 max-sm:w-9 max-sm:px-0 px-3 rounded-full border border-line-strong text-[13px] font-semibold text-fg inline-flex items-center justify-center gap-1.5 hover:border-accent hover:text-accent transition-colors cursor-pointer"
       >
-        <SlidersHorizontal className="w-3.5 h-3.5" />
-        Atur
+        <SlidersHorizontal className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+        <span className="max-sm:sr-only">Atur</span>
       </button>
 
       {feedback && (

@@ -54,10 +54,11 @@ const PlanRow = memo(function PlanRow({ slot, item, account }: PlanRowProps) {
   const trending = item.signals.some((s) => s.source !== "JARINGAN" && s.source !== "MANUAL");
 
   return (
-    <li className="p-4 grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-3 gap-y-2">
-      <div className="pt-0.5">
+    <li className="p-4 grid sm:grid-cols-[3.5rem_minmax(0,1fr)] gap-x-3 gap-y-2">
+      {/* Layar kecil: jam di atas isi (kolom kiri menyempitkan teks); sm ke atas: kolom jam di kiri. */}
+      <div className="pt-0.5 flex items-baseline gap-1.5 sm:block">
         <p className="text-base font-bold text-fg tabular-nums leading-none">{timeOf(slot.slotAt)}</p>
-        <p className="mt-1 text-[11px] font-medium text-faint">WIB</p>
+        <p className="sm:mt-1 text-[11px] font-medium text-faint">WIB</p>
       </div>
 
       <div className="min-w-0 space-y-2.5">

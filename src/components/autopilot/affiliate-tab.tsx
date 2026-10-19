@@ -479,9 +479,9 @@ function ProductModal({
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "success" | "danger" }) {
   return (
-    <div className="card p-4">
-      <p className="text-xs font-semibold text-muted">{label}</p>
-      <p className={cn("mt-1 text-2xl font-bold tabular-nums", tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "text-fg")}>{value}</p>
+    <div className="card p-2.5 sm:p-4 min-w-0 flex flex-col">
+      <p className="text-[11px] sm:text-xs font-semibold text-muted leading-tight line-clamp-2">{label}</p>
+      <p className={cn("mt-auto pt-1 text-lg sm:text-2xl font-bold tabular-nums leading-tight", tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "text-fg")}>{value}</p>
     </div>
   );
 }
@@ -518,9 +518,12 @@ export function AffiliateTab({ active }: { active: boolean }) {
 
   useEffect(() => {
     if (!active || loaded.current) return;
-    loaded.current = true;
     const ctrl = new AbortController();
-    void load(ctrl.signal);
+    // Ditandai termuat hanya setelah datanya tiba: permintaan yang dibatalkan (tab ditinggal sebelum
+    // selesai, atau efek dipasang ulang) harus diulang saat tab terlihat lagi, bukan tertahan di skeleton.
+    void load(ctrl.signal).then(() => {
+      if (!ctrl.signal.aborted) loaded.current = true;
+    });
     return () => ctrl.abort();
   }, [active, load]);
 
@@ -621,7 +624,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
 
       {!data.aktif && <Banner tone="warning">Affiliate sedang dijeda untuk seluruh workspace. Slot baru ditulis sebagai postingan biasa.</Banner>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
         <Stat label="Terbit 30 hari" value={data.summary.terbit} />
         <Stat label="Terjadwal" value={data.summary.terjadwal} />
         <Stat label="Link terkirim" value={data.summary.balasanTerkirim} tone="success" />
@@ -671,15 +674,27 @@ export function AffiliateTab({ active }: { active: boolean }) {
                   ].filter((w): w is string => !!w)
                 : [];
               return (
-                <li key={a.id} className="px-4 py-3.5 flex items-start gap-3">
+                // Layar kecil: rincian memakai lebar penuh di bawah nama, tidak terjepit sakelar dan tombol edit.
+                <li key={a.id} className="px-4 py-3.5 grid grid-cols-[auto_auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 items-start">
                   <div className="flex pt-1.5">
                     <Checkbox checked={selected.has(a.id)} onChange={() => toggle(a.id)} label={`Pilih ${accountHandle(a)}`} />
                   </div>
                   <Avatar a={a} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-fg truncate">
-                      <HandleText account={a} />
-                    </p>
+                  <p className="self-center text-sm font-semibold text-fg truncate">
+                    <HandleText account={a} />
+                  </p>
+                  <div className="col-start-4 row-start-1 flex items-center gap-1 shrink-0">
+                    <Switch on={c.aktif} busy={busyKey === `akun:${a.id}`} onChange={(on) => quickToggle(a, on)} label={`Affiliate ${accountHandle(a)}`} />
+                    <button
+                      type="button"
+                      aria-label={`Atur affiliate ${accountHandle(a)}`}
+                      onClick={() => setEditAccounts([a])}
+                      className="w-10 h-10 rounded-full inline-flex items-center justify-center text-muted hover:text-accent hover:bg-subtle cursor-pointer"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="col-start-2 col-span-3 sm:col-start-3 sm:col-span-2 min-w-0 sm:-mt-3">
                     <p className="text-xs text-muted">
                       {c.aktif
                         ? `${eff} affiliate/hari dari ${a.postsPerDay} postingan · maks ${c.perHari} · porsi ${pct(c.porsi)}% · jarak ${c.jarakJam} jam · ulang produk ${c.jedaHari} hari`
@@ -701,17 +716,6 @@ export function AffiliateTab({ active }: { active: boolean }) {
                       </p>
                     ))}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Switch on={c.aktif} busy={busyKey === `akun:${a.id}`} onChange={(on) => quickToggle(a, on)} label={`Affiliate ${accountHandle(a)}`} />
-                    <button
-                      type="button"
-                      aria-label={`Atur affiliate ${accountHandle(a)}`}
-                      onClick={() => setEditAccounts([a])}
-                      className="w-10 h-10 rounded-full inline-flex items-center justify-center text-muted hover:text-accent hover:bg-subtle cursor-pointer"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                  </div>
                 </li>
               );
             })}
@@ -731,7 +735,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
             className="h-9 px-4 rounded-full bg-accent text-on-accent text-sm font-semibold inline-flex items-center gap-1.5 hover:bg-accent-hover cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            Tambah produk
+            Tambah<span className="max-sm:sr-only"> produk</span>
           </button>
         </div>
         {data.products.length === 0 ? (

@@ -110,12 +110,13 @@ export function FloatingAiBubble() {
           type="button"
           onClick={openWindow}
           aria-label="Buka asisten AI"
-          className="group fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 h-12 pl-3 pr-5 inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-accent to-violet-500 text-on-accent text-sm font-semibold shadow-pop hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+          className="group fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 w-12 md:w-auto h-12 md:pl-3 md:pr-5 inline-flex items-center justify-center gap-2.5 rounded-full bg-gradient-to-r from-accent to-violet-500 text-on-accent text-sm font-semibold shadow-pop hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
         >
+          {/* Di layar kecil cukup ikon, supaya tidak menutupi isi halaman. */}
           <span className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
             <Sparkles className="w-4 h-4" />
           </span>
-          Tanya AI
+          <span className="max-md:sr-only">Tanya AI</span>
         </button>
       )}
 
