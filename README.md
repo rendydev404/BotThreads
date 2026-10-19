@@ -106,6 +106,7 @@ Jalankan berurutan di SQL Editor Supabase setelah `sql/002` dan `sql/003`. Semua
 | `sql/017_midtrans.sql` | Pembayaran via Midtrans Core API: kunci Midtrans di panel, instruksi bayar per tagihan, ganti metode, pencocokan status oleh penjadwal | Paket berbayar ditolak dengan petunjuk memasang file ini; paket gratis tetap jalan |
 | `sql/013_fix_dashboard_user_id.sql` | Default `id` untuk `DashboardUser` (tabel dibuat Prisma tanpa default database) | Daftar akun baru (Google, `/daftar`, terima undangan) gagal dengan 23502 `null value in column "id"` |
 | `sql/027_radar_niche_trends.sql` | Tren yang lagi naik di niche tiap akun (sumber `NICHE`), dicari tiap 8 jam dari Tema akun dan pilar, atau dari postingan akun bila tema kosong; bank ide memakainya lebih dulu | Riset niche dilewati; ide hanya dari tren umum (Google Trends, momen) |
+| `sql/028_idea_retire_stale.sql` | Ide lama yang tidak menumpang tren niche dipensiunkan begitu ide tren niche baru masuk (yang disematkan tetap) | Ide lama tetap ada sampai masa berlakunya habis; ide tren tetap didahulukan saat memilih topik |
 
 `sql/008` mengganti tiga fungsi daftar antrean (`dash_post_list`, `dash_posts_by_ids`, `dash_post_summary`) dengan versi berparameter tambahan yang bernilai bawaan, jadi aman dipasang sebelum maupun sesudah kode baru di-deploy.
 

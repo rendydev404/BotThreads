@@ -58,6 +58,10 @@ describe("tren pencarian", () => {
     expect(isUsableTrend(pilkada)).toBe(false);
     expect(isUsableTrend({ keyword: "kecelakaan tol", traffic: 1, context: null, rank: 1 })).toBe(false);
     expect(isUsableTrend(sambal, ["sambal"])).toBe(false);
+    // Berita hukum yang lolos dari kata kunci trennya, ketahuan dari judul beritanya.
+    expect(isUsableTrend({ keyword: "roy suryo", traffic: 1, context: "Hakim Tolak Eksepsi Roy Suryo, Sidang Kasus Ijazah", rank: 1 })).toBe(false);
+    // "sidang skripsi" bukan berita hukum.
+    expect(isUsableTrend({ keyword: "sidang skripsi", traffic: 1, context: "Tips tenang menghadapi sidang skripsi", rank: 1 })).toBe(true);
   });
   it("skor turun menurut peringkat dan naik menurut volume, selalu 0..1", () => {
     const items = parseTrendsRss(RSS);
@@ -256,6 +260,20 @@ describe("penyaringan ide", () => {
     // Contoh postingan tidak diulang di daftar hindari.
     expect(prompt).toContain("JANGAN ULANGI:\n- topik lama");
     expect(prompt.match(/gue baru nyoba agen coding/g)).toHaveLength(1);
+  });
+
+  it("formula sarkas tersedia untuk perencana ide dan diterima saat penyaringan", () => {
+    const prompt = buildIdeaPrompt({
+      account: { username: "akun1", displayName: "Akun 1", outletNama: null },
+      config: { brief: "teknologi AI", pillars: [], voiceStyle: null },
+      signals: [],
+      avoid: [],
+      facts: [],
+      count: 8,
+    });
+    expect(prompt).toContain("- sarkas: celetukan sarkas atau ironi");
+    const [idea] = screenIdeas({ ...base, raws: [raw("agen coding baru katanya bikin dev santai, nyatanya review kodenya makin lama", { formulaHook: "sarkas" })] });
+    expect(idea.formulaHook).toBe("sarkas");
   });
 
   it("minTrendIdeas: tiga perempat dengan tren niche, separuh dengan tren umum, nol tanpa tren", () => {

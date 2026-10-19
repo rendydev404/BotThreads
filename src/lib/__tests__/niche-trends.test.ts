@@ -166,6 +166,12 @@ describe("jadwal riset niche", () => {
     };
     // a2 baru diriset 2 jam lalu; a4 belum siap.
     expect(planNiche(state, accounts, radar, NOW).due.map((c) => c.accountId)).toEqual(["a3", "a1"]);
+    // Sama-sama tidak mendesak: akun yang temanya diisi pemilik didahulukan.
+    const themed = [config({ accountId: "b1", mode: "OTOMATIS" }), config({ accountId: "b2", mode: "OTOMATIS", brief: "berita AI" })];
+    const state2 = { configs: new Map(themed.map((c) => [c.accountId, c])), workspaceActive: new Map() } as unknown as AutopilotState;
+    const accounts2 = new Map(themed.map((c) => [c.accountId, { ready: true } as PublishAccount]));
+    const radar2: RadarState = { lastCapture: {}, ideaCounts: new Map([["b1", 9], ["b2", 9]]), nicheAt: new Map() };
+    expect(planNiche(state2, accounts2, radar2, NOW).due.map((c) => c.accountId)).toEqual(["b2", "b1"]);
     expect(planNiche(state, accounts, { ...radar, nicheAt: null }, NOW)).toEqual({ installed: false, due: [] });
     expect(planNiche(state, accounts, radar, new Date("2026-10-19T16:00:00Z")).due).toEqual([]); // 23.00 WIB
   });

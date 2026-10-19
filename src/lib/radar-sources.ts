@@ -24,6 +24,9 @@ export const HARD_NEWS_TERMS = [
   "presiden", "menteri", "dpr", "kpk", "korupsi", "tersangka", "ditangkap", "polisi", "pembunuhan", "tewas",
   "kecelakaan", "kebakaran", "banjir", "demo", "perang", "pengadilan", "vonis", "penipuan", "narkoba",
   "cpns", "asn", "pppk", "bansos", "login", "pengumuman hasil",
+  "hakim", "jaksa", "terdakwa", "dakwaan", "eksepsi", "gugatan", "persidangan", "sidang kasus", "sidang perkara",
+  "pidana", "dipolisikan", "polres", "polda", "kapolsek", "kapolres", "ditahan polisi", "pencurian", "perundungan",
+  "pelecehan", "asusila", "video syur", "jokowi", "prabowo", "gibran", "bupati", "gubernur", "pejabat",
 ];
 
 export interface SignalDraft {

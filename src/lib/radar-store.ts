@@ -211,6 +211,13 @@ export async function insertIdeas(items: IdeaWrite[], now: Date): Promise<number
   return call<number>("dash_idea_insert", { p_items: items, p_now: now });
 }
 
+/**
+ * Pensiunkan ide BARU satu akun yang dibuat sebelum `before`, tidak disematkan, dan tidak menumpang tren
+ * niche (sql/028). Mengembalikan jumlah ide yang dipensiunkan.
+ */
+export const retireStaleIdeas = (accountId: string, before: Date, now: Date) =>
+  call<number>("dash_idea_retire_stale", { p_account_id: accountId, p_before: before, p_now: now });
+
 export interface IdeaCandidate {
   id: string;
   accountId: string;

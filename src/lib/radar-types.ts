@@ -42,7 +42,7 @@ export interface SignalListResponse {
   lastCapture: Partial<Record<SignalSource, string>>;
 }
 
-/** Tujuh formula pembuka yang terbukti memancing balasan; dipilih AI per ide. */
+/** Formula pembuka yang terbukti memancing balasan; dipilih AI per ide. */
 export const HOOK_FORMULAS = [
   { key: "pengakuan", label: "Pengakuan jujur", hint: "buka dengan pengakuan yang jujur dan tidak terduga" },
   { key: "pertanyaan", label: "Pertanyaan terbuka", hint: "pertanyaan tanpa jawaban benar yang memancing pendapat" },
@@ -51,6 +51,11 @@ export const HOOK_FORMULAS = [
   { key: "daftar", label: "Daftar pendek", hint: "tiga sampai empat hal singkat yang bikin pembaca mengangguk" },
   { key: "opini", label: "Opini berbeda", hint: "pendapat ringan yang berbeda dari kebanyakan orang, tanpa menyerang" },
   { key: "sebelum-sesudah", label: "Sebelum dan sesudah", hint: "bandingkan keadaan dulu dan sekarang" },
+  {
+    key: "sarkas",
+    label: "Sarkas halus",
+    hint: "celetukan sarkas atau ironi yang menertawakan keadaan atau diri sendiri, bukan orang, seperti warganet nyindir halus",
+  },
 ] as const;
 export type HookFormula = (typeof HOOK_FORMULAS)[number]["key"];
 

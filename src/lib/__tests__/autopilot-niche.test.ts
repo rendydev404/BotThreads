@@ -117,6 +117,7 @@ beforeAll(async () => {
     "sql/005_autopilot.sql",
     "sql/006_autopilot_radar.sql",
     "sql/027_radar_niche_trends.sql",
+    "sql/028_idea_retire_stale.sql",
   ]);
   h.db = db;
   await db.exec(
@@ -203,10 +204,21 @@ describe("tren niche dalam tick autopilot", () => {
   });
 
   it("tick berikutnya menyusun ide dari tren niche, dengan gaya akun dan rujukan sinyal yang tersimpan", async () => {
+    // Ide lama akun 1 dari sebelum riset niche: yang biasa diganti, yang disematkan pengguna dipertahankan.
+    await db.exec(`
+      INSERT INTO "ContentIdea" (id, "workspaceId", "accountId", topik, "topicKey", score, status, "pinnedBy", "expiresAt", "createdAt", "updatedAt")
+      VALUES ('lama-biasa', 'ws1', 'a1', 'tips umum ngoding pakai AI', 'ai ngoding pakai tips umum', 0.5, 'BARU', NULL, '2026-10-26', '2026-10-18', '2026-10-18'),
+             ('lama-sematan', 'ws1', 'a1', 'cerita debug semalam suntuk', 'cerita debug semalam suntuk', 0.5, 'BARU', 'u-admin', '2026-10-26', '2026-10-18', '2026-10-18')`);
     const r = await tick(5);
     expect(r.ok).toBe(true);
     expect(r.counts.risetNiche).toBeUndefined();
     expect(r.counts.ideBaru).toBe(8);
+    expect(r.counts.ideLamaDiganti).toBe(1);
+    const old = await db.query<{ id: string; status: string }>(`SELECT id, status FROM "ContentIdea" WHERE id LIKE 'lama-%' ORDER BY id`);
+    expect(old.rows).toEqual([
+      { id: "lama-biasa", status: "KEDALUWARSA" },
+      { id: "lama-sematan", status: "BARU" },
+    ]);
 
     const forA1 = h.ideaPrompts.find((p) => p.includes("AKUN: @akun1"))!;
     expect(forA1).toContain("IDE BERTREN MINIMAL");
@@ -219,7 +231,9 @@ describe("tren niche dalam tick autopilot", () => {
     expect(forA2).not.toContain("Rilis agen coding baru");
 
     const rows = await nicheRows();
-    const ideas = await db.query<{ accountId: string; signalIds: string[] }>(`SELECT "accountId", "signalIds" FROM "ContentIdea" ORDER BY "accountId"`);
+    const ideas = await db.query<{ accountId: string; signalIds: string[] }>(
+      `SELECT "accountId", "signalIds" FROM "ContentIdea" WHERE id NOT LIKE 'lama-%' ORDER BY "accountId"`
+    );
     expect(ideas.rows).toHaveLength(8);
     for (const idea of ideas.rows) {
       expect(idea.signalIds).toHaveLength(1);

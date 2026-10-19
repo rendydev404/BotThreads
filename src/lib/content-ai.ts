@@ -281,6 +281,7 @@ export const CREATIVE_ANGLES = [
   "hal kecil yang bikin hari ini jauh lebih baik, diceritakan detail dan hangat",
   "mitos yang masih dipercaya banyak orang di niche akun, lalu dibantah santai",
   "tips orang dalam: satu trik praktis yang cuma diketahui orang yang sudah lama di bidang ini",
+  "sarkas halus: ironi soal keadaan yang lagi ramai, ditutup belokan yang bikin orang senyum kecut",
 ];
 
 /** Sudut untuk agen ke-`index`: agen bersebelahan mendapat potongan daftar yang berbeda. */
@@ -303,6 +304,8 @@ KREATIVITAS
 - Tiap kandidat memakai SUDUT KREATIF yang berbeda, sesuai urutan daftar yang diberikan.
 - Kalimat pertama adalah hook yang konkret (detail kecil, momen nyata, benda sehari-hari), bukan kalimat umum yang bisa ditulis siapa saja.
 - ANTI GARING: tiap kandidat wajib punya satu hal yang bikin orang berhenti scroll: detail spesifik yang tak terduga, ketegangan (dua pilihan, pendapat yang bisa dibantah), humor receh khas warganet, atau belokan di akhir. Bila kalimatnya bisa diposting akun mana pun tanpa diubah, tulis ulang.
+- Sarkas halus, satir, dan self-roast boleh dan sering paling ramai, asal natural seperti celetukan warganet: menertawakan keadaan atau diri sendiri, bukan merendahkan orang atau kelompok, dan tidak sinis ke pembaca. Bila ARAH IDE bernada sarkas, pertahankan nadanya.
+- Bila ada TREN YANG DITUMPANGI, sambungkan secara natural seperti orang yang sedang ikut membahasnya, bukan mengulang berita.
 - Jangan menulis kalimat normatif dan aman ("semoga harimu menyenangkan", "tetap semangat ya", "jangan lupa bersyukur", "kalian tim mana nih?"). Penutup pertanyaan harus spesifik dan gampang dijawab dalam satu kata atau satu cerita singkat.
 - Variasikan bentuk: jangan semua kandidat dibuka dengan pertanyaan atau "pernah nggak sih". Pakai pernyataan berani, cerita, dialog, atau daftar pendek sesuai SUDUT KREATIF.
 - Dilarang klise ("di era", "siapa sangka", "tak hanya itu", "yuk", "jangan lupa", "tahukah kamu", "halo sobat", "hai guys") dan kata iklan ("dijamin", "terbaik", "buruan", "wajib coba"). Dilarang markdown, daftar poin, hashtag, tanda seru beruntun, huruf kapital semua.

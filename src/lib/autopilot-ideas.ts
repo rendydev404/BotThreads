@@ -28,7 +28,8 @@ const IDEA_TTL_MS = 7 * DAY_MS;
 export const EVERGREEN_IDEA_TTL_MS = 3 * DAY_MS;
 /** Postingan akun yang ikut ke prompt sebagai acuan niche dan gaya bahasa. */
 const MAX_PROMPT_SAMPLES = 8;
-const IDEA_DEADLINE_MS = 45_000;
+/** Gemini kadang butuh lebih dari 30 detik untuk 8 ide; satu percobaan panjang lebih berguna daripada dua yang terpotong. */
+const IDEA_DEADLINE_MS = 50_000;
 /** Ide dianggap mengulang bila semirip ini dengan ide lain, atau sebanyak ini katanya ada di satu postingan. */
 export const TOPIC_SIMILARITY_LIMIT = 0.6;
 export const TOPIC_CONTAINMENT_LIMIT = 0.7;
@@ -126,11 +127,13 @@ ATURAN
 - RELEVANSI WAJIB: ide harus terasa wajar diposting akun ini menurut TEMA AKUN, PILAR, dan FAKTA BRAND. Bila TEMA AKUN kosong, simpulkan niche dan audiens akun dari CONTOH POSTINGAN AKUN.
 - TREN WAJIB: ide harus menumpang tren yang SEDANG NAIK, sejumlah yang diminta pada "IDE BERTREN MINIMAL". Urutan prioritas: (1) TREN NAIK DI NICHE AKUN, (2) TREN UMUM yang punya jembatan alami ke niche akun, (3) momen. Sisanya boleh dari keseharian audiens akun.
 - Sebut trennya secara konkret di topik (nama rilis, produk, isu, istilah, atau kejadiannya) supaya pembaca langsung tahu ini sedang hangat. Jangan menulis samar seperti "tren AI terbaru".
+- Sambungkan tren ke dunia akun secara NATURAL, seperti celetukan orang yang sedang membahasnya di Threads, bukan judul berita dan bukan rangkuman. Tren jadi pemicu obrolan; isinya tetap sudut pandang akun.
 - JANGAN memaksakan tren umum ke akun yang tidak nyambung (contoh buruk: akun teknologi dikaitkan dengan skor pertandingan bola, akun kuliner dikaitkan dengan rilis HP). Tren yang tidak punya jembatan alami ke niche akun lebih baik tidak dipakai.
 - Tulis topik dan sudut dengan bahasa yang cocok untuk akun: ikuti GAYA SAPAAN bila ada, dan nuansa CONTOH POSTINGAN AKUN.
 - Ide harus bisa ditulis sebagai obrolan santai, bukan iklan. Jangan membuat ide promo, diskon, atau jualan kecuali ada butir PROMO di FAKTA BRAND.
 - Jangan memakai sinyal berita politik, hukum, bencana, kecelakaan, atau kabar duka. Jangan menyerang orang atau kelompok.
 - Jangan mengulang topik pada daftar JANGAN ULANGI. Tiap ide harus berbeda satu sama lain.
+- NADA: sarkas halus, satir, ironi, dan self-roast termasuk pemicu balasan paling kuat di Threads Indonesia. Sekitar sepertiga ide sebaiknya bernada begitu, terutama yang menumpang tren: tertawakan keadaannya, ironi antara hype tren dan kenyataan audiens, atau sindir diri sendiri. Sarkasnya harus terasa natural dan cerdas, bukan dipaksakan. Jangan merendahkan orang atau kelompok tertentu, jangan sinis ke pembaca, dan lewati sarkas bila memang tidak cocok dengan suara akun. Ide bernada sarkas memakai formula "sarkas".
 - Hindari ide generik yang aman dan membosankan ("tips sehat", "semangat pagi", "makanan favorit kalian apa"). Ide yang bagus punya sudut spesifik dan sedikit ketegangan: pendapat yang bisa dibantah, detail yang tak terduga, atau keresahan yang belum pernah diucapkan. Campur jenisnya: debat ringan, cerita, pengakuan, tebak-tebakan, ranking, mitos vs fakta.
 - "formulaHook" pilih satu dari daftar FORMULA HOOK. "sudut" adalah arah cerita singkat (maks 60 karakter) yang menjelaskan jembatan topik ke akun.
 - "pilar" isi persis salah satu nama pada PILAR, atau kosong bila tidak ada pilar.
@@ -396,7 +399,7 @@ export async function askIdeas(prompt: string, signal?: AbortSignal): Promise<Ra
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     temperature: 0.95,
     maxOutputTokens: 3000,
-    timeoutMs: 30_000,
+    timeoutMs: 40_000,
     deadlineMs: IDEA_DEADLINE_MS,
     responseSchema: IDEA_SCHEMA,
     validate: isIdeaResult,

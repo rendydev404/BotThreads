@@ -33,6 +33,7 @@ import {
   listSignals,
   loadIdeaContext,
   pruneRadar,
+  retireStaleIdeas,
   syncMoments,
   syncWinners,
   upsertSignals,
@@ -74,8 +75,8 @@ const SHARED_SOURCES: SignalSource[] = ["JARINGAN", "GTRENDS", "WEB", "THREADS_S
 
 /** Tren niche tiap akun dicari ulang paling sering tiap 8 jam, pada jam aktif. */
 export const NICHE_REFRESH_MS = 8 * HOUR_MS;
-/** Niche yang diriset per tick (satu panggilan AI ber-grounding per niche; akun bertema sama berbagi). */
-const NICHE_PER_TICK = 3;
+/** Niche yang diriset per tick (sejajar; akun bertema sama berbagi satu riset). */
+const NICHE_PER_TICK = 4;
 /** Sinyal niche terbaru per akun yang dibaca untuk prompt ide. */
 const NICHE_SIGNALS_PER_ACCOUNT = 10;
 const NICHE_DEADLINE_MS = 80_000;
@@ -186,10 +187,12 @@ export function planNiche(state: AutopilotState, accounts: Map<string, PublishAc
   if (!process.env.GEMINI_API_KEY || hour < RESEARCH_FIRST_HOUR || hour > RESEARCH_LAST_HOUR) return { installed: true, due: [] };
   const last = (c: ConfigRow) => nicheAt.get(c.accountId)?.getTime() ?? 0;
   const critical = (c: ConfigRow) => (radar.ideaCounts.get(c.accountId) ?? 0) < c.postsPerDay;
+  // Pemilik akun sudah menulis tema atau pilar: nichenya jelas, risetnya paling bermanfaat.
+  const themed = (c: ConfigRow) => !!c.brief || c.pillars.length > 0;
   const due = activeConfigs(state, accounts)
     .filter((c) => now.getTime() - last(c) >= NICHE_REFRESH_MS && now.getTime() >= (nicheNextTry.get(c.accountId) ?? 0))
-    // Akun yang idenya hampir habis dulu, lalu yang paling lama tidak diriset.
-    .sort((a, b) => Number(critical(b)) - Number(critical(a)) || last(a) - last(b));
+    // Akun yang idenya hampir habis dulu, lalu yang bertema, lalu yang paling lama tidak diriset.
+    .sort((a, b) => Number(critical(b)) - Number(critical(a)) || Number(themed(b)) - Number(themed(a)) || last(a) - last(b));
   return { installed: true, due };
 }
 
@@ -415,6 +418,13 @@ export async function refillIdeas(
         now,
       });
       bump(counts, "ideBaru", await insertIdeas(ideas, now));
+      // Cukup ide tren niche baru untuk sehari: ide lama yang tidak menumpang tren niche diganti, supaya
+      // bank ide tidak dipenuhi ide generik atau tren umum yang sudah basi. Tanpa sql/028 dilewati.
+      const nicheIds = new Set((nicheSignals.get(config.accountId) ?? []).map((s) => s.id));
+      const fresh = ideas.filter((i) => i.signalIds.some((id) => nicheIds.has(id))).length;
+      if (fresh >= config.postsPerDay) {
+        bump(counts, "ideLamaDiganti", await retireStaleIdeas(config.accountId, now, now).catch(() => 0));
+      }
     } catch (err) {
       bump(counts, "ideGagal");
       console.error(`[autopilot] ide @${account.username ?? account.id}:`, err instanceof Error ? err.message : err);
