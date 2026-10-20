@@ -5,8 +5,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const HeadlinePlayer = dynamic(() => import("./headline-player"), { ssr: false });
 
-/** Bila Remotion belum siap selewat ini (ms sejak halaman mulai dimuat), teks asli langsung ditampilkan. */
+/**
+ * Bila Remotion belum siap selewat ini, teks asli langsung ditampilkan. Dihitung sejak HTML selesai
+ * diterima (bukan sejak navigasi dimulai): waktu koneksi ke server bisa ~1 detik sendiri, sedangkan
+ * fallback CSS (1,6 dtk) baru mulai berjalan setelah halaman dirender.
+ */
 const FALLBACK_MS = 1300;
+function msSinceHtml(): number {
+  const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+  return performance.now() - (nav?.responseEnd ?? 0);
+}
 
 /**
  * Judul + deskripsi bagian pembuka. Teks asli (children) selalu ada di HTML untuk SEO dan pembaca layar.
@@ -31,7 +39,7 @@ export function HeroCopy({ children }: { children: React.ReactNode }) {
     // Ukur setelah font siap, supaya pemenggalan baris komposisi sama dengan teks asli.
     Promise.all([document.fonts.ready, import("./headline-player")]).then(() => {
       if (cancelled) return;
-      if (performance.now() > FALLBACK_MS) {
+      if (msSinceHtml() > FALLBACK_MS) {
         setState("done");
         return;
       }
