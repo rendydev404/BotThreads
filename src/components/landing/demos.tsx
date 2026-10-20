@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Ban, CalendarHeart, Check, Clock, PenLine, Search, ShieldCheck, TrendingUp, Type, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { heroStore, useHero } from "./hero-store";
 import { ThreadsActions, ThreadsMark } from "./threads-mark";
 
 /**
@@ -31,9 +32,9 @@ const PERSONAS: Persona[] = [
     handle: "@kedai.sore",
     hours: [8, 4, 2, 1, 1, 3, 9, 16, 21, 18, 22, 41, 58, 37, 20, 19, 27, 44, 62, 71, 66, 48, 30, 15],
     posts: [
-      { text: "Jam 11 itu jam paling jujur. Belum lapar banget, tapi sudah mulai buka aplikasi pesan antar tiap lima menit.", from: "Jam makan siang" },
-      { text: "Tim saus dipisah atau tim langsung disiram? Jawab jujur, ini menentukan pertemanan.", from: "Posting terbaik minggu lalu" },
-      { text: "Tanggal 25 dompet tersenyum lagi. Yang kemarin bilang hemat, malam ini traktir siapa?", from: "Momen gajian" },
+      { text: "jam 11 tuh jam paling rawan. belum laper-laper amat, tapi udah buka aplikasi pesen makan tiap 5 menit 🫠", from: "Jam makan siang" },
+      { text: "tim saus dipisah apa tim langsung disiram? jawab jujur, ini nentuin kita bisa temenan apa nggak", from: "Posting terbaik minggu lalu" },
+      { text: "tanggal 25, dompet senyum lagi. yang kemarin ngomong mau hemat, malem ini traktir siapa nih?", from: "Momen gajian" },
     ],
   },
   {
@@ -42,9 +43,9 @@ const PERSONAS: Persona[] = [
     handle: "@seduh.pagi",
     hours: [5, 3, 1, 1, 2, 9, 31, 55, 64, 47, 29, 22, 26, 33, 41, 38, 30, 24, 28, 36, 39, 27, 16, 9],
     posts: [
-      { text: "Senin itu bukan soal semangat. Senin itu soal siapa yang sampai kantor duluan dan kebagian kopi masih panas.", from: "Momen awal pekan" },
-      { text: "Kopi susu gula aren sudah lima tahun dibilang tren sesaat. Masih di sini, masih dipesan, masih enak.", from: "Tren pencarian" },
-      { text: "Jam 3 sore: mata berat, tugas numpuk, gelas kedua mulai terdengar masuk akal.", from: "Jam ramai akun ini" },
+      { text: "senin itu bukan soal semangat. senin itu soal siapa yang nyampe kantor duluan dan kebagian kopi yang masih panas", from: "Momen awal pekan" },
+      { text: "kopi susu gula aren udah 5 tahun dibilang tren sesaat. ya tetep di sini, tetep dipesen, tetep enak 🤷", from: "Tren pencarian" },
+      { text: "jam 3 sore: mata berat, kerjaan numpuk, gelas kedua mulai kedengeran masuk akal", from: "Jam ramai akun ini" },
     ],
   },
   {
@@ -53,17 +54,89 @@ const PERSONAS: Persona[] = [
     handle: "@lemari.kecil",
     hours: [12, 6, 3, 1, 1, 2, 6, 11, 14, 17, 21, 26, 34, 30, 24, 23, 29, 36, 43, 57, 74, 79, 58, 31],
     posts: [
-      { text: "Baju yang paling sering dipakai bukan yang paling mahal. Yang paling sering dipakai itu yang tidak perlu disetrika.", from: "Posting terbaik minggu lalu" },
-      { text: "Outfit kondangan bulan ini sudah tiga kali sama. Solusinya bukan beli baru, tapi ganti circle. Bercanda. Sedikit.", from: "Momen akhir pekan" },
-      { text: "Malam minggu, keranjang belanja penuh, saldo bilang sabar. Siapa yang menang malam ini?", from: "Jam ramai akun ini" },
+      { text: "baju yang paling sering dipake tuh bukan yang paling mahal. tapi yang gak perlu disetrika. setuju gak?", from: "Posting terbaik minggu lalu" },
+      { text: "outfit kondangan bulan ini udah 3x sama. solusinya bukan beli baju baru, tapi ganti circle. bercanda. dikit.", from: "Momen akhir pekan" },
+      { text: "malem minggu, keranjang penuh, saldo bilang sabar dulu. kira-kira siapa yang menang malem ini? 😭", from: "Jam ramai akun ini" },
     ],
   },
 ];
 
-function PersonaTabs({ value, onChange, label }: { value: string; onChange: (key: string) => void; label: string }) {
+/* ------------------------------------------------------------------ bisnis yang diketik pengunjung */
+
+const CUSTOM_KEY = "custom";
+
+/** Contoh tambahan khusus kolom "coba untuk bisnis Anda" (tidak tampil sebagai tab). */
+const EXTRA: Record<string, Omit<Persona, "key" | "label" | "handle">> = {
+  kecantikan: {
+    hours: [10, 5, 2, 1, 1, 2, 6, 12, 15, 17, 19, 22, 30, 26, 21, 20, 24, 31, 38, 47, 63, 77, 68, 33],
+    posts: [
+      { text: "skincare paling mahal itu yang udah dibeli tapi gak pernah dipake. yang paling murah? tidur cukup. dua-duanya penting sih", from: "Posting terbaik minggu lalu" },
+      { text: "siang ini panasnya gak ngotak ☀️ sunscreen udah di-reapply belum? apa masih ngandelin yang tadi pagi jam 7", from: "Tren cuaca" },
+      { text: "tim cuci muka 2x apa tim sekali aja cukup? kolom komen dibuka, silakan membela diri", from: "Jam ramai akun ini" },
+    ],
+  },
+};
+
+/** Kata kunci -> contoh yang paling mirip. Selain itu dipakai tulisan umum yang menyebut bisnisnya. */
+const MATCHERS: [RegExp, string][] = [
+  [/kopi|coffee|kafe|cafe|teh|boba|minum/, "kopi"],
+  [/makan|kuliner|resto|warung|bakso|ayam|mie|kue|roti|bakery|katering|catering|seblak|martabak|sambal|frozen|snack|camilan/, "kuliner"],
+  [/baju|fashion|hijab|outfit|sepatu|tas|thrift|kaos|batik|gamis/, "fashion"],
+  [/skin|kosmetik|makeup|make up|salon|barber|kecantikan|parfum|spa|nail/, "kecantikan"],
+];
+
+const GENERIC_HOURS = [9, 5, 2, 1, 1, 3, 8, 15, 20, 22, 24, 30, 42, 35, 25, 23, 28, 37, 46, 58, 66, 61, 40, 18];
+
+/** Nama akun contoh dari teks bebas: "Kopi Kenangan" -> "@kopi.kenangan", "skincare" -> "@skincare.id". */
+function handleFor(text: string): string {
+  const slug = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .slice(0, 18)
+    .replace(/\.+$/, "");
+  return `@${slug.includes(".") ? slug : `${slug || "bisnis"}.id`}`;
+}
+
+export function cleanBusiness(text: string): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, 24);
+}
+
+/** Persona untuk bisnis yang diketik: posting dari contoh yang mirip, atau tulisan umum yang menyebut bisnisnya. */
+function customPersona(raw: string): Persona {
+  const text = cleanBusiness(raw) || "bisnis Anda";
+  const lower = text.toLowerCase();
+  const match = MATCHERS.find(([re]) => re.test(lower))?.[1];
+  const base = match ? (PERSONAS.find((p) => p.key === match) ?? EXTRA[match]) : undefined;
+  return {
+    key: CUSTOM_KEY,
+    label: text,
+    handle: handleFor(text),
+    hours: base?.hours ?? GENERIC_HOURS,
+    posts: base?.posts ?? [
+      { text: `jujur ya, ${lower} yang bagus tuh kerasa dari hal-hal kecil yang gak pernah dipamerin`, from: "Posting terbaik minggu lalu" },
+      { text: `tanggal muda, rencana banyak. kalo hari ini cuma boleh pilih satu, ${lower} masuk list gak? 👀`, from: "Momen gajian" },
+      { text: `pertanyaan serius nih: kalian pilih ${lower} karena harganya, karena kata temen, atau karena udah terlanjur cocok?`, from: "Tren pencarian" },
+    ],
+  };
+}
+
+function PersonaTabs({
+  value,
+  onChange,
+  label,
+  extra,
+}: {
+  value: string;
+  onChange: (key: string) => void;
+  label: string;
+  /** Tab tambahan (bisnis yang diketik pengunjung), tampil paling depan. */
+  extra?: { key: string; label: string };
+}) {
+  const tabs = extra ? [extra, ...PERSONAS] : PERSONAS;
   return (
-    <div role="tablist" aria-label={label} className="inline-flex p-1 rounded-xl bg-subtle">
-      {PERSONAS.map((p) => (
+    <div role="tablist" aria-label={label} className="inline-flex max-w-full overflow-x-auto p-1 rounded-xl bg-subtle">
+      {tabs.map((p) => (
         <button
           key={p.key}
           type="button"
@@ -71,8 +144,9 @@ function PersonaTabs({ value, onChange, label }: { value: string; onChange: (key
           aria-selected={value === p.key}
           onClick={() => onChange(p.key)}
           className={cn(
-            "h-9 px-3.5 rounded-lg text-[13px] font-semibold transition-colors cursor-pointer",
-            value === p.key ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg"
+            "h-9 px-3.5 rounded-lg text-[13px] font-semibold transition-colors cursor-pointer whitespace-nowrap",
+            value === p.key ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg",
+            p.key === CUSTOM_KEY && "max-w-[9rem] truncate"
           )}
         >
           {p.label}
@@ -109,25 +183,37 @@ const PHASE_CLS: Record<(typeof PHASES)[number], string> = {
 const STEP_MS = 1700;
 
 function Typed({ text }: { text: string }) {
+  // Per karakter tampilan (emoji = satu karakter), supaya emoji tidak terpotong di tengah saat diketik.
+  const chars = useMemo(() => Array.from(text), [text]);
   const [n, setN] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setN((v) => (v >= text.length ? v : v + 3)), 28);
+    const id = setInterval(() => setN((v) => (v >= chars.length ? v : v + 3)), 28);
     return () => clearInterval(id);
-  }, [text]);
+  }, [chars]);
   return (
     <>
-      {text.slice(0, n)}
-      {n < text.length && <span className="inline-block w-[2px] h-[1em] align-[-2px] bg-accent animate-pulse" />}
+      {chars.slice(0, n).join("")}
+      {n < chars.length &&<span className="inline-block w-[2px] h-[1em] align-[-2px] bg-accent animate-pulse" />}
     </>
   );
 }
 
 export function HeroDemo() {
-  const [key, setKey] = useState(PERSONAS[0].key);
+  const key = useHero((s) => s.key);
+  const custom = useHero((s) => s.custom);
   const [tick, setTick] = useState(0);
-  const persona = PERSONAS.find((p) => p.key === key) ?? PERSONAS[0];
+  const [prevKey, setPrevKey] = useState(`${key}|${custom}`);
+  const box = useRef<HTMLDivElement>(null);
+  const persona = useMemo(() => (key === CUSTOM_KEY ? customPersona(custom) : (PERSONAS.find((p) => p.key === key) ?? PERSONAS[0])), [key, custom]);
   const slots = useMemo(() => pickHours(persona.hours, 3), [persona]);
   const last = slots.length * 3;
+
+  // Ganti brand = mulai lagi dari jadwal kosong. Bisnis yang baru diketik langsung masuk tahap menulis
+  // supaya pengunjung segera melihat hasil ketikannya bekerja.
+  if (prevKey !== `${key}|${custom}`) {
+    setPrevKey(`${key}|${custom}`);
+    setTick(key === CUSTOM_KEY ? 1 : 0);
+  }
 
   useEffect(() => {
     // Tanpa animasi bila pengguna memintanya: langsung tampilkan hasil akhirnya.
@@ -135,17 +221,54 @@ export function HeroDemo() {
       const id = setTimeout(() => setTick(99), 0);
       return () => clearTimeout(id);
     }
-    const id = setInterval(() => setTick((t) => (t >= last + 3 ? 0 : t + 1)), STEP_MS);
-    return () => clearInterval(id);
-  }, [last, key]);
+    // Pengatur waktu hanya berjalan selama papan terlihat dan tab aktif, supaya tidak memakan CPU di latar.
+    const el = box.current;
+    let id = 0;
+    let onScreen = true;
+    const sync = () => {
+      const run = onScreen && document.visibilityState === "visible";
+      if (run && !id) id = window.setInterval(() => setTick((t) => (t >= last + 3 ? 0 : t + 1)), STEP_MS);
+      if (!run && id) {
+        clearInterval(id);
+        id = 0;
+      }
+    };
+    const io = new IntersectionObserver(([e]) => {
+      onScreen = e.isIntersecting;
+      sync();
+    });
+    if (el) io.observe(el);
+    document.addEventListener("visibilitychange", sync);
+    sync();
+    return () => {
+      io.disconnect();
+      document.removeEventListener("visibilitychange", sync);
+      clearInterval(id);
+    };
+  }, [last, key, custom]);
 
-  const pick = (next: string) => {
-    setKey(next);
-    setTick(0);
-  };
+  // Kabarkan tahap yang sedang dikerjakan ke cap status di atas papan.
+  useEffect(() => {
+    const active = slots.findIndex((_, i) => {
+      const local = tick - i * 3;
+      return local >= 1 && local <= 2;
+    });
+    // Di jeda antarslot, tampilkan slot terakhir yang sudah masuk antrean.
+    const queued = slots.reduce((acc, _, k) => (tick - k * 3 >= 3 ? k : acc), -1);
+    const i = active >= 0 ? active : Math.max(0, queued);
+    const local = Math.min(3, Math.max(0, tick - i * 3));
+    const done = tick >= last;
+    heroStore.set({
+      phase: done ? "Selesai" : active >= 0 ? PHASES[local] : queued >= 0 ? "Terantre" : "Direncanakan",
+      time: slots[i] === undefined ? "" : `${pad(slots[i])}.${pad(jitter(slots[i], i))}`,
+      slots: slots.length,
+    });
+  }, [tick, slots, last]);
+
+  const pick = (next: string) => heroStore.set({ key: next });
 
   return (
-    <div className="rounded-3xl border border-line bg-surface shadow-pop overflow-hidden">
+    <div ref={box} id="hero-board" className="scroll-mt-24 rounded-3xl border border-line bg-surface shadow-pop overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b border-line">
         <div className="min-w-0">
           <p className="lp-mono flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-faint">
@@ -157,7 +280,12 @@ export function HeroDemo() {
             <span className="truncate">{persona.handle}</span>
           </p>
         </div>
-        <PersonaTabs value={key} onChange={pick} label="Contoh brand" />
+        <PersonaTabs
+          value={key}
+          onChange={pick}
+          label="Contoh brand"
+          extra={custom ? { key: CUSTOM_KEY, label: cleanBusiness(custom) } : undefined}
+        />
       </div>
 
       <ol className="divide-y divide-line">
@@ -314,7 +442,7 @@ interface Draft {
 const DRAFTS: Draft[] = [
   {
     label: "Draf A",
-    text: "Tim saus dipisah atau tim langsung disiram? Jawab jujur, ini menentukan pertemanan.",
+    text: "tim saus dipisah apa tim langsung disiram? jawab jujur, ini nentuin kita bisa temenan apa nggak",
     checks: [
       { name: "Bentuk", ok: true, note: "Panjang pas, kalimat utuh, ada ajakan menjawab." },
       { name: "Klaim", ok: true, note: "Tidak menyebut harga, promo, atau angka yang perlu dibuktikan." },
@@ -325,7 +453,7 @@ const DRAFTS: Draft[] = [
   },
   {
     label: "Draf B",
-    text: "Diskon 50% semua menu khusus hari ini! Buruan sebelum kehabisan, cuma Rp9.000 saja.",
+    text: "DISKON 50% semua menu cuma hari ini!! buruan sebelum kehabisan, mulai Rp9.000 aja 🔥",
     checks: [
       { name: "Bentuk", ok: true, note: "Panjang pas dan kalimat utuh." },
       { name: "Klaim", ok: false, note: "Diskon 50% dan Rp9.000 tidak ada di data promo brand ini. AI tidak boleh mengarang harga." },
@@ -336,7 +464,7 @@ const DRAFTS: Draft[] = [
   },
   {
     label: "Draf C",
-    text: "Tim saus dipisah atau tim disiram langsung? Jawab jujur ya, ini menentukan pertemanan kita.",
+    text: "tim saus dipisah atau tim disiram langsung? jawab yang jujur ya, ini nentuin pertemanan kita",
     checks: [
       { name: "Bentuk", ok: true, note: "Panjang pas dan kalimat utuh." },
       { name: "Klaim", ok: true, note: "Tidak ada klaim yang perlu dibuktikan." },

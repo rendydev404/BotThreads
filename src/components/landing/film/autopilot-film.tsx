@@ -266,9 +266,9 @@ const SIGNALS = [
   { from: "Catatan Anda", text: "Menu baru: sambal matah", stat: "baru", color: C.success },
 ];
 const IDEAS = [
-  { text: "Gajian datang, siapa yang ditraktir malam ini?", score: 0.92 },
-  { text: "Debat abadi: saus dipisah atau disiram", score: 0.81 },
-  { text: "Sambal matah pertama minggu ini", score: 0.74 },
+  { text: "gajian dateng, siapa yang ditraktir malem ini?", score: 0.92 },
+  { text: "debat abadi: saus dipisah apa disiram", score: 0.81 },
+  { text: "sambal matah baru, pedesnya level berapa?", score: 0.74 },
 ];
 
 function ScanScene() {
@@ -379,7 +379,9 @@ function ScanScene() {
 
 /* ------------------------------------------------------------------ 3. AI menulis */
 
-const DRAFT = "Tanggal 25 dompet tersenyum lagi. Yang kemarin bilang mau hemat, malam ini traktir siapa? Sambal matah baru sudah menunggu.";
+const DRAFT = "tanggal 25, dompet senyum lagi 😌 yang kemarin ngomong mau hemat, malem ini traktir siapa nih? sambal matah baru udah nungguin";
+// Per karakter tampilan (emoji = satu karakter), supaya efek mengetik tidak memotong emoji di tengah.
+const DRAFT_CHARS = Array.from(DRAFT);
 
 function ThreadsCard({ text, cursor, meta, style }: { text: string; cursor?: boolean; meta: string; style?: React.CSSProperties }) {
   return (
@@ -401,8 +403,8 @@ function ThreadsCard({ text, cursor, meta, style }: { text: string; cursor?: boo
 
 function WriteScene() {
   const frame = useCurrentFrame();
-  const chars = Math.floor(interpolate(frame, [18, 98], [0, DRAFT.length], CLAMP));
-  const blink = Math.floor(frame / 8) % 2 === 0 || chars < DRAFT.length;
+  const chars = Math.floor(interpolate(frame, [18, 98], [0, DRAFT_CHARS.length], CLAMP));
+  const blink = Math.floor(frame / 8) % 2 === 0 || chars < DRAFT_CHARS.length;
   const tags = [
     { k: "SUARA BRAND", v: "santai, jenaka" },
     { k: "BAHAN", v: "Momen gajian + menu baru" },
@@ -414,7 +416,7 @@ function WriteScene() {
     <AbsoluteFill style={{ fontFamily: SANS }}>
       <SceneTitle kicker="10.42 · DRAF DITULIS" title="AI menulis dengan suara brand Anda." Icon={PenLine} />
       <div style={{ position: "absolute", left: 72, top: 238, width: 700, ...rise(card, 30) }}>
-        <ThreadsCard text={DRAFT.slice(0, chars)} cursor={blink} meta="draf · menulis…" />
+        <ThreadsCard text={DRAFT_CHARS.slice(0, chars).join("")} cursor={blink} meta="draf · menulis…" />
       </div>
       <div style={{ position: "absolute", right: 72, top: 238, width: 380, display: "flex", flexDirection: "column", gap: 14 }}>
         {tags.map((t, i) => {

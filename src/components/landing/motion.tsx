@@ -51,6 +51,9 @@ export function LandingMotion({ children, className }: { children: React.ReactNo
     mo.observe(root, { childList: true, subtree: true });
 
     const clock = root.querySelector<HTMLElement>("[data-clock]");
+    // Variabel gulir ditulis ke elemen yang memakainya saja: menulis ke akar .lp memaksa browser
+    // menghitung ulang gaya seluruh halaman di setiap frame gulir.
+    const bars = [...root.querySelectorAll<HTMLElement>(".lp-progress")];
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const drifts = reduced ? [] : [...root.querySelectorAll<HTMLElement>("[data-drift]")].map((el) => ({ el, k: Number(el.dataset.drift) || 0 }));
     const layers = reduced
@@ -73,9 +76,14 @@ export function LandingMotion({ children, className }: { children: React.ReactNo
         return r.bottom < -200 || r.top > vh + 200 ? null : (r.top + r.height / 2 - vh / 2) * k;
       });
 
-      if (y > 8) root.dataset.scrolled = "";
-      else delete root.dataset.scrolled;
-      root.style.setProperty("--progress", progress.toFixed(4));
+      // Atribut di akar hanya disentuh saat statusnya berubah (sekali saat mulai/berhenti di puncak).
+      const scrolled = y > 8;
+      if (scrolled !== "scrolled" in root.dataset) {
+        if (scrolled) root.dataset.scrolled = "";
+        else delete root.dataset.scrolled;
+      }
+      const p = progress.toFixed(3);
+      for (const bar of bars) bar.style.setProperty("--progress", p);
       if (clock) {
         const minutes = Math.round(DAY_START_MIN + progress * (DAY_END_MIN - DAY_START_MIN));
         const text = `${pad(Math.floor(minutes / 60))}.${pad(minutes % 60)}`;
@@ -126,6 +134,52 @@ export function LandingMotion({ children, className }: { children: React.ReactNo
     <div ref={ref} className={cn("lp", className)}>
       {children}
     </div>
+  );
+}
+
+/**
+ * Efek magnet: anak elemen tertarik beberapa piksel ke arah kursor saat didekati. Hanya transform
+ * (tanpa render ulang React), satu requestAnimationFrame per gerak; mati di layar sentuh atau bila
+ * gerakan dikurangi.
+ */
+export function Magnetic({ children, className, strength = 0.25 }: { children: React.ReactNode; className?: string; strength?: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !window.matchMedia("(pointer: fine)").matches) return;
+    let frame = 0;
+    const onMove = (e: PointerEvent) => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const r = el.getBoundingClientRect();
+        const x = (e.clientX - (r.left + r.width / 2)) * strength;
+        const y = (e.clientY - (r.top + r.height / 2)) * strength;
+        el.style.setProperty("--mgx", `${x.toFixed(1)}px`);
+        el.style.setProperty("--mgy", `${y.toFixed(1)}px`);
+      });
+    };
+    const onLeave = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      el.style.setProperty("--mgx", "0px");
+      el.style.setProperty("--mgy", "0px");
+    };
+    el.addEventListener("pointermove", onMove, { passive: true });
+    el.addEventListener("pointerleave", onLeave);
+    return () => {
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", onLeave);
+      cancelAnimationFrame(frame);
+    };
+  }, [strength]);
+
+  return (
+    <span ref={ref} className={cn("lp-magnet", className)}>
+      {children}
+    </span>
   );
 }
 

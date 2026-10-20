@@ -7,7 +7,8 @@ import { ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock, Eye, Flame, P
 import { GateDemo, HeroDemo, HoursPlanner, IdeaSources } from "@/components/landing/demos";
 import { FilmSection } from "@/components/landing/film/film-section";
 import { LandingFooter } from "@/components/landing/legal-section";
-import { LandingMotion, Tilt } from "@/components/landing/motion";
+import { HeroStatus, HeroTry } from "@/components/landing/hero-interactive";
+import { LandingMotion, Magnetic, Tilt } from "@/components/landing/motion";
 import { Pricing } from "@/components/landing/pricing";
 import { ThreadsMark, ThreadsPost } from "@/components/landing/threads-mark";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -178,10 +179,12 @@ export default function LandingPage() {
               {/* Ajakan mulai + pintasan ke daftar harga */}
               <div className="lp-rise mt-8" style={{ "--i": 5 } as React.CSSProperties}>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                  <Link href="/daftar" className={`${BTN} h-14 px-8 text-base w-full sm:w-auto bg-accent hover:bg-accent-hover text-on-accent`}>
-                    Mulai Sekarang
-                    <ArrowRight className="lp-arrow w-5 h-5" />
-                  </Link>
+                  <Magnetic className="w-full sm:w-auto">
+                    <Link href="/daftar" className={`${BTN} lp-glow h-14 px-8 text-base w-full sm:w-auto bg-accent hover:bg-accent-hover text-on-accent`}>
+                      Mulai Sekarang
+                      <ArrowRight className="lp-arrow w-5 h-5" />
+                    </Link>
+                  </Magnetic>
                   <a
                     href="#demo"
                     className={`${BTN} h-14 px-6 text-base w-full sm:w-auto border border-line bg-surface hover:bg-subtle text-fg`}
@@ -195,23 +198,22 @@ export default function LandingPage() {
                   Terbit langsung ke akun Threads Anda lewat API resmi.
                 </p>
               </div>
+              <div className="lp-rise mt-8 pt-7 border-t border-line" style={{ "--i": 6 } as React.CSSProperties}>
+                <HeroTry />
+              </div>
             </div>
 
             {/* Papan jadwal: lapisan terdepan, bergerak sedikit lebih lambat dari halaman dan miring mengikuti kursor. */}
-            <div className="lp-rise relative" style={{ "--i": 4 } as React.CSSProperties}>
+            <div className="lp-rise relative min-w-0" style={{ "--i": 4 } as React.CSSProperties}>
               <div data-drift="0.07">
                 <Tilt>
                   <HeroDemo />
                 </Tilt>
               </div>
-              <p
-                data-drift="-0.08"
-                aria-hidden="true"
-                className="lp-mono hidden md:flex absolute -top-5 -left-6 items-center gap-2 h-9 px-3 rounded-lg bg-fg text-canvas text-[11px] font-bold shadow-pop"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                skor editor 0,87 · lolos
-              </p>
+              {/* Cap status ikut tahap yang sedang dikerjakan papan (menulis, memeriksa, selesai). */}
+              <div data-drift="-0.08" className="hidden md:block absolute -top-5 -left-6 z-10">
+                <HeroStatus className="flex" />
+              </div>
               <p
                 data-drift="0.16"
                 aria-hidden="true"
@@ -313,7 +315,7 @@ export default function LandingPage() {
                   <ThreadsPost
                     handle="@kedai.sore"
                     time="12.12 · baru saja"
-                    text="Jam 11 itu jam paling jujur. Belum lapar banget, tapi sudah mulai buka aplikasi pesan antar tiap lima menit."
+                    text="jam 11 tuh jam paling rawan. belum laper-laper amat, tapi udah buka aplikasi pesen makan tiap 5 menit 🫠"
                   />
                 </div>
               </div>

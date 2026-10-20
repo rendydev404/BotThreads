@@ -209,6 +209,56 @@
   color: #a0a6bd;
 }
 
+/* ---------- interaksi bagian pembuka ---------- */
+/* Magnet: area tangkap sedikit lebih besar dari tombolnya; geraknya cuma transform. */
+.lp-magnet {
+  display: inline-flex;
+  padding: 14px;
+  margin: -14px;
+}
+.lp-magnet > * {
+  transform: translate3d(var(--mgx, 0px), var(--mgy, 0px), 0);
+  transition:
+    transform 0.3s var(--lp-ease),
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+/* Cahaya di bawah tombol utama, berdenyut pelan (opacity saja). */
+.lp-glow {
+  position: relative;
+  isolation: isolate;
+}
+.lp-glow::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--c-accent);
+  filter: blur(18px);
+  opacity: 0.45;
+  animation: lp-glow 2.8s ease-in-out infinite;
+}
+@keyframes lp-glow {
+  50% {
+    opacity: 0.15;
+  }
+}
+.lp-try:focus-within {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-accent) 18%, transparent);
+}
+/* Teks cap status masuk halus tiap tahap berganti. */
+@keyframes lp-swap {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+}
+.lp-swap {
+  display: inline-block;
+  animation: lp-swap 0.35s var(--lp-ease);
+}
+
 /* Tombol suara di atas film: cincin berdenyut mengundang klik sampai suara dinyalakan. */
 .lp-sound {
   box-shadow: 0 0 24px rgba(123, 138, 255, 0.45);
@@ -255,7 +305,9 @@
   .lp-tilt {
     transform: none;
   }
-  .lp-sound-ring {
+  .lp-sound-ring,
+  .lp-glow::after,
+  .lp-swap {
     animation: none;
   }
 }
