@@ -16,6 +16,9 @@ const fmtIso = (iso: string) => {
   const [, m, d] = iso.split("-").map(Number);
   return `${d} ${MONTHS[m - 1]}`;
 };
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+const LIVE_REFRESH_MS = 60_000;
 
 export default function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -60,6 +63,25 @@ export default function DashboardPage() {
     return () => abortRef.current?.abort();
   }, [selectedAccount, period, fetchOverviewData]);
 
+  // Periode yang mencakup hari ini: segarkan diam-diam tiap menit selama tab terlihat
+  // (server menyimpan angka Threads 60 detik, jadi tidak menambah panggilan API)
+  const isLive = Boolean(data?.period?.live);
+  useEffect(() => {
+    if (!isLive) return;
+    let last = Date.now();
+    const tick = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < LIVE_REFRESH_MS - 1000) return;
+      last = Date.now();
+      fetchOverviewData(selectedAccount, period);
+    };
+    const id = window.setInterval(tick, LIVE_REFRESH_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [isLive, selectedAccount, period, fetchOverviewData]);
+
   const handleRefresh = () => {
     setRefreshing(true);
     fetchOverviewData(selectedAccount, period);
@@ -86,12 +108,21 @@ export default function DashboardPage() {
   const isAll = currentAccount.isAll;
   const accountCount = accounts.length || stats.activeAccounts || 32;
   const info = data?.period as
-    | { label: string; from: string; to: string; days: number; hasPrev: boolean }
+    | {
+        label: string;
+        from: string;
+        to: string;
+        days: number;
+        hasPrev: boolean;
+        live?: boolean;
+        updatedAt?: string | null;
+        liveFailed?: number;
+      }
     | undefined;
   const initialLoad = loading && !data;
   const chartTitle = info
     ? info.days === 1
-      ? "Aktivitas kemarin"
+      ? `Aktivitas ${info.label.toLowerCase()} & 6 hari sebelumnya`
       : `Aktivitas ${info.label.charAt(0).toLowerCase()}${info.label.slice(1)}`
     : "Aktivitas";
 
@@ -145,10 +176,23 @@ export default function DashboardPage() {
         <PeriodFilter value={period} onChange={handlePeriod} />
         {info && (
           <p className="text-[13px] text-muted">
+            {info.live && (
+              <span className="inline-flex items-center gap-1.5 mr-2 text-success font-medium">
+                <span className="relative flex w-2 h-2">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-60 animate-ping" />
+                  <span className="relative inline-flex w-2 h-2 rounded-full bg-success" />
+                </span>
+                Langsung
+              </span>
+            )}
             {info.from === info.to ? fmtIso(info.from) : `${fmtIso(info.from)} – ${fmtIso(info.to)}`}
-            {info.hasPrev
-              ? ` · dibanding ${info.days === 1 ? "sehari" : `${info.days} hari`} sebelumnya`
-              : " · belum ada data pembanding"}
+            {info.live
+              ? `${info.updatedAt ? ` · diperbarui ${fmtTime(info.updatedAt)} WIB` : ""}${
+                  info.liveFailed ? ` · ${info.liveFailed} akun belum bisa diambil` : ""
+                }`
+              : info.hasPrev
+                ? ` · dibanding ${info.days === 1 ? "sehari" : `${info.days} hari`} sebelumnya`
+                : " · belum ada data pembanding"}
           </p>
         )}
       </div>

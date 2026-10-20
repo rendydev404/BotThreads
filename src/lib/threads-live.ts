@@ -1,0 +1,241 @@
+/**
+ * Angka HARI INI langsung dari API Threads untuk dasbor.
+ *
+ * Worker auto-suka hanya menyimpan ThreadsAccountDaily/ThreadsPostStat s.d. kemarin (sekali sehari
+ * setelah 05.00 WIB), jadi hari ini tidak pernah ada di database. Per akun diambil 3 panggilan:
+ * metrik akun sejak 00.00 WIB, jumlah followers saat ini, dan postingan sejak 00.00 WIB. Metrik akun
+ * dijumlahkan dengan cara yang sama seperti worker (semua bucket `values` dijumlah), sehingga angka
+ * hari ini sebanding dengan hari-hari sebelumnya.
+ *
+ * Hasil disimpan di memori LIVE_TTL_MS per akun dan permintaan serentak digabung, jadi dasbor yang
+ * menyegarkan tiap menit tidak menambah panggilan API.
+ */
+import { db } from "./supabase";
+import { decryptThreadsToken } from "./threads-token";
+
+const GRAPH = "https://graph.threads.net/v1.0";
+const FETCH_TIMEOUT_MS = 8_000;
+const INSIGHTS_SCOPE = "threads_manage_insights";
+export const LIVE_TTL_MS = 60_000;
+// Batas laju Threads berlaku per token (per akun), jadi akun berbeda aman diambil paralel
+const CONCURRENCY = 16;
+/** Batas postingan hari ini yang diambil metriknya untuk "Postingan terpopuler" (1 panggilan/postingan). */
+const MAX_TOP_CANDIDATES = 40;
+const TEXT_MAX = 500;
+const ID_CHUNK = 100;
+
+export interface LivePost {
+  id: string;
+  accountId: string;
+  mediaType: string;
+  text: string;
+  permalink: string | null;
+  postedAt: Date;
+}
+
+export interface LiveAccount {
+  accountId: string;
+  views: number;
+  likes: number;
+  replies: number;
+  reposts: number;
+  quotes: number;
+  followers: number | null;
+  posts: LivePost[];
+}
+
+export interface LivePostMetrics {
+  views: number;
+  likes: number;
+  replies: number;
+  reposts: number;
+}
+
+export interface LiveToday {
+  /** Hanya akun yang berhasil diambil. */
+  accounts: Map<string, LiveAccount>;
+  /** Akun yang tidak bisa diambil (tanpa izin insights, token rusak, galat API). */
+  failed: number;
+  fetchedAt: Date;
+}
+
+interface Insight {
+  name?: string;
+  total_value?: { value?: number };
+  values?: { value?: number }[];
+}
+
+/** Jumlahkan satu metrik; sama dengan `insightMetric` di worker auto-suka. */
+function metric(data: Insight[] | undefined, name: string): number {
+  const item = (data ?? []).find((d) => d?.name === name);
+  if (!item) return 0;
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  if (item.total_value) return num(item.total_value.value);
+  if (Array.isArray(item.values)) return item.values.reduce((s, v) => s + num(v?.value), 0);
+  return 0;
+}
+
+async function graph<T>(path: string, params: Record<string, string>): Promise<T> {
+  const res = await fetch(`${GRAPH}/${path}?${new URLSearchParams(params)}`, {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    cache: "no-store",
+  });
+  const body = (await res.json().catch(() => null)) as (T & { error?: { message?: string } }) | null;
+  if (!res.ok || !body) throw new Error(body?.error?.message || `Threads membalas ${res.status}`);
+  return body;
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i]);
+      }
+    })
+  );
+  return out;
+}
+
+interface TokenRow {
+  id: string;
+  threadsUserId: string;
+  accessToken: string | null;
+  scopes: string[] | null;
+  needsReconnect: boolean;
+}
+
+/** Token terbuka akun yang terakhir diambil, dipakai ulang untuk metrik postingan (tidak pernah dikirim ke klien). */
+const liveTokens = new Map<string, string>();
+
+async function fetchAccount(row: TokenRow, dayStart: Date, now: Date): Promise<LiveAccount | null> {
+  if (row.needsReconnect || !row.accessToken || !(row.scopes ?? []).includes(INSIGHTS_SCOPE)) return null;
+  try {
+    const token = decryptThreadsToken(row.accessToken);
+    liveTokens.set(row.id, token);
+    const since = String(Math.floor(dayStart.getTime() / 1000));
+    const [ins, fol, posts] = await Promise.all([
+      graph<{ data?: Insight[] }>(`${row.threadsUserId}/threads_insights`, {
+        metric: "views,likes,replies,reposts,quotes",
+        since,
+        until: String(Math.floor(now.getTime() / 1000)),
+        access_token: token,
+      }),
+      graph<{ data?: Insight[] }>(`${row.threadsUserId}/threads_insights`, {
+        metric: "followers_count",
+        access_token: token,
+      }),
+      graph<{ data?: { id?: string; media_type?: string; text?: string; permalink?: string; timestamp?: string }[] }>(
+        `${row.threadsUserId}/threads`,
+        { fields: "id,media_type,text,permalink,timestamp", since, limit: "100", access_token: token }
+      ),
+    ]);
+    return {
+      accountId: row.id,
+      views: metric(ins.data, "views"),
+      likes: metric(ins.data, "likes"),
+      replies: metric(ins.data, "replies"),
+      reposts: metric(ins.data, "reposts"),
+      quotes: metric(ins.data, "quotes"),
+      followers: fol.data?.some((d) => d.name === "followers_count") ? metric(fol.data, "followers_count") : null,
+      posts: (posts.data ?? [])
+        // Repost milik orang lain tidak punya insights dan bukan postingan akun ini.
+        .filter((p) => p.id && p.timestamp && p.media_type !== "REPOST_FACADE")
+        .map((p) => ({
+          id: p.id!,
+          accountId: row.id,
+          mediaType: p.media_type || "TEXT_POST",
+          text: (p.text || "").slice(0, TEXT_MAX),
+          permalink: p.permalink || null,
+          postedAt: new Date(p.timestamp!),
+        }))
+        .filter((p) => p.postedAt.getTime() >= dayStart.getTime()),
+    };
+  } catch (err) {
+    console.warn(`[threads-live] ${row.id}:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/* Cache per akun: { hari, waktu ambil, janji hasil }. Galat ikut di-cache supaya tidak diulang tiap permintaan. */
+const accountCache = new Map<string, { day: number; at: number; value: Promise<LiveAccount | null> }>();
+
+/** Angka hari ini (sejak `dayStart`, tengah malam WIB dalam UTC) untuk akun-akun `ids`. */
+export async function fetchLiveToday(ids: string[], dayStart: Date, now = new Date()): Promise<LiveToday> {
+  const day = dayStart.getTime();
+  const fresh = (id: string) => {
+    const c = accountCache.get(id);
+    return c && c.day === day && now.getTime() - c.at < LIVE_TTL_MS ? c : null;
+  };
+  const stale = ids.filter((id) => !fresh(id));
+
+  if (stale.length) {
+    // Satu janji untuk seluruh batch; tiap akun mendapat potongannya sendiri.
+    const batch = (async () => {
+      const rows: TokenRow[] = [];
+      for (let i = 0; i < stale.length; i += ID_CHUNK) {
+        const { data, error } = await db()
+          .from("ThreadsAccount")
+          .select("id, threadsUserId, accessToken, scopes, needsReconnect")
+          .in("id", stale.slice(i, i + ID_CHUNK));
+        if (error) throw new Error(`Supabase: ${error.message}`);
+        rows.push(...((data ?? []) as TokenRow[]));
+      }
+      const results = await mapLimit(rows, CONCURRENCY, (r) => fetchAccount(r, dayStart, now));
+      return new Map(results.filter((r): r is LiveAccount => r !== null).map((r) => [r.accountId, r]));
+    })();
+    for (const id of stale) {
+      accountCache.set(id, {
+        day,
+        at: now.getTime(),
+        value: batch.then((m) => m.get(id) ?? null),
+      });
+    }
+    // Galat database: lepas dari cache supaya permintaan berikutnya mencoba lagi.
+    batch.catch(() => stale.forEach((id) => accountCache.delete(id)));
+  }
+
+  const results = await Promise.all(ids.map((id) => accountCache.get(id)!.value));
+  const accounts = new Map<string, LiveAccount>();
+  let failed = 0;
+  results.forEach((r) => (r ? accounts.set(r.accountId, r) : failed++));
+  const oldest = Math.min(...ids.map((id) => accountCache.get(id)?.at ?? now.getTime()), now.getTime());
+  return { accounts, failed, fetchedAt: new Date(oldest) };
+}
+
+/* Metrik postingan hari ini, untuk "Postingan terpopuler". */
+const postCache = new Map<string, { at: number; value: Promise<LivePostMetrics | null> }>();
+
+/** Metrik postingan hari ini; panggil setelah `fetchLiveToday` (token akunnya dipakai ulang). */
+export async function livePostMetrics(posts: LivePost[], now = new Date()): Promise<Map<string, LivePostMetrics>> {
+  // Postingan paling awal diutamakan: waktunya paling lama untuk mengumpulkan penayangan.
+  const picked = [...posts].sort((a, b) => a.postedAt.getTime() - b.postedAt.getTime()).slice(0, MAX_TOP_CANDIDATES);
+  const values = await mapLimit(picked, CONCURRENCY, (p): Promise<LivePostMetrics | null> => {
+    const c = postCache.get(p.id);
+    if (c && now.getTime() - c.at < LIVE_TTL_MS) return c.value;
+    const token = liveTokens.get(p.accountId);
+    if (!token) return Promise.resolve(null);
+    const value = graph<{ data?: Insight[] }>(`${p.id}/insights`, {
+      metric: "views,likes,replies,reposts",
+      access_token: token,
+    })
+      .then((res) => ({
+        views: metric(res.data, "views"),
+        likes: metric(res.data, "likes"),
+        replies: metric(res.data, "replies"),
+        reposts: metric(res.data, "reposts"),
+      }))
+      .catch(() => null);
+    postCache.set(p.id, { at: now.getTime(), value });
+    return value;
+  });
+
+  // Buang entri kedaluwarsa supaya cache tidak tumbuh terus.
+  for (const [id, c] of postCache) if (now.getTime() - c.at >= LIVE_TTL_MS * 5) postCache.delete(id);
+
+  const out = new Map<string, LivePostMetrics>();
+  picked.forEach((p, i) => values[i] && out.set(p.id, values[i]!));
+  return out;
+}

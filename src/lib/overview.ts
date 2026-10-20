@@ -1,6 +1,7 @@
 import { agg, db, excludedIdList, must, onlyVisible, sqlTs, toDate, toDateOrNull, type DailyByDate } from "@/lib/supabase";
 import { isoDate, resolvePeriod } from "@/lib/period";
 import { pctDelta } from "@/lib/report";
+import { fetchLiveToday, livePostMetrics, type LivePost } from "@/lib/threads-live";
 
 const DAY = 86_400_000;
 const WIB_MS = 7 * 3_600_000;
@@ -23,7 +24,12 @@ export async function buildOverview(opts: OverviewParams) {
   {
     const accountFilter = opts.account || "all";
     const period = resolvePeriod(opts.period, opts.from, opts.to);
-    const { from, to, prevFrom, prevTo, days } = period;
+    const { from, to, prevFrom, prevTo, days, live } = period;
+    // Periode sehari: grafik tetap memuat 6 hari sebelumnya sebagai konteks
+    const chartFrom = days === 1 ? new Date(to.getTime() - 6 * DAY) : from;
+    // Hari ini tidak ada di database (worker hanya menyimpan s.d. kemarin): diambil langsung dari Threads
+    const dbTo = live ? new Date(to.getTime() - DAY) : to;
+    const todayStart = new Date(to.getTime() - WIB_MS);
 
     // Batas postingan dalam hari WIB (postedAt tersimpan UTC)
     const inRange = (a: Date, b: Date) => ({
@@ -73,14 +79,20 @@ export async function buildOverview(opts: OverviewParams) {
     const ids = targetAccount ? [targetAccount.id] : undefined;
     const curPostRange = inRange(from, to);
     const prevPostRange = inRange(prevFrom, prevTo);
+    // Postingan hari ini dihitung dari data langsung; database hanya sampai sebelum 00.00 WIB hari ini
+    const dbPostRange = live
+      ? { gte: curPostRange.gte, lt: new Date(Math.max(curPostRange.gte.getTime(), todayStart.getTime())) }
+      : curPostRange;
+    const hasDbDays = from.getTime() <= dbTo.getTime();
+    const hasDbPosts = dbPostRange.gte.getTime() < dbPostRange.lt.getTime();
 
     let topPostQuery = db()
       .from("ThreadsPostStat")
       .select(
         "id, text, mediaType, views, likes, replies, reposts, permalink, postedAt, ThreadsAccount(username, displayName, avatarUrl)"
       )
-      .gte("postedAt", sqlTs(curPostRange.gte))
-      .lt("postedAt", sqlTs(curPostRange.lt));
+      .gte("postedAt", sqlTs(dbPostRange.gte))
+      .lt("postedAt", sqlTs(dbPostRange.lt));
     if (targetAccount) topPostQuery = topPostQuery.eq("threadsAccountId", targetAccount.id);
     else {
       const hidden = await excludedIdList();
@@ -99,12 +111,13 @@ export async function buildOverview(opts: OverviewParams) {
       lbPostRows,
       folCurRows,
       folPrevRows,
+      liveData,
     ] = await Promise.all([
-      // Per hari pada periode: total sekaligus data grafik
-      agg.dailyByDate({ from, to, ids }),
+      // Per hari pada rentang grafik: total periode sekaligus data grafik
+      agg.dailyByDate({ from: chartFrom, to: dbTo, ids }),
       // Periode pembanding (jumlah hari berdata dipakai untuk menilai kelayakan)
       agg.dailyByDate({ from: prevFrom, to: prevTo, ids }),
-      agg.postsByMedia({ from: curPostRange.gte, to: curPostRange.lt, ids }),
+      hasDbPosts ? agg.postsByMedia({ from: dbPostRange.gte, to: dbPostRange.lt, ids }) : Promise.resolve([]),
       agg.postsByAccount({ from: prevPostRange.gte, to: prevPostRange.lt, ids }),
       must<
         {
@@ -119,7 +132,7 @@ export async function buildOverview(opts: OverviewParams) {
           postedAt: string;
           ThreadsAccount: { username: string | null; displayName: string; avatarUrl: string | null } | null;
         }[]
-      >(topPostQuery.order("views", { ascending: false }).limit(1)),
+      >(hasDbPosts ? topPostQuery.order("views", { ascending: false }).limit(1) : Promise.resolve({ data: [], error: null })),
       must<{ id: string; kind: string; periodKey: string; createdAt: string }[]>(
         db()
           .from("AnalyticsReportLog")
@@ -128,31 +141,68 @@ export async function buildOverview(opts: OverviewParams) {
           .limit(4)
       ),
       // Peringkat seluruh cabang pada periode ini dan periode sebelumnya
-      agg.dailyByAccount({ from, to }),
+      hasDbDays ? agg.dailyByAccount({ from, to: dbTo }) : Promise.resolve([]),
       agg.dailyByAccount({ from: prevFrom, to: prevTo }),
-      agg.postsByAccount({ from: curPostRange.gte, to: curPostRange.lt }),
+      hasDbPosts ? agg.postsByAccount({ from: dbPostRange.gte, to: dbPostRange.lt }) : Promise.resolve([]),
       // Followers cabang akhir periode saat ini dan pembanding
       agg.latestFollowers({ to }),
       agg.latestFollowers({ to: prevTo }),
+      // Seluruh akun (bukan hanya yang dipilih): peringkat cabang juga butuh angka hari ini
+      live ? fetchLiveToday(accounts.map((a) => a.id), todayStart) : Promise.resolve(null),
     ]);
+
+    // ---- Angka hari ini dari Threads, dibatasi ke akun yang sedang dilihat
+    const liveAll = liveData ? [...liveData.accounts.values()] : [];
+    const scopeIds = new Set(ids ?? accounts.map((a) => a.id));
+    const liveScoped = liveAll.filter((a) => scopeIds.has(a.accountId));
+    const livePosts: LivePost[] = liveScoped.flatMap((a) => a.posts);
 
     // Bentuk hasil disamakan dengan groupBy/aggregate Prisma sebelumnya
     const bySum = (r: DailyByDate) => ({
       date: toDate(r.date),
       _sum: { views: r.views, likes: r.likes, replies: r.replies, reposts: r.reposts },
     });
-    const curByDate = curDaily.map(bySum);
+    const chartByDate = curDaily.map(bySum);
+    if (live) {
+      const sum = (k: "views" | "likes" | "replies" | "reposts") => liveScoped.reduce((t, a) => t + a[k], 0);
+      chartByDate.push({
+        date: to,
+        _sum: { views: sum("views"), likes: sum("likes"), replies: sum("replies"), reposts: sum("reposts") },
+      });
+    }
+    const curByDate = chartByDate.filter((d) => d.date.getTime() >= from.getTime());
     const prevByDate = prevDaily.map(bySum);
-    const mediaTypesGrouped = mediaRows.map((m) => ({ mediaType: m.mediaType, _count: { id: m.posts } }));
-    const postsCur = mediaRows.reduce((s, m) => s + m.posts, 0);
+    const mediaCounts = new Map(mediaRows.map((m) => [m.mediaType, m.posts]));
+    for (const p of livePosts) mediaCounts.set(p.mediaType, (mediaCounts.get(p.mediaType) ?? 0) + 1);
+    const mediaTypesGrouped = [...mediaCounts].map(([mediaType, posts]) => ({ mediaType, _count: { id: posts } }));
+    const postsCur = mediaRows.reduce((s, m) => s + m.posts, 0) + livePosts.length;
     const postsPrev = prevPostRows.reduce((s, p) => s + p.posts, 0);
-    const topPost = topPostRows[0]
+    const dbTop = topPostRows[0]
       ? (({ ThreadsAccount, ...p }) => ({
           ...p,
           postedAt: toDate(p.postedAt),
           threadsAccount: ThreadsAccount,
         }))(topPostRows[0])
       : null;
+    let liveTop: typeof dbTop = null;
+    if (livePosts.length) {
+      const metrics = await livePostMetrics(livePosts);
+      for (const p of livePosts) {
+        const m = metrics.get(p.id);
+        if (!m || (liveTop && liveTop.views >= m.views)) continue;
+        const acc = accounts.find((a) => a.id === p.accountId);
+        liveTop = {
+          id: p.id,
+          text: p.text,
+          mediaType: p.mediaType,
+          ...m,
+          permalink: p.permalink,
+          postedAt: p.postedAt,
+          threadsAccount: acc ? { username: acc.username, displayName: acc.displayName, avatarUrl: acc.avatarUrl } : null,
+        };
+      }
+    }
+    const topPost = liveTop && (!dbTop || liveTop.views > dbTop.views) ? liveTop : dbTop;
     const reportLogs = reportLogRows.map((l) => ({ ...l, createdAt: toDate(l.createdAt) }));
     const lbCur = lbCurRows.map(({ threadsAccountId, ...s }) => ({ threadsAccountId, _sum: s }));
     const lbPrev = lbPrevRows.map((p) => ({ threadsAccountId: p.threadsAccountId, _sum: { views: p.views } }));
@@ -175,7 +225,8 @@ export async function buildOverview(opts: OverviewParams) {
     const totalInteractions = cur.likes + cur.replies + cur.reposts;
     const prevInteractions = prev.likes + prev.replies + prev.reposts;
     const avgER = erOf(cur.views, totalInteractions);
-    const hasPrev = prevByDate.length >= Math.ceil(days * 0.6);
+    // Hari ini belum selesai: membandingkannya dengan kemarin sehari penuh menyesatkan
+    const hasPrev = period.key !== "today" && prevByDate.length >= Math.ceil(days * 0.6);
 
     // Map followers per akun pada akhir periode dan pembanding
     const curFollowerMap = new Map<string, number>();
@@ -184,6 +235,8 @@ export async function buildOverview(opts: OverviewParams) {
         curFollowerMap.set(r.threadsAccountId, r.followers);
       }
     }
+
+    for (const a of liveAll) if (a.followers !== null) curFollowerMap.set(a.accountId, a.followers);
 
     const prevFollowerMap = new Map<string, number>();
     for (const r of folPrevRows) {
@@ -224,13 +277,14 @@ export async function buildOverview(opts: OverviewParams) {
       : null;
 
     // ---- Grafik: isi hari kosong dengan 0 agar sumbu waktu utuh
-    const byDate = new Map(curByDate.map((d) => [isoDate(d.date), d]));
-    const activity = Array.from({ length: days }, (_, i) => {
-      const d = new Date(from.getTime() + i * DAY);
+    const byDate = new Map(chartByDate.map((d) => [isoDate(d.date), d]));
+    const chartDays = Math.round((to.getTime() - chartFrom.getTime()) / DAY) + 1;
+    const activity = Array.from({ length: chartDays }, (_, i) => {
+      const d = new Date(chartFrom.getTime() + i * DAY);
       const row = byDate.get(isoDate(d));
       return {
         day:
-          days <= 7
+          chartDays <= 7
             ? DAY_NAMES[d.getUTCDay()]
             : `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`,
         date: isoDate(d),
@@ -297,9 +351,20 @@ export async function buildOverview(opts: OverviewParams) {
         };
 
     // ---- Peringkat cabang
-    const curMap = new Map(lbCur.map((g) => [g.threadsAccountId, g._sum]));
+    const curMap = new Map(lbCur.map((g) => [g.threadsAccountId, { ...g._sum }]));
     const prevMap = new Map(lbPrev.map((g) => [g.threadsAccountId, g._sum.views || 0]));
     const postMap = new Map(lbPosts.map((g) => [g.threadsAccountId, g._count._all]));
+    for (const a of liveAll) {
+      const d = curMap.get(a.accountId) ?? { views: 0, likes: 0, replies: 0, reposts: 0, quotes: 0 };
+      curMap.set(a.accountId, {
+        views: d.views + a.views,
+        likes: d.likes + a.likes,
+        replies: d.replies + a.replies,
+        reposts: d.reposts + a.reposts,
+        quotes: d.quotes + a.quotes,
+      });
+      postMap.set(a.accountId, (postMap.get(a.accountId) ?? 0) + a.posts.length);
+    }
 
     const leaderboard = accounts
       .map((a) => {
@@ -337,6 +402,10 @@ export async function buildOverview(opts: OverviewParams) {
         to: isoDate(to),
         days,
         hasPrev,
+        live,
+        // Waktu angka hari ini diambil dari Threads; akun yang gagal diambil tidak ikut dihitung
+        updatedAt: liveData?.fetchedAt.toISOString() ?? null,
+        liveFailed: liveData ? liveData.failed : 0,
       },
       currentAccount,
       stats: {

@@ -1,12 +1,14 @@
 /**
- * Filter periode dasbor: Kemarin, 7/14/30 hari, dan rentang kustom.
- * Semua periode berakhir "kemarin" (WIB), sama seperti laporan bot Telegram,
- * karena data hari ini belum lengkap.
+ * Filter periode dasbor: Hari ini, Kemarin, 7/14/30 hari, dan rentang kustom.
+ * Preset selain "Hari ini" berakhir "kemarin" (WIB), sama seperti laporan bot Telegram.
+ * Data hari ini belum ada di database (worker hanya menyimpan s.d. kemarin), jadi periode
+ * yang mencakup hari ini diambil langsung dari API Threads (lihat threads-live.ts).
  */
 
-export type PeriodKey = "yesterday" | "7d" | "14d" | "30d" | "custom";
+export type PeriodKey = "today" | "yesterday" | "7d" | "14d" | "30d" | "custom";
 
 export const PERIOD_OPTIONS: Array<{ key: Exclude<PeriodKey, "custom">; label: string; days: number }> = [
+  { key: "today", label: "Hari ini", days: 1 },
   { key: "yesterday", label: "Kemarin", days: 1 },
   { key: "7d", label: "7 hari", days: 7 },
   { key: "14d", label: "14 hari", days: 14 },
@@ -28,6 +30,8 @@ export interface ResolvedPeriod {
   days: number;
   prevFrom: Date;
   prevTo: Date;
+  /** Periode mencakup hari ini: angka hari ini diambil langsung dari Threads. */
+  live: boolean;
 }
 
 /** Tanggal hari ini di WIB sebagai Date UTC 00:00. */
@@ -79,14 +83,14 @@ export function resolvePeriod(
   } else {
     const p = preset ?? PERIOD_OPTIONS.find((x) => x.key === DEFAULT_PERIOD)!;
     k = p.key;
-    to = yesterday;
+    to = p.key === "today" ? today : yesterday;
     from = new Date(to.getTime() - (p.days - 1) * DAY);
-    label = p.key === "yesterday" ? "Kemarin" : `${p.days} hari terakhir`;
+    label = p.key === "today" ? "Hari ini" : p.key === "yesterday" ? "Kemarin" : `${p.days} hari terakhir`;
   }
 
   const days = Math.round((to.getTime() - from.getTime()) / DAY) + 1;
   const prevTo = new Date(from.getTime() - DAY);
   const prevFrom = new Date(prevTo.getTime() - (days - 1) * DAY);
 
-  return { key: k, label, from, to, days, prevFrom, prevTo };
+  return { key: k, label, from, to, days, prevFrom, prevTo, live: to.getTime() === today.getTime() };
 }
