@@ -14,7 +14,7 @@ import { formatDateWib } from "@/components/settings/format";
 import { ThreadsConnectButton } from "@/components/settings/threads-connect-button";
 
 /** Halaman tanpa sesi (login, terima undangan, reset password, kebijakan legal) tampil polos: tanpa sidebar/header/bubble. */
-const BARE_PREFIXES = ["/undangan/", "/reset-password/", "/hubungkan/"];
+const BARE_PREFIXES = ["/undangan/", "/reset-password/"];
 const BARE_PAGES = [
   "/login",
   "/daftar",
@@ -26,7 +26,6 @@ const BARE_PAGES = [
   "/penghapusan-data",
   "/kontak",
   "/threads-terhubung",
-  "/hubungkan",
 ];
 const isBare = (pathname: string): boolean => BARE_PAGES.includes(pathname) || BARE_PREFIXES.some((p) => pathname.startsWith(p));
 

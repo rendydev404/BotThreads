@@ -1,13 +1,62 @@
 import { NextResponse } from "next/server";
+import { appOrigin } from "@/lib/google-oauth";
+import { getRawIntegrations } from "@/lib/integrations";
 import { withCtx } from "@/lib/request-ctx";
-import { startThreadsAuthorize } from "@/lib/threads-oauth-start";
+import { THREADS_SCOPES, listWorkspaceThreadsAccounts, signThreadsOAuthState } from "@/lib/threads-connect";
+import { tokenKeyConfigured } from "@/lib/threads-token";
 
-/** Mulai OAuth resmi Meta Threads (tombol "Hubungkan Akun Threads"); aturannya di `startThreadsAuthorize`. */
+/**
+ * Mulai OAuth resmi Meta Threads. Redirect URI `<APP_URL>/api/threads/oauth/callback` harus terdaftar
+ * persis di Meta App (Threads use case > Settings > Redirect Callback URLs) dan wajib https.
+ */
 export const GET = withCtx("ADMIN", async (request, ctx) => {
+  const cfg = await getRawIntegrations();
+  const origin = appOrigin(request, cfg.googleOauth.appUrl);
+  const back = (code: string) => NextResponse.redirect(new URL(`/akun?threads_error=${encodeURIComponent(code)}`, origin));
+
+  if (!ctx.workspaceId) return back("Workspace tidak ditemukan.");
+  if (!cfg.threadsOauth.enabled || !cfg.threadsOauth.appId || !cfg.threadsOauth.appSecret) return back("threads_oauth_off");
+  if (!tokenKeyConfigured()) return back("threads_key_off");
+  // Meta menolak login dari halaman http ("Insecure Login Blocked"): jelaskan di dashboard, jangan kirim ke halaman galat Meta.
+  if (!origin.startsWith("https://")) return back("threads_insecure");
+
+  // Cek paket sebelum ke Threads, supaya pengguna tidak sudah memberi izin lalu baru ditolak.
+  // Kuota penuh tetap boleh lanjut untuk hubungkan ulang (tidak menambah kuota); akun baru tetap ditolak saat disimpan.
   const reconnect = request.nextUrl.searchParams.get("reconnect") === "1";
-  const start = await startThreadsAuthorize(request, ctx, { reconnect });
-  if (start.error !== null) {
-    return NextResponse.redirect(new URL(`/akun?threads_error=${encodeURIComponent(start.error)}`, start.origin));
+  const { quota, accounts } = await listWorkspaceThreadsAccounts(ctx.workspaceId);
+  if (quota.expired) return back("Masa berlaku paket sudah habis. Perpanjang paket di tab Langganan & Tagihan.");
+  if (quota.max !== null && quota.used >= quota.max && !reconnect && !accounts.some((a) => a.needsReconnect)) {
+    return back(`Kuota akun paket ${quota.planNama ?? "Anda"} sudah penuh (${quota.used}/${quota.max}). Naikkan paket untuk menambah akun.`);
   }
-  return new NextResponse(null, { status: 307, headers: { Location: start.url, "Cache-Control": "no-store" } });
+
+  // State bertanda tangan (bukan cookie): callback tetap sah walau selesai di aplikasi/browser lain.
+  const state = signThreadsOAuthState({ userId: ctx.userId, workspaceId: ctx.workspaceId });
+  // Langsung ke host akhir dengan garis miring penutup: threads.net/oauth/authorize dialihkan (301) ke www.threads.com,
+  // dan di HP tautan threads.* dibuka di aplikasi Threads (halaman izin tidak muncul). Daftar universal link Threads
+  // (/.well-known/apple-app-site-association) mengecualikan "/oauth/authorize/*", jadi hanya bentuk ini yang tetap di browser.
+  const authUrl = new URL("https://www.threads.com/oauth/authorize/");
+  authUrl.searchParams.set("client_id", cfg.threadsOauth.appId);
+  authUrl.searchParams.set("redirect_uri", `${origin}/api/threads/oauth/callback`);
+  authUrl.searchParams.set("scope", THREADS_SCOPES.join(","));
+  authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("state", state);
+
+  // iOS: fragmen #weblink adalah aturan pengecualian PERTAMA di AASA Threads (aturan pertama yang cocok menang), dan
+  // fragmen ikut terbawa saat Threads mengalihkan ke /login, jadi halaman login + izin tetap di Safari.
+  const browserUrl = `${authUrl.toString()}#weblink`;
+  const ua = request.headers.get("user-agent") ?? "";
+  // WebView aplikasi lain ("; wv)") tidak memahami intent:, jadi tetap pakai https biasa.
+  const target = /Android/i.test(ua) && !/; wv\)/.test(ua) ? androidBrowserIntent(browserUrl) : browserUrl;
+  return new NextResponse(null, { status: 307, headers: { Location: target, "Cache-Control": "no-store" } });
 });
+
+/**
+ * Android: assetlinks.json Threads mencakup semua URL threads.*, jadi link biasa ke halaman izin dibuka di aplikasi
+ * Threads. Intent ke skema yang tidak dimiliki aplikasi mana pun pasti gagal; Chrome lalu menandai seluruh rangkaian
+ * navigasi ini "jangan buka aplikasi" (crbug.com/330555390) dan memuat browser_fallback_url di tab yang sama, termasuk
+ * pengalihan ke /login sesudahnya. (Intent ke package Chrome sendiri tidak cukup: Chrome hanya memuatnya ulang di
+ * rangkaian yang sama, dan App Link Threads tetap mengambil alih.)
+ */
+function androidBrowserIntent(httpsUrl: string): string {
+  return `intent://buka#Intent;scheme=bottrit-web;S.browser_fallback_url=${encodeURIComponent(httpsUrl)};end`;
+}
