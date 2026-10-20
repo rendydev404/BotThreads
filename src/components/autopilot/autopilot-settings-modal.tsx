@@ -120,11 +120,11 @@ function pillarError(rows: PillarRow[]): string | null {
   for (const r of rows) {
     const key = cleanKey(r.key);
     if (!key) continue;
-    if (key.length < 2 || key.length > 40) return "Nama pilar harus 2-40 karakter.";
-    if (seen.has(key.toLowerCase())) return "Nama pilar tidak boleh berulang.";
+    if (key.length < 2 || key.length > 40) return "Nama kategori harus 2-40 karakter.";
+    if (seen.has(key.toLowerCase())) return "Nama kategori tidak boleh berulang.";
     seen.add(key.toLowerCase());
     const bobot = Number(r.bobot);
-    if (!r.bobot || !Number.isInteger(bobot) || bobot < 1 || bobot > 100) return "Bobot pilar harus bilangan 1-100.";
+    if (!r.bobot || !Number.isInteger(bobot) || bobot < 1 || bobot > 100) return "Porsi kategori harus bilangan 1-100.";
   }
   return null;
 }
@@ -649,7 +649,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
 
           <Field
             label="Tema akun"
-            hint="AI memakai tema dan pilar ini untuk mencari tren yang lagi naik di niche akun, lalu menyusun ide dari tren itu. Bila kosong, niche disimpulkan dari postingan akun."
+            hint="AI memakai tema dan kategori topik ini untuk mencari tren yang lagi naik di niche akun, lalu menyusun ide dari tren itu. Bila kosong, niche disimpulkan dari postingan akun."
           >
             {(labelId) => (
               <div className="rounded-xl border border-line-strong bg-surface transition-colors focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/15">
@@ -678,8 +678,8 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
           </Field>
 
           <Field
-            label="Pilar konten (opsional)"
-            hint={`Maksimal ${MAX_PILLARS} pilar. Bobot menentukan seberapa sering tiap pilar dipakai; baris tanpa nama diabaikan.`}
+            label="Kategori topik (opsional)"
+            hint={`Maksimal ${MAX_PILLARS} kategori. Angka di sebelah nama menentukan seberapa sering kategori itu dipakai dibanding yang lain; persentasenya dihitung otomatis. Baris tanpa nama diabaikan.`}
           >
             {() => (
               <div className="space-y-2">
@@ -693,8 +693,8 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                         value={p.key}
                         onChange={(e) => setPillar(p.id, { key: e.target.value })}
                         maxLength={40}
-                        placeholder="Nama pilar"
-                        aria-label={`Nama pilar ${index + 1}`}
+                        placeholder="Nama kategori, mis. Tips & trik"
+                        aria-label={`Nama kategori ${index + 1}`}
                         className={cn(FIELD, "flex-1 min-w-0")}
                       />
                       <input
@@ -703,16 +703,16 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                         value={p.bobot}
                         onChange={(e) => setPillar(p.id, { bobot: e.target.value.replace(/\D/g, "").slice(0, 3) })}
                         placeholder="1-100"
-                        aria-label={`Bobot pilar ${index + 1} (1 sampai 100)`}
+                        aria-label={`Porsi kategori ${index + 1} (1 sampai 100)`}
                         className={cn(FIELD, "w-16 px-2 text-center tabular-nums")}
                       />
-                      <span className="w-10 shrink-0 text-right text-xs font-semibold text-muted tabular-nums" aria-label="Porsi pilar">
+                      <span className="w-10 shrink-0 text-right text-xs font-semibold text-muted tabular-nums" aria-label="Persentase kategori">
                         {share === null ? "-" : `${share}%`}
                       </span>
                       <button
                         type="button"
                         onClick={() => update({ pillars: form.pillars.filter((row) => row.id !== p.id) })}
-                        aria-label={`Hapus pilar ${index + 1}`}
+                        aria-label={`Hapus kategori ${index + 1}`}
                         className="w-10 h-10 shrink-0 rounded-lg inline-flex items-center justify-center text-muted hover:text-danger hover:bg-danger-soft transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -732,7 +732,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                   className="h-10 px-4 rounded-full border border-line-strong text-[13px] font-semibold text-fg inline-flex items-center gap-1.5 hover:border-accent hover:text-accent transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Tambah pilar
+                  Tambah kategori
                 </button>
               </div>
             )}

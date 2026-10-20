@@ -88,15 +88,15 @@ export const maxPostsForGap = (minGapMinutes: number): number =>
   Math.floor(((ACTIVE_LAST_HOUR - ACTIVE_FIRST_HOUR) * 60) / minGapMinutes) + 1;
 
 function parsePillars(v: unknown): Parsed<AutopilotPillar[]> {
-  if (!Array.isArray(v) || v.length > MAX_PILLARS) return fail(`Pilar konten maksimal ${MAX_PILLARS}.`);
+  if (!Array.isArray(v) || v.length > MAX_PILLARS) return fail(`Kategori topik maksimal ${MAX_PILLARS}.`);
   const out: AutopilotPillar[] = [];
   const seen = new Set<string>();
   for (const item of v) {
-    if (!isRecord(item) || typeof item.key !== "string") return fail("Pilar konten tidak valid.");
+    if (!isRecord(item) || typeof item.key !== "string") return fail("Kategori topik tidak valid.");
     const key = item.key.replace(/[<>]/g, " ").replace(/\s+/g, " ").trim();
-    if (key.length < 2 || key.length > 40) return fail("Nama pilar harus 2-40 karakter.");
-    if (seen.has(key.toLowerCase())) return fail("Nama pilar tidak boleh berulang.");
-    if (!intIn(item.bobot, 1, 100)) return fail("Bobot pilar harus bilangan 1-100.");
+    if (key.length < 2 || key.length > 40) return fail("Nama kategori harus 2-40 karakter.");
+    if (seen.has(key.toLowerCase())) return fail("Nama kategori tidak boleh berulang.");
+    if (!intIn(item.bobot, 1, 100)) return fail("Porsi kategori harus bilangan 1-100.");
     seen.add(key.toLowerCase());
     out.push({ key, bobot: item.bobot });
   }

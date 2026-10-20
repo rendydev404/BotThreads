@@ -31,7 +31,7 @@ export type PerformanceDimKey = "formulaHook" | "pilar" | "jam" | "jenisSlot";
 
 export const PERFORMANCE_DIM_LABEL: Record<PerformanceDimKey, string> = {
   formulaHook: "Formula pembuka",
-  pilar: "Pilar konten",
+  pilar: "Kategori topik",
   jam: "Jam tayang",
   jenisSlot: "Jenis slot",
 };

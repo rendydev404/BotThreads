@@ -16,7 +16,7 @@ const LOAD_ERROR = "Gagal memuat hasil belajar autopilot.";
 const DIM_ORDER: PerformanceDimKey[] = ["formulaHook", "pilar", "jam", "jenisSlot"];
 const DIM_HINT: Record<PerformanceDimKey, string> = {
   formulaHook: "Cara membuka posting yang paling memancing views.",
-  pilar: "Tema konten yang paling disukai audiens.",
+  pilar: "Kategori topik yang paling disukai audiens.",
   jam: "Jam tayang (WIB) dengan hasil terbaik.",
   jenisSlot: "Asal jam tayang: jam ramai, eksplorasi, jam tetap, atau tren.",
 };

@@ -147,7 +147,7 @@ const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error,
           )}
           {idea.pilar && (
             <span className={cn(CHIP, "bg-subtle text-fg max-w-full")}>
-              <span className="shrink-0 font-medium text-muted">Pilar:</span>
+              <span className="shrink-0 font-medium text-muted">Kategori:</span>
               <span className="min-w-0 truncate">{idea.pilar}</span>
             </span>
           )}

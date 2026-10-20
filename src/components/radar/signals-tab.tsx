@@ -57,7 +57,7 @@ const EMPTY_COPY: Record<SourceFilter, { title: string; body: string }> = {
   },
   NICHE: {
     title: "Belum ada tren di niche akun.",
-    body: "AI mencari lewat Google apa yang sedang naik di niche tiap akun yang autopilotnya menyala, tiap 8 jam pada jam aktif. Niche diambil dari Tema akun dan pilar di pengaturan Autopilot, atau disimpulkan dari postingan akun bila tema kosong. Ide AI disusun dari tren ini lebih dulu.",
+    body: "AI mencari lewat Google apa yang sedang naik di niche tiap akun yang autopilotnya menyala, tiap 8 jam pada jam aktif. Niche diambil dari Tema akun dan kategori topik di pengaturan Autopilot, atau disimpulkan dari postingan akun bila tema kosong. Ide AI disusun dari tren ini lebih dulu.",
   },
   THREADS_SEARCH: {
     title: "Belum ada posting viral dari Threads.",
