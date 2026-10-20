@@ -1,7 +1,7 @@
 import { agg, db, excludedIdList, must, onlyVisible, sqlTs, toDate, toDateOrNull, type DailyByDate } from "@/lib/supabase";
 import { isoDate, resolvePeriod } from "@/lib/period";
 import { pctDelta } from "@/lib/report";
-import { fetchLiveToday, livePostMetrics, type LivePost } from "@/lib/threads-live";
+import { fetchLiveToday, livePostMetrics, withPostFloor, type LivePost, type LivePostMetrics } from "@/lib/threads-live";
 
 const DAY = 86_400_000;
 const WIB_MS = 7 * 3_600_000;
@@ -152,10 +152,13 @@ export async function buildOverview(opts: OverviewParams) {
     ]);
 
     // ---- Angka hari ini dari Threads, dibatasi ke akun yang sedang dilihat
-    const liveAll = liveData ? [...liveData.accounts.values()] : [];
+    const liveRaw = liveData ? [...liveData.accounts.values()] : [];
     const scopeIds = new Set(ids ?? accounts.map((a) => a.id));
+    const livePosts: LivePost[] = liveRaw.filter((a) => scopeIds.has(a.accountId)).flatMap((a) => a.posts);
+    // Metrik postingan hari ini (di-cache 60 dtk): untuk postingan terpopuler dan batas bawah interaksi hari ini.
+    const postMetrics = livePosts.length ? await livePostMetrics(livePosts) : new Map<string, LivePostMetrics>();
+    const liveAll = liveRaw.map((a) => withPostFloor(a, postMetrics));
     const liveScoped = liveAll.filter((a) => scopeIds.has(a.accountId));
-    const livePosts: LivePost[] = liveScoped.flatMap((a) => a.posts);
 
     // Bentuk hasil disamakan dengan groupBy/aggregate Prisma sebelumnya
     const bySum = (r: DailyByDate) => ({
@@ -186,9 +189,8 @@ export async function buildOverview(opts: OverviewParams) {
       : null;
     let liveTop: typeof dbTop = null;
     if (livePosts.length) {
-      const metrics = await livePostMetrics(livePosts);
       for (const p of livePosts) {
-        const m = metrics.get(p.id);
+        const m = postMetrics.get(p.id);
         if (!m || (liveTop && liveTop.views >= m.views)) continue;
         const acc = accounts.find((a) => a.id === p.accountId);
         liveTop = {

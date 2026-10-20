@@ -205,7 +205,31 @@ export async function fetchLiveToday(ids: string[], dayStart: Date, now = new Da
   return { accounts, failed, fetchedAt: new Date(oldest) };
 }
 
-/* Metrik postingan hari ini, untuk "Postingan terpopuler". */
+/**
+ * Insights level akun untuk hari yang sedang berjalan sering masih 0 untuk suka/balasan/repost (Threads baru
+ * menghitungnya belakangan), padahal insights postingan sudah terisi. Interaksi pada postingan yang terbit hari ini
+ * pasti terjadi hari ini, jadi jumlahnya batas bawah yang jujur: pakai yang lebih besar. Penayangan tetap level akun.
+ */
+export function withPostFloor(account: LiveAccount, metrics: Map<string, LivePostMetrics>): LiveAccount {
+  let likes = 0;
+  let replies = 0;
+  let reposts = 0;
+  for (const p of account.posts) {
+    const m = metrics.get(p.id);
+    if (!m) continue;
+    likes += m.likes;
+    replies += m.replies;
+    reposts += m.reposts;
+  }
+  return {
+    ...account,
+    likes: Math.max(account.likes, likes),
+    replies: Math.max(account.replies, replies),
+    reposts: Math.max(account.reposts, reposts),
+  };
+}
+
+/* Metrik postingan hari ini, untuk "Postingan terpopuler" dan batas bawah interaksi hari ini. */
 const postCache = new Map<string, { at: number; value: Promise<LivePostMetrics | null> }>();
 
 /** Metrik postingan hari ini; panggil setelah `fetchLiveToday` (token akunnya dipakai ulang). */
