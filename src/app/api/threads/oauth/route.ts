@@ -38,7 +38,10 @@ export const GET = withCtx("ADMIN", async (request, ctx) => {
 
   // State bertanda tangan (bukan cookie): callback tetap sah walau selesai di aplikasi/browser lain.
   const state = signThreadsOAuthState({ userId: ctx.userId, workspaceId: ctx.workspaceId });
-  const authUrl = new URL("https://threads.net/oauth/authorize");
+  // Langsung ke host akhir dengan garis miring penutup: threads.net/oauth/authorize dialihkan (301) ke www.threads.com,
+  // dan di HP tautan threads.* dibuka di aplikasi Threads (halaman izin tidak muncul). Daftar universal link Threads
+  // (/.well-known/apple-app-site-association) mengecualikan "/oauth/authorize/*", jadi hanya bentuk ini yang tetap di browser.
+  const authUrl = new URL("https://www.threads.com/oauth/authorize/");
   authUrl.searchParams.set("client_id", cfg.threadsOauth.appId);
   authUrl.searchParams.set("redirect_uri", `${origin}/api/threads/oauth/callback`);
   authUrl.searchParams.set("scope", THREADS_SCOPES.join(","));
@@ -46,7 +49,17 @@ export const GET = withCtx("ADMIN", async (request, ctx) => {
   authUrl.searchParams.set("state", state);
 
   if (asLink) return NextResponse.json({ success: true, url: authUrl.toString() }, { headers: { "Cache-Control": "no-store" } });
-  const res = NextResponse.redirect(authUrl.toString());
-  res.headers.set("Cache-Control", "no-store");
-  return res;
+  const isAndroid = /Android/i.test(request.headers.get("user-agent") ?? "");
+  const target = isAndroid ? androidBrowserIntent(authUrl.toString()) : authUrl.toString();
+  return new NextResponse(null, { status: 307, headers: { Location: target, "Cache-Control": "no-store" } });
 });
+
+/**
+ * Android tidak punya pengecualian path untuk tautan threads.* (assetlinks.json Threads = semua URL), jadi link
+ * biasa ke halaman izin dibuka di aplikasi Threads. Intent yang menunjuk Chrome secara eksplisit tidak melewati
+ * pemilih App Link, sehingga halaman izin Meta tetap terbuka di browser. Tanpa Chrome: kembali ke URL https biasa.
+ */
+function androidBrowserIntent(httpsUrl: string): string {
+  const rest = httpsUrl.replace(/^https:\/\//, "");
+  return `intent://${rest}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(httpsUrl)};end`;
+}

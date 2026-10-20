@@ -2,7 +2,7 @@
  * Penghubungan akun Threads mandiri (self-service) untuk workspace penyewa.
  *
  * Dua jalan, hasilnya sama:
- * 1. OAuth resmi Meta Threads (`threads.net/oauth/authorize` ➜ token long-lived 60 hari).
+ * 1. OAuth resmi Meta Threads (`www.threads.com/oauth/authorize/` ➜ token long-lived 60 hari).
  * 2. Tempel Access Token Threads (diverifikasi ke `graph.threads.net/v1.0/me`).
  *
  * Akun disimpan persis seperti worker auto-suka menyimpannya: token terenkripsi AES-256-GCM dengan

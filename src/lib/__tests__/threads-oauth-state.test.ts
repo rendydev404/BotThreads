@@ -20,16 +20,27 @@ vi.mock("@/lib/request-ctx", async (original) => ({
   ...(await original<typeof import("@/lib/request-ctx")>()),
   getCtx: async () => h.session,
   ctxForUser: async (userId: string) => ({ userId, ...h.member }),
+  // withCtx memanggil getCtx dari dalam modulnya sendiri (tidak kena mock di atas): pakai sesi tiruan langsung.
+  withCtx:
+    (_min: string, handler: (req: unknown, ctx: unknown) => unknown) =>
+    (req: unknown) =>
+      handler(req, h.session),
 }));
 vi.mock("@/lib/threads-connect", async (original) => ({
   ...(await original<typeof import("@/lib/threads-connect")>()),
   exchangeThreadsOAuthCode: async () => ({ accessToken: "tok", expiresInSeconds: 100 }),
   connectThreadsAccount: (...args: unknown[]) => h.connect(...args),
+  listWorkspaceThreadsAccounts: async () => ({ accounts: [], quota: { used: 0, max: 5, planNama: "Pro", expired: false } }),
+}));
+vi.mock("@/lib/threads-token", async (original) => ({
+  ...(await original<typeof import("@/lib/threads-token")>()),
+  tokenKeyConfigured: () => true,
 }));
 
 import { NextRequest } from "next/server";
 import { signThreadsOAuthState, verifyThreadsOAuthState } from "../threads-connect";
 import { GET as callback } from "@/app/api/threads/oauth/callback/route";
+import { GET as start } from "@/app/api/threads/oauth/route";
 
 beforeAll(() => {
   process.env.AUTH_SECRET = "uji-rahasia-yang-panjangnya-lebih-dari-32-karakter";
@@ -59,6 +70,34 @@ describe("state OAuth Threads", () => {
     expect(verifyThreadsOAuthState(`${payload}.${sig}x`, 2_000)).toBeNull();
     expect(verifyThreadsOAuthState("acak", 2_000)).toBeNull();
     expect(verifyThreadsOAuthState(null, 2_000)).toBeNull();
+  });
+});
+
+describe("mulai OAuth Threads", () => {
+  it("halaman izin memakai www.threads.com/oauth/authorize/ (dikecualikan dari universal link, jadi di HP tetap di browser)", async () => {
+    h.session = { userId: "u1", workspaceId: "ws1", role: "OWNER", accountIds: null };
+    for (const url of ["https://bottrit.com/api/threads/oauth", "https://bottrit.com/api/threads/oauth?format=link"]) {
+      const res = await start(new NextRequest(url));
+      const target = new URL(res.headers.get("location") ?? ((await res.json()) as { url: string }).url);
+      expect(`${target.origin}${target.pathname}`).toBe("https://www.threads.com/oauth/authorize/");
+      expect(target.searchParams.get("redirect_uri")).toBe("https://bottrit.com/api/threads/oauth/callback");
+    }
+  });
+
+  it("Android: dibuka lewat intent ke Chrome (bukan aplikasi Threads), dengan cadangan URL https; iPhone tetap https", async () => {
+    h.session = { userId: "u1", workspaceId: "ws1", role: "OWNER", accountIds: null };
+    const open = async (ua: string) =>
+      (await start(new NextRequest("https://bottrit.com/api/threads/oauth", { headers: { "user-agent": ua } }))).headers.get("location") ?? "";
+
+    const android = await open("Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 Chrome/129.0 Mobile Safari/537.36");
+    const m = /^intent:\/\/(www\.threads\.com\/oauth\/authorize\/\?[^#]+)#Intent;scheme=https;package=com\.android\.chrome;S\.browser_fallback_url=([^;]+);end$/.exec(android);
+    expect(m).not.toBeNull();
+    const fallback = decodeURIComponent(m![2]);
+    expect(fallback).toBe(`https://${m![1]}`);
+    expect(new URL(fallback).searchParams.get("state")).toBeTruthy();
+
+    const iphone = await open("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1");
+    expect(iphone.startsWith("https://www.threads.com/oauth/authorize/?")).toBe(true);
   });
 });
 
