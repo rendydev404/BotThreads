@@ -4,8 +4,9 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
 import { ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock, Eye, Flame, PlayCircle, Repeat2, ShieldAlert, ShieldCheck, Workflow, Zap } from "lucide-react";
-import { GateDemo, HeroDemo, HoursPlanner, IdeaSources } from "@/components/landing/demos";
+import { GateDemo, HoursPlanner, IdeaSources } from "@/components/landing/demos";
 import { FilmSection } from "@/components/landing/film/film-section";
+import { DeskSection } from "@/components/landing/hero-film/desk-section";
 import { LandingFooter } from "@/components/landing/legal-section";
 import { HeroStatus, HeroTry } from "@/components/landing/hero-interactive";
 import { LandingMotion, Magnetic, Tilt } from "@/components/landing/motion";
@@ -25,6 +26,41 @@ export const metadata: Metadata = {
 };
 
 const PIPELINE = ["Tren", "Ide", "Tulis", "Periksa", "Antre", "Terbit"];
+
+/** Judul pembuka, diketik per huruf. `start` = kapan baris mulai diketik (ms sejak halaman tampil). */
+const TYPE_MS = 45;
+const HEADLINE = (() => {
+  const lines = [
+    { text: "Threads Anda", className: "" },
+    { text: "posting sendiri,", className: "lp-gradient-text" },
+    { text: "setiap hari.", className: "lp-type-last" },
+  ];
+  let start = 250;
+  return lines.map((l) => {
+    const line = { ...l, start };
+    start += Array.from(l.text).length * TYPE_MS + 120;
+    return line;
+  });
+})();
+
+/** Satu baris judul yang "diketik": teks utuh tetap di HTML (SEO, pembaca layar); CSS membukanya per huruf. */
+function TypedLine({ text, start, className }: { text: string; start: number; className: string }) {
+  const n = Array.from(text).length;
+  return (
+    <span className={`lp-type block w-fit ${className}`} style={{ "--n": n, "--start": `${start}ms`, "--dur": `${n * TYPE_MS}ms` } as React.CSSProperties}>
+      {text}
+    </span>
+  );
+}
+
+/** Kata kunci di deskripsi pembuka: tebal, lalu menyala ke warna aksen bergiliran setelah judul selesai diketik. */
+function key(text: string, order: number) {
+  return (
+    <strong className="lp-key" style={{ "--d": order } as React.CSSProperties}>
+      {text}
+    </strong>
+  );
+}
 
 // Angka di bawah film: aturan sistem, bukan klaim hasil.
 const AUTOMATION_FACTS = [
@@ -161,20 +197,19 @@ export default function LandingPage() {
                 <ThreadsMark className="w-4 h-4 text-fg" />
                 AUTOPILOT UNTUK THREADS
               </p>
+              {/* Judul "diketik" baris demi baris: teks lengkap tetap di HTML, CSS yang membukanya (lihat .lp-type). */}
               <h1 className="lp-display mt-5 text-[clamp(2.35rem,11.5vw,3.1rem)] leading-[1] md:text-[4.4rem] md:leading-[0.95] font-extrabold">
-                <span className="lp-rise block" style={{ "--i": 1 } as React.CSSProperties}>
-                  Threads Anda
-                </span>
-                <span className="lp-rise block lp-gradient-text" style={{ "--i": 2 } as React.CSSProperties}>
-                  posting sendiri,
-                </span>
-                <span className="lp-rise block" style={{ "--i": 3 } as React.CSSProperties}>
-                  setiap hari.
-                </span>
+                {HEADLINE.map((line) => (
+                  <TypedLine key={line.text} {...line} />
+                ))}
               </h1>
-              <p className="lp-rise mt-6 text-base md:text-lg text-muted leading-relaxed max-w-xl" style={{ "--i": 4 } as React.CSSProperties}>
-                AI mencari ide dari posting terbaik Anda dan tren hari ini, menulis dengan suara brand, memeriksa hasilnya, lalu
-                menerbitkannya ke Threads di jam akun Anda paling ramai. Berapa kali sehari, Anda yang atur per akun.
+              {/* Deskripsi: teks terang penuh, kata kunci tebal yang menyala bergantian (lihat .lp-key). */}
+              <p className="lp-rise mt-6 text-[1.08rem] md:text-[1.22rem] font-medium text-fg leading-[1.65] max-w-xl" style={{ "--i": 3 } as React.CSSProperties}>
+                AI mencari ide dari {key("posting terbaik Anda", 0)} dan {key("tren hari ini", 1)}, menulis dengan {key("suara brand", 2)},
+                memeriksa hasilnya, lalu menerbitkannya ke Threads di {key("jam akun Anda paling ramai", 3)}.
+              </p>
+              <p className="lp-rise mt-3 text-[1.02rem] md:text-lg font-bold text-fg" style={{ "--i": 4 } as React.CSSProperties}>
+                Berapa kali sehari? <span className="lp-gradient-text">Anda yang atur per akun.</span>
               </p>
               {/* Ajakan mulai + pintasan ke daftar harga */}
               <div className="lp-rise mt-8" style={{ "--i": 5 } as React.CSSProperties}>
@@ -206,11 +241,11 @@ export default function LandingPage() {
             {/* Papan jadwal: lapisan terdepan, bergerak sedikit lebih lambat dari halaman dan miring mengikuti kursor. */}
             <div className="lp-rise relative min-w-0" style={{ "--i": 4 } as React.CSSProperties}>
               <div data-drift="0.07">
-                <Tilt>
-                  <HeroDemo />
+                <Tilt max={3}>
+                  <DeskSection />
                 </Tilt>
               </div>
-              {/* Cap status ikut tahap yang sedang dikerjakan papan (menulis, memeriksa, selesai). */}
+              {/* Cap status ikut tahap yang sedang tampil di monitor animasi (menulis, memeriksa, terbit). */}
               <div data-drift="-0.08" className="hidden md:block absolute -top-5 -left-6 z-10">
                 <HeroStatus className="flex" />
               </div>

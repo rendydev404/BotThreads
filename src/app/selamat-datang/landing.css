@@ -146,8 +146,9 @@
     opacity: 0.25;
   }
 }
+/* Berkedip beberapa kali lalu diam menyala: animasi tanpa henti membuat browser bekerja tiap frame. */
 .lp-live {
-  animation: lp-live 1.6s ease-in-out infinite;
+  animation: lp-live 1.6s ease-in-out 4;
 }
 
 /* ---------- nuansa futuristik: teks gradien, bingkai film menyala, lantai grid ---------- */
@@ -237,7 +238,7 @@
   background: var(--c-accent);
   filter: blur(18px);
   opacity: 0.45;
-  animation: lp-glow 2.8s ease-in-out infinite;
+  animation: lp-glow 2.8s ease-in-out 3;
 }
 @keyframes lp-glow {
   50% {
@@ -257,6 +258,94 @@
 .lp-swap {
   display: inline-block;
   animation: lp-swap 0.35s var(--lp-ease);
+}
+
+/* Kata kunci deskripsi pembuka: tebal sejak awal (tetap jelas tanpa animasi), lalu menyala ke warna aksen
+   bergiliran setelah judul selesai diketik (~2,3 detik). Hanya warna yang berubah, cuma di beberapa kata. */
+.lp-key {
+  font-weight: 800;
+  color: var(--c-fg);
+  animation: lp-key 0.6s ease-out forwards;
+  animation-delay: calc(2.3s + var(--d, 0) * 0.28s);
+}
+@keyframes lp-key {
+  to {
+    color: var(--c-accent);
+  }
+}
+
+/*
+ * Judul "diketik": baris dibuka per huruf lewat clip-path bertahap (steps = jumlah huruf), kursor ikut
+ * di tepi kanan bagian yang sudah terbuka. Tanpa JS; teks utuh tetap ada di HTML.
+ * --n jumlah huruf, --start kapan mulai, --dur lama mengetik baris itu (ditulis di page.tsx).
+ */
+.lp-type {
+  position: relative;
+  /* Nilai negatif di atas/bawah supaya ekor huruf (g, p) tidak terpotong; line-height judulnya rapat. */
+  clip-path: inset(-0.15em 100% -0.25em 0);
+  animation: lp-type var(--dur) steps(var(--n), end) var(--start) forwards;
+}
+@keyframes lp-type {
+  to {
+    clip-path: inset(-0.15em -0.15em -0.25em 0);
+  }
+}
+.lp-type::after {
+  content: "";
+  position: absolute;
+  top: 0.1em;
+  bottom: 0.02em;
+  left: 0;
+  width: 0.07em;
+  border-radius: 2px;
+  background: var(--c-accent);
+  opacity: 0;
+  animation:
+    lp-caret-move var(--dur) steps(var(--n), end) var(--start) forwards,
+    lp-caret-hold var(--dur) step-end var(--start);
+}
+/* Baris terakhir: kursor berkedip beberapa kali setelah selesai, lalu hilang. */
+.lp-type-last::after {
+  animation:
+    lp-caret-move var(--dur) steps(var(--n), end) var(--start) forwards,
+    lp-caret-hold var(--dur) step-end var(--start),
+    lp-caret-blink 1s step-end calc(var(--start) + var(--dur)) 5;
+}
+@keyframes lp-caret-move {
+  to {
+    left: calc(100% - 0.02em);
+  }
+}
+@keyframes lp-caret-hold {
+  0%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes lp-caret-blink {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Sampul kartu animasi pembuka selagi Remotion dimuat (warna tetap gelap seperti filmnya). */
+.lp-desk-poster {
+  background:
+    radial-gradient(60% 45% at 38% 55%, rgba(123, 138, 255, 0.22), transparent 70%),
+    linear-gradient(180deg, #0c1022, #080a15 80%);
+}
+.lp-desk-poster-monitor {
+  position: absolute;
+  left: 3.7%;
+  top: 29.8%;
+  width: 68.4%;
+  height: 47.6%;
+  border-radius: 1.4rem;
+  border: 1px solid #3a4166;
+  background: linear-gradient(160deg, #262b45, #171a2c);
 }
 
 /* Tombol suara di atas film: cincin berdenyut mengundang klik sampai suara dinyalakan. */
@@ -309,5 +398,16 @@
   .lp-glow::after,
   .lp-swap {
     animation: none;
+  }
+  .lp-type {
+    animation: none;
+    clip-path: none;
+  }
+  .lp-type::after {
+    display: none;
+  }
+  .lp-key {
+    animation: none;
+    color: var(--c-accent);
   }
 }

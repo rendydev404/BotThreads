@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isDeskCodeReady, preloadDeskPlayer } from "./hero-film/desk-section";
 import { heroStore, useHero } from "./hero-store";
 
 const EXAMPLES = ["skincare", "kopi susu", "bengkel motor", "laundry kiloan", "hijab", "seblak"];
@@ -41,12 +42,15 @@ export function HeroTry() {
   const run = (text: string) => {
     const clean = text.replace(/\s+/g, " ").trim();
     if (!clean) return;
+    preloadDeskPlayer();
     heroStore.set({ key: "custom", custom: clean });
     // Di layar sempit papan ada di bawah: bawa ke sana supaya hasilnya langsung terlihat.
     const board = document.getElementById("hero-board");
     if (board && board.getBoundingClientRect().top > window.innerHeight * 0.55) {
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      board.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+      // Gulir halus hanya bila kode animasinya sudah siap; kalau belum, lompat langsung supaya
+      // menyiapkan Remotion tidak membuat guliran tersendat (sampulnya tampil sebentar).
+      const smooth = isDeskCodeReady() && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      board.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
     }
   };
 
@@ -68,7 +72,12 @@ export function HeroTry() {
           id="hero-try"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            // Siapkan animasi di sela ketikan (saat browser senggang), bukan tepat saat kolom diketuk.
+            if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(preloadDeskPlayer, { timeout: 1200 });
+            else setTimeout(preloadDeskPlayer, 300);
+          }}
           onBlur={() => setFocused(false)}
           maxLength={24}
           autoComplete="off"
@@ -109,10 +118,11 @@ const STATUS: Record<string, { dot: string; text: (time: string, n: number) => s
   Menulis: { dot: "bg-accent lp-live", text: (t) => `AI menulis draf ${t}` },
   Diperiksa: { dot: "bg-warning lp-live", text: (t) => `memeriksa draf ${t} · skor 0,87` },
   Terantre: { dot: "bg-success", text: (t) => `draf ${t} lolos · antre` },
+  Terbit: { dot: "bg-success lp-live", text: (t) => `terbit ${t} · suka mulai masuk` },
   Selesai: { dot: "bg-success", text: (_, n) => `${n} posting siap terbit hari ini` },
 };
 
-/** Cap status di atas papan: ikut tahap yang sedang dikerjakan papan (menulis, memeriksa, selesai). */
+/** Cap status di atas kartu animasi: ikut tahap yang sedang tampil di monitor (menulis, memeriksa, terbit). */
 export function HeroStatus({ className }: { className?: string }) {
   const phase = useHero((s) => s.phase);
   const time = useHero((s) => s.time);
