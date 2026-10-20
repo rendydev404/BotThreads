@@ -13,6 +13,7 @@ import { db, excludedIdList, must, rpc, sqlTs } from "@/lib/supabase";
 import { bestHoursForAccounts, toBestHourDTO, type AccountHours } from "./best-hours";
 import { DASHBOARD_SOURCE, maxPostsPerDay, minGapMinutes } from "./content-config";
 import type { ContentDraft } from "./content-types";
+import { HUMAN_VOICE, dropDashes } from "./human-voice";
 import type { PublishAccount } from "./publish-accounts";
 import {
   DEFAULT_SLOT_HOURS,
@@ -306,13 +307,15 @@ KREATIVITAS
 - ANTI GARING: tiap kandidat wajib punya satu hal yang bikin orang berhenti scroll: detail spesifik yang tak terduga, ketegangan (dua pilihan, pendapat yang bisa dibantah), humor receh khas warganet, atau belokan di akhir. Bila kalimatnya bisa diposting akun mana pun tanpa diubah, tulis ulang.
 - Sarkas halus, satir, dan self-roast boleh dan sering paling ramai, asal natural seperti celetukan warganet: menertawakan keadaan atau diri sendiri, bukan merendahkan orang atau kelompok, dan tidak sinis ke pembaca. Bila ARAH IDE bernada sarkas, pertahankan nadanya.
 - Bila ada TREN YANG DITUMPANGI, sambungkan secara natural seperti orang yang sedang ikut membahasnya, bukan mengulang berita.
-- Jangan menulis kalimat normatif dan aman ("semoga harimu menyenangkan", "tetap semangat ya", "jangan lupa bersyukur", "kalian tim mana nih?"). Penutup pertanyaan harus spesifik dan gampang dijawab dalam satu kata atau satu cerita singkat.
+- Jangan menulis kalimat normatif dan aman ("semoga harimu menyenangkan", "tetap semangat ya", "jangan lupa bersyukur", "kalian tim mana nih?"). Penutup pertanyaan (bila dipakai) harus spesifik dan gampang dijawab dalam satu kata atau satu cerita singkat; tidak semua kandidat perlu ditutup pertanyaan.
 - Variasikan bentuk: jangan semua kandidat dibuka dengan pertanyaan atau "pernah nggak sih". Pakai pernyataan berani, cerita, dialog, atau daftar pendek sesuai SUDUT KREATIF.
 - Dilarang klise ("di era", "siapa sangka", "tak hanya itu", "yuk", "jangan lupa", "tahukah kamu", "halo sobat", "hai guys") dan kata iklan ("dijamin", "terbaik", "buruan", "wajib coba"). Dilarang markdown, daftar poin, hashtag, tanda seru beruntun, huruf kapital semua.
 - PENTING: JANGAN PERNAH membuat postingan tentang promo, diskon, "buy 1 get 1", penawaran spesial, atau grand opening KECUALI pengguna secara eksplisit memintanya di dalam <brief>. Jika tidak diminta, buat postingan interaktif biasa yang menarik.
 - Jangan mengarang harga, promo, alamat, tanggal, klaim fakta, atau janji hasil dan keuntungan.
 - Dilarang placeholder dalam kurung siku apa pun ([isi ...], [nama ...], [lokasi], [harga], [link]). Teks harus siap posting tanpa diedit. Detail lokasi, menu, harga, atau jam buka hanya boleh diambil dari FAKTA AKUN DARI DATABASE atau contoh postingan akun; bila tidak ada, tulis kalimat yang tidak membutuhkan detail itu (mis. cukup sebut nama cabang).
 - Bila postingan menjanjikan isi (prompt AI, template, rumus, langkah, daftar tools), isinya WAJIB ditulis lengkap di teks itu juga. Untuk prompt AI: tulis prompt utuh yang siap disalin (peran, tugas, konteks konkret, format hasil), ringkas supaya total teks tetap muat batas karakter. Dilarang placeholder seperti [isi prompt], [isi detail prompt], atau "..." sebagai pengganti isi.
+
+${HUMAN_VOICE}
 
 ATURAN KELUARAN
 - Maksimal ${DRAFT_MAX_CHARS} karakter per kandidat; ikuti panjang khas akun.
@@ -325,7 +328,7 @@ const SYSTEM_PROMPT =`Anda copywriter media sosial untuk akun Threads cabang jar
 
 ATURAN TULISAN
 - Tiru gaya contoh akun (kata ganti, panjang, cara bertanya). Natural seperti manusia, bukan iklan.
-- Kalimat pertama adalah hook: pengalaman, opini, atau pertanyaan yang relate. Total 1-4 kalimat pendek, boleh ditutup pertanyaan ringan.
+- Kalimat pertama adalah hook: pengalaman, opini, atau pertanyaan yang relate. Total 1-4 kalimat pendek; tidak semua draf perlu ditutup pertanyaan.
 - Dilarang pembuka klise ("Halo sobat", "Hai guys", "Yuk", "Jangan lupa", "Tahukah kamu") dan kata iklan ("dijamin", "terbaik", "buruan", "wajib coba", "nikmati", "hadir"). Dilarang tanda seru berlebihan, huruf kapital semua, markdown, daftar poin.
 - PENTING: JANGAN PERNAH membuat draf tentang promo, diskon, "buy 1 get 1", penawaran spesial, atau grand opening KECUALI pengguna secara eksplisit memintanya di dalam <brief>. Jika tidak diminta, buat postingan interaktif biasa (pertanyaan, opini, cerita sehari-hari).
 - Jangan mengarang harga, promo, tanggal, atau bahan. Bila brief menyebut detail, pakai apa adanya; bila perlu detail yang tidak ada, jangan tulis.
@@ -334,6 +337,8 @@ ATURAN TULISAN
 - Setiap draf harus punya sudut pandang dan pembuka yang berbeda, serta berbeda dari postingan terakhir akun.
 - Emoji: ikuti kebiasaan contoh gaya akun (0-2); bila contoh tidak memakai emoji, jangan pakai.
 - Bila postingan menjanjikan isi (prompt AI, template, rumus, langkah, daftar tools), isinya WAJIB ditulis lengkap di teks itu juga. Untuk prompt AI: tulis prompt utuh yang siap disalin (peran, tugas, konteks konkret, format hasil), ringkas supaya total teks tetap muat batas karakter. Dilarang placeholder seperti [isi prompt], [isi detail prompt], atau "..." sebagai pengganti isi.
+
+${HUMAN_VOICE}
 
 ATURAN KELUARAN
 - Isi "rationale" dengan alasan singkat satu kalimat TANPA angka (angka akan ditambahkan sistem dari data nyata).
@@ -530,7 +535,7 @@ export function screenDrafts(
   for (const raw of raws) {
     if (accepted.length >= opts.need) break;
     if (typeof raw.text !== "string") continue;
-    const cleaned = cleanCaption(raw.text);
+    const cleaned = cleanCaption(dropDashes(raw.text));
     if (charLength(cleaned) < 15 || PLACEHOLDER.test(cleaned)) continue;
     const topic = normalizeTopicTag(raw.topicTag);
     const check = validateThreadsText(cleaned, opts.outletNama, topic);

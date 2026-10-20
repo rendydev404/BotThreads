@@ -9,6 +9,7 @@
  */
 import type { GateCheckDTO } from "./autopilot-types";
 import { generateWithFailover, type GeminiSchema } from "./gemini";
+import { AI_TELLS } from "./human-voice";
 import { clipChars } from "./threads-text";
 
 /** Rata-rata nilai minimal (skala 0..1) supaya draf lolos. */
@@ -22,7 +23,7 @@ const CRITIC_SYSTEM = `Anda editor media sosial yang teliti untuk akun Threads b
 Beri nilai 1-5 untuk:
 - hook: kalimat pertama konkret dan bikin orang berhenti menggulir.
 - relevansi: nyambung dengan tema dan audiens akun.
-- alami: terdengar seperti orang sungguhan, bukan iklan atau tulisan mesin.
+- alami: terdengar seperti orang sungguhan, bukan iklan atau tulisan mesin. Turunkan nilai alami (maksimal 2) bila draf punya ciri tulisan mesin: ${AI_TELLS}.
 
 "risiko" hanya diisi bila ADA masalah serius: klaim fakta/harga/promo yang tidak ada di FAKTA, menyinggung kelompok, isu sensitif (politik, SARA, bencana, duka), janji hasil, atau ajakan jualan yang keras. Bila aman, kembalikan daftar kosong. Jangan mengisi risiko untuk soal selera. Sarkas halus, satir, ironi, atau self-roast yang menertawakan keadaan (bukan menyerang orang atau kelompok) BUKAN risiko, dan boleh dinilai alami bila terdengar seperti celetukan warganet.
 "catatan" adalah satu kalimat saran perbaikan paling penting (kosong bila tidak perlu).
