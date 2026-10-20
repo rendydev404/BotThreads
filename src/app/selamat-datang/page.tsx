@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 import { Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
 import { ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock, Eye, Flame, PlayCircle, Repeat2, ShieldAlert, ShieldCheck, Workflow, Zap } from "lucide-react";
 import { GateDemo, HoursPlanner, IdeaSources } from "@/components/landing/demos";
 import { FilmSection } from "@/components/landing/film/film-section";
 import { DeskSection } from "@/components/landing/hero-film/desk-section";
+import { HeroCopy } from "@/components/landing/hero-film/hero-copy";
+import { DESC, DESC_CLASS, H1_CLASS, HEADLINE_LINES, SUB, SUB_CLASS } from "@/components/landing/hero-copy-data";
 import { LandingFooter } from "@/components/landing/legal-section";
 import { HeroStatus, HeroTry } from "@/components/landing/hero-interactive";
 import { LandingMotion, Magnetic, Tilt } from "@/components/landing/motion";
@@ -30,14 +32,9 @@ const PIPELINE = ["Tren", "Ide", "Tulis", "Periksa", "Antre", "Terbit"];
 /** Judul pembuka, diketik per huruf. `start` = kapan baris mulai diketik (ms sejak halaman tampil). */
 const TYPE_MS = 45;
 const HEADLINE = (() => {
-  const lines = [
-    { text: "Threads Anda", className: "" },
-    { text: "posting sendiri,", className: "lp-gradient-text" },
-    { text: "setiap hari.", className: "lp-type-last" },
-  ];
   let start = 250;
-  return lines.map((l) => {
-    const line = { ...l, start };
+  return HEADLINE_LINES.map((l, i) => {
+    const line = { text: l.text, className: `${l.className}${i === HEADLINE_LINES.length - 1 ? " lp-type-last" : ""}`, start };
     start += Array.from(l.text).length * TYPE_MS + 120;
     return line;
   });
@@ -53,12 +50,17 @@ function TypedLine({ text, start, className }: { text: string; start: number; cl
   );
 }
 
-/** Kata kunci di deskripsi pembuka: tebal, lalu menyala ke warna aksen bergiliran setelah judul selesai diketik. */
-function key(text: string, order: number) {
-  return (
-    <strong className="lp-key" style={{ "--d": order } as React.CSSProperties}>
-      {text}
-    </strong>
+/** Deskripsi pembuka; kata kunci tebal lalu menyala ke warna aksen bergiliran (.lp-key). */
+function HeroDesc() {
+  let order = 0;
+  return DESC.map((seg, i) =>
+    seg.key ? (
+      <strong key={i} className="lp-key" style={{ "--d": order++ } as React.CSSProperties}>
+        {seg.text}
+      </strong>
+    ) : (
+      <Fragment key={i}>{seg.text}</Fragment>
+    )
   );
 }
 
@@ -197,20 +199,22 @@ export default function LandingPage() {
                 <ThreadsMark className="w-4 h-4 text-fg" />
                 AUTOPILOT UNTUK THREADS
               </p>
-              {/* Judul "diketik" baris demi baris: teks lengkap tetap di HTML, CSS yang membukanya (lihat .lp-type). */}
-              <h1 className="lp-display mt-5 text-[clamp(2.35rem,11.5vw,3.1rem)] leading-[1] md:text-[4.4rem] md:leading-[0.95] font-extrabold">
-                {HEADLINE.map((line) => (
-                  <TypedLine key={line.text} {...line} />
-                ))}
-              </h1>
-              {/* Deskripsi: teks terang penuh, kata kunci tebal yang menyala bergantian (lihat .lp-key). */}
-              <p className="lp-rise mt-6 text-[1.08rem] md:text-[1.22rem] font-medium text-fg leading-[1.65] max-w-xl" style={{ "--i": 3 } as React.CSSProperties}>
-                AI mencari ide dari {key("posting terbaik Anda", 0)} dan {key("tren hari ini", 1)}, menulis dengan {key("suara brand", 2)},
-                memeriksa hasilnya, lalu menerbitkannya ke Threads di {key("jam akun Anda paling ramai", 3)}.
-              </p>
-              <p className="lp-rise mt-3 text-[1.02rem] md:text-lg font-bold text-fg" style={{ "--i": 4 } as React.CSSProperties}>
-                Berapa kali sehari? <span className="lp-gradient-text">Anda yang atur per akun.</span>
-              </p>
+              {/* Judul + deskripsi. Desktop: intro Remotion diputar sekali di atas teks ini (hero-copy.tsx).
+                  Ponsel: judul "diketik" CSS (.lp-type) dan kata kunci menyala (.lp-key). Teks utuh selalu di HTML. */}
+              <HeroCopy>
+                <h1 className={H1_CLASS}>
+                  {HEADLINE.map((line) => (
+                    <TypedLine key={line.text} {...line} />
+                  ))}
+                </h1>
+                <p className={`lp-rise ${DESC_CLASS}`} style={{ "--i": 3 } as React.CSSProperties}>
+                  <HeroDesc />
+                </p>
+                <p className={`lp-rise ${SUB_CLASS}`} style={{ "--i": 4 } as React.CSSProperties}>
+                  {SUB.lead}
+                  <span className="lp-gradient-text">{SUB.accent}</span>
+                </p>
+              </HeroCopy>
               {/* Ajakan mulai + pintasan ke daftar harga */}
               <div className="lp-rise mt-8" style={{ "--i": 5 } as React.CSSProperties}>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">

@@ -260,6 +260,39 @@
   animation: lp-swap 0.35s var(--lp-ease);
 }
 
+/*
+ * Intro Remotion judul + deskripsi (desktop saja, lihat hero-film/hero-copy.tsx). Teks asli disembunyikan
+ * selagi menunggu/diputar, lalu tampil apa adanya (keadaan akhir, tanpa animasi CSS) saat data-state=done.
+ * Bila JS/Remotion tidak memberi kabar, teks asli muncul sendiri setelah 1,6 detik.
+ */
+@media (min-width: 1024px) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .lp-hero-copy .lp-rise,
+  .lp-hero-copy .lp-type {
+    animation: none;
+    clip-path: none;
+  }
+  .lp-hero-copy .lp-type::after {
+    display: none;
+  }
+  .lp-hero-copy .lp-key {
+    animation: none;
+    color: var(--c-accent);
+  }
+  .lp-hero-copy:not([data-state="done"]) > h1,
+  .lp-hero-copy:not([data-state="done"]) > p {
+    opacity: 0;
+  }
+  .lp-hero-copy:not([data-state]) > h1,
+  .lp-hero-copy:not([data-state]) > p {
+    animation: lp-copy-fallback 0.5s ease-out 1.6s forwards;
+  }
+}
+@keyframes lp-copy-fallback {
+  to {
+    opacity: 1;
+  }
+}
+
 /* Kata kunci deskripsi pembuka: tebal sejak awal (tetap jelas tanpa animasi), lalu menyala ke warna aksen
    bergiliran setelah judul selesai diketik (~2,3 detik). Hanya warna yang berubah, cuma di beberapa kata. */
 .lp-key {
