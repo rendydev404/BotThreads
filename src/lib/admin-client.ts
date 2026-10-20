@@ -154,3 +154,65 @@ export function listAdminContent(p: { scope: "upcoming" | "history"; status?: Po
 
 export const adminContentAction = (action: "cancel" | "retry", postId: string) =>
   call<{ success: true }>("/api/admin/content", { method: "POST", body: JSON.stringify({ action, postId }) });
+
+/* ------------------------------------------------------------------ pengerahan buzzer lintas-niche */
+
+import type {
+  BuzzerCampaignListResponse,
+  BuzzerDraftResponse,
+  BuzzerOverviewResponse,
+  BuzzerPostsResponse,
+  BuzzerProfilePatch,
+} from "./buzzer-types";
+
+export const fetchAdminBuzzerOverview = (signal?: AbortSignal) =>
+  call<BuzzerOverviewResponse>("/api/admin/buzzer", { signal });
+
+export const fetchAdminBuzzerPosts = (accountId: string, live = true, signal?: AbortSignal) =>
+  call<BuzzerPostsResponse>(
+    `/api/admin/buzzer?view=posts&accountId=${encodeURIComponent(accountId)}&live=${live ? "1" : "0"}`,
+    { signal }
+  );
+
+export function fetchAdminBuzzerCampaigns(p: { status?: string | null; cursor?: string | null }, signal?: AbortSignal) {
+  const q = new URLSearchParams({ view: "campaigns" });
+  if (p.status) q.set("status", p.status);
+  if (p.cursor) q.set("cursor", p.cursor);
+  return call<BuzzerCampaignListResponse>(`/api/admin/buzzer?${q}`, { signal });
+}
+
+export const previewAdminBuzzerDrafts = (body: Record<string, unknown>) =>
+  call<BuzzerDraftResponse>("/api/admin/buzzer", {
+    method: "POST",
+    body: JSON.stringify({ ...body, kind: "preview" }),
+  });
+
+export const deployAdminBuzzer = (body: Record<string, unknown>) =>
+  call<{ success: true; campaignId: string; inserted: number; skipped: number; executedNow: number }>("/api/admin/buzzer", {
+    method: "POST",
+    body: JSON.stringify({ ...body, kind: "deploy" }),
+  });
+
+export const saveAdminBuzzerProfiles = (items: BuzzerProfilePatch[]) =>
+  call<{ success: true; updated: number; items: BuzzerProfilePatch[] }>("/api/admin/buzzer", {
+    method: "POST",
+    body: JSON.stringify({ kind: "profile_save", items }),
+  });
+
+export const generateAdminBuzzerProfilesAI = (accountIds?: string[]) =>
+  call<{ success: true; updated: number; items: BuzzerProfilePatch[] }>("/api/admin/buzzer", {
+    method: "POST",
+    body: JSON.stringify({ kind: "profile_ai", ...(accountIds ? { accountIds } : {}) }),
+  });
+
+export const actAdminBuzzerCampaign = (campaignId: string, action: "CANCEL" | "RETRY_FAILED" | "RUN_NOW") =>
+  call<{ success: true; affected: number; executed?: number }>("/api/admin/buzzer", {
+    method: "POST",
+    body: JSON.stringify({ kind: "campaign_action", campaignId, action }),
+  });
+
+export const runAdminBuzzerQueue = () =>
+  call<{ success: true; processed: number; succeeded: number; failed: number }>("/api/admin/buzzer", {
+    method: "POST",
+    body: JSON.stringify({ kind: "run_queue" }),
+  });

@@ -11,6 +11,7 @@ export type AdminModule =
   | "pengguna"
   | "workspace"
   | "konten"
+  | "buzzer"
   | "paket"
   | "tagihan"
   | "sumber"
@@ -27,6 +28,7 @@ export const PERM_CATALOG: { module: Exclude<AdminModule, "akses">; label: strin
   { module: "pengguna", label: "Pengguna", lihat: "Melihat daftar dan detail pengguna", kelola: "Membuat, mengubah, memblokir, reset password, keluarkan sesi" },
   { module: "workspace", label: "Workspace", lihat: "Melihat workspace dan anggotanya", kelola: "Menangguhkan workspace dan mengatur anggota" },
   { module: "konten", label: "Konten & Antrean", lihat: "Melihat antrean dan riwayat posting semua tenant", kelola: "Membatalkan atau mengirim ulang posting" },
+  { module: "buzzer", label: "Pengerahan Buzzer", lihat: "Melihat workspace buzzer, niche akun, dan riwayat pengerahan", kelola: "Mengerahkan buzzer dan mengatur niche/persona buzzer" },
   { module: "paket", label: "Paket & Harga", lihat: "Melihat paket dan harga", kelola: "Mengubah paket dan memasang paket ke workspace" },
   { module: "tagihan", label: "Transaksi & Tagihan", lihat: "Melihat invoice dan kas masuk", kelola: "Menyetujui, menyinkronkan, membatalkan tagihan" },
   { module: "sumber", label: "Sumber Akun Threads", lihat: "Melihat penautan sumber akun", kelola: "Menautkan atau melepas sumber akun" },

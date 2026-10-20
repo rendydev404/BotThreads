@@ -13,6 +13,7 @@
  * Klaim, transisi status, dan penutupan posting dikerjakan fungsi SQL (sql/022_threads_publisher.sql).
  */
 import { isPublishEnabled } from "./content-config";
+import { runBuzzerQueue } from "./buzzer-service";
 import { rpc, sqlTs, toDate } from "./supabase";
 import { firstValidTopic, charLength, THREADS_MAX_TEXT } from "./threads-text";
 import { runReplies } from "./threads-replies";
@@ -84,6 +85,10 @@ export const threads = {
   async publish(userId: string, token: string, containerId: string): Promise<string> {
     const body = new URLSearchParams({ access_token: token, creation_id: containerId });
     return (await graph<{ id: string }>(`${API}/${userId}/threads_publish`, { method: "POST", body })).id;
+  },
+  async repost(mediaId: string, token: string): Promise<string> {
+    const body = new URLSearchParams({ access_token: token });
+    return (await graph<{ id: string }>(`${API}/${mediaId}/repost`, { method: "POST", body })).id;
   },
   async permalink(mediaId: string, token: string): Promise<string | null> {
     try {
@@ -366,6 +371,8 @@ export async function runPublisher(opts: { now?: Date } = {}): Promise<Publisher
   await sendAffiliateReplies(now, counts);
   // Balas komentar otomatis (sql/023); dibatasi waktu supaya putaran selesai sebelum batas route 60 detik.
   await runReplies(now, started + REPLIES_BUDGET_MS, counts);
+  // Antrean pengerahan buzzer lintas-niche (sql/029).
+  await runBuzzerQueue({ now, deadlineMs: started + REPLIES_BUDGET_MS, counts });
   const ms = Date.now() - started;
   if (Object.keys(counts).length > 1 || jobs.length) console.info(`[publisher] ${ms} ms ${JSON.stringify(counts)}`);
   return { ok: true, ms, counts };

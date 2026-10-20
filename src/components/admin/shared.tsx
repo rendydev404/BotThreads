@@ -23,6 +23,7 @@ export type AdminTabKey =
   | "workspace"
   | "pengguna"
   | "konten"
+  | "buzzer"
   | "sumber"
   | "integrasi"
   | "sistem"
