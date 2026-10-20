@@ -49,17 +49,22 @@ export const GET = withCtx("ADMIN", async (request, ctx) => {
   authUrl.searchParams.set("state", state);
 
   if (asLink) return NextResponse.json({ success: true, url: authUrl.toString() }, { headers: { "Cache-Control": "no-store" } });
-  const isAndroid = /Android/i.test(request.headers.get("user-agent") ?? "");
-  const target = isAndroid ? androidBrowserIntent(authUrl.toString()) : authUrl.toString();
+  // iOS: fragmen #weblink adalah aturan pengecualian PERTAMA di AASA Threads (aturan pertama yang cocok menang), dan
+  // fragmen ikut terbawa saat Threads mengalihkan ke /login, jadi halaman login + izin tetap di Safari.
+  const browserUrl = `${authUrl.toString()}#weblink`;
+  const ua = request.headers.get("user-agent") ?? "";
+  // WebView aplikasi lain ("; wv)") tidak memahami intent:, jadi tetap pakai https biasa.
+  const target = /Android/i.test(ua) && !/; wv\)/.test(ua) ? androidBrowserIntent(browserUrl) : browserUrl;
   return new NextResponse(null, { status: 307, headers: { Location: target, "Cache-Control": "no-store" } });
 });
 
 /**
- * Android tidak punya pengecualian path untuk tautan threads.* (assetlinks.json Threads = semua URL), jadi link
- * biasa ke halaman izin dibuka di aplikasi Threads. Intent yang menunjuk Chrome secara eksplisit tidak melewati
- * pemilih App Link, sehingga halaman izin Meta tetap terbuka di browser. Tanpa Chrome: kembali ke URL https biasa.
+ * Android: assetlinks.json Threads mencakup semua URL threads.*, jadi link biasa ke halaman izin dibuka di aplikasi
+ * Threads. Intent ke skema yang tidak dimiliki aplikasi mana pun pasti gagal; Chrome lalu menandai seluruh rangkaian
+ * navigasi ini "jangan buka aplikasi" (crbug.com/330555390) dan memuat browser_fallback_url di tab yang sama, termasuk
+ * pengalihan ke /login sesudahnya. (Intent ke package Chrome sendiri tidak cukup: Chrome hanya memuatnya ulang di
+ * rangkaian yang sama, dan App Link Threads tetap mengambil alih.)
  */
 function androidBrowserIntent(httpsUrl: string): string {
-  const rest = httpsUrl.replace(/^https:\/\//, "");
-  return `intent://${rest}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(httpsUrl)};end`;
+  return `intent://buka#Intent;scheme=bottrit-web;S.browser_fallback_url=${encodeURIComponent(httpsUrl)};end`;
 }

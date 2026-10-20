@@ -84,20 +84,26 @@ describe("mulai OAuth Threads", () => {
     }
   });
 
-  it("Android: dibuka lewat intent ke Chrome (bukan aplikasi Threads), dengan cadangan URL https; iPhone tetap https", async () => {
+  it("Android Chrome: intent yang sengaja gagal (tanpa package) dengan cadangan halaman izin; iPhone & WebView: https + #weblink", async () => {
     h.session = { userId: "u1", workspaceId: "ws1", role: "OWNER", accountIds: null };
     const open = async (ua: string) =>
       (await start(new NextRequest("https://bottrit.com/api/threads/oauth", { headers: { "user-agent": ua } }))).headers.get("location") ?? "";
+    const isAuthorize = (url: string) => {
+      const u = new URL(url);
+      return `${u.origin}${u.pathname}` === "https://www.threads.com/oauth/authorize/" && u.hash === "#weblink" && !!u.searchParams.get("state");
+    };
 
-    const android = await open("Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 Chrome/129.0 Mobile Safari/537.36");
-    const m = /^intent:\/\/(www\.threads\.com\/oauth\/authorize\/\?[^#]+)#Intent;scheme=https;package=com\.android\.chrome;S\.browser_fallback_url=([^;]+);end$/.exec(android);
+    const android = await open("Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36");
+    const m = /^intent:\/\/buka#Intent;scheme=bottrit-web;S\.browser_fallback_url=([^;]+);end$/.exec(android);
     expect(m).not.toBeNull();
-    const fallback = decodeURIComponent(m![2]);
-    expect(fallback).toBe(`https://${m![1]}`);
-    expect(new URL(fallback).searchParams.get("state")).toBeTruthy();
+    // Tanpa package: menunjuk Chrome sendiri membuat Chrome memuat ulang di rangkaian yang sama (App Link tetap menang).
+    expect(android).not.toContain("package=");
+    expect(isAuthorize(decodeURIComponent(m![1]))).toBe(true);
 
     const iphone = await open("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1");
-    expect(iphone.startsWith("https://www.threads.com/oauth/authorize/?")).toBe(true);
+    expect(isAuthorize(iphone)).toBe(true);
+    const webview = await open("Mozilla/5.0 (Linux; Android 14; SM-A546E; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.0.0 Mobile Safari/537.36");
+    expect(isAuthorize(webview)).toBe(true);
   });
 });
 

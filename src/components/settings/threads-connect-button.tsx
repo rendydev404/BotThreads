@@ -120,6 +120,11 @@ export function ThreadsMobileHelp({ className }: { className?: string }) {
         />
       )}
       {error && <p role="alert" className="mt-2 font-medium text-danger">{error}</p>}
+      {/* Tombol "Lanjutkan dengan Instagram" di halaman login Threads membuka instagram.com (App Link aplikasi Instagram). */}
+      <p className="mt-3">
+        Bila halaman Threads meminta login, isi username dan password di halaman itu juga, jangan pilih &quot;Lanjutkan dengan
+        Instagram&quot; supaya tidak pindah ke aplikasi.
+      </p>
     </div>
   );
 }
