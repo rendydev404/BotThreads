@@ -3,8 +3,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
-import { ArrowRight, ArrowUpRight, ChevronDown, Eye, Flame, Repeat2, ShieldAlert, Zap } from "lucide-react";
+import { ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock, Eye, Flame, PlayCircle, Repeat2, ShieldAlert, ShieldCheck, Workflow, Zap } from "lucide-react";
 import { GateDemo, HeroDemo, HoursPlanner, IdeaSources } from "@/components/landing/demos";
+import { FilmSection } from "@/components/landing/film/film-section";
 import { LandingFooter } from "@/components/landing/legal-section";
 import { LandingMotion, Tilt } from "@/components/landing/motion";
 import { Pricing } from "@/components/landing/pricing";
@@ -23,6 +24,14 @@ export const metadata: Metadata = {
 };
 
 const PIPELINE = ["Tren", "Ide", "Tulis", "Periksa", "Antre", "Terbit"];
+
+// Angka di bawah film: aturan sistem, bukan klaim hasil.
+const AUTOMATION_FACTS = [
+  { Icon: Workflow, value: "6 tahap", label: "dari tren sampai terbit, berjalan sendiri" },
+  { Icon: ShieldCheck, value: "4 cek", label: "plus skor editor AI sebelum antre" },
+  { Icon: Clock, value: "≥ 2,5 jam", label: "jeda antarposting di jam ramai akun" },
+  { Icon: BadgeCheck, value: "API resmi", label: "terbit dan statistik lewat Threads" },
+];
 
 const LEARNING = [
   {
@@ -110,7 +119,10 @@ export default function LandingPage() {
           </p>
 
           <nav className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-            <a href="#cara-kerja" className="hidden md:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
+            <a href="#demo" className="hidden md:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
+              Demo
+            </a>
+            <a href="#cara-kerja" className="hidden lg:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
               Cara kerja
             </a>
             <a href="#paket" className="hidden sm:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
@@ -152,7 +164,7 @@ export default function LandingPage() {
                 <span className="lp-rise block" style={{ "--i": 1 } as React.CSSProperties}>
                   Threads Anda
                 </span>
-                <span className="lp-rise block text-accent" style={{ "--i": 2 } as React.CSSProperties}>
+                <span className="lp-rise block lp-gradient-text" style={{ "--i": 2 } as React.CSSProperties}>
                   posting sendiri,
                 </span>
                 <span className="lp-rise block" style={{ "--i": 3 } as React.CSSProperties}>
@@ -171,10 +183,11 @@ export default function LandingPage() {
                     <ArrowRight className="lp-arrow w-5 h-5" />
                   </Link>
                   <a
-                    href="#paket"
+                    href="#demo"
                     className={`${BTN} h-14 px-6 text-base w-full sm:w-auto border border-line bg-surface hover:bg-subtle text-fg`}
                   >
-                    Lihat Harga
+                    <PlayCircle className="w-5 h-5 text-accent" />
+                    Tonton demo 23 detik
                   </a>
                 </div>
                 <p className="mt-5 flex items-center gap-2 text-[13px] text-muted">
@@ -221,6 +234,37 @@ export default function LandingPage() {
             ))}
           </div>
         </div>
+
+        {/* ---------- film demo: satu hari autopilot dalam 23 detik (Remotion, dimuat saat mendekati layar) ---------- */}
+        <section id="demo" className="relative scroll-mt-24 overflow-hidden">
+          <div aria-hidden="true" className="lp-grid-floor" />
+          <div className={`${WRAP} relative py-16 md:py-24`}>
+            <div className="max-w-2xl mx-auto text-center" data-reveal>
+              <p className="lp-mono inline-flex items-center gap-2 h-7 px-3 rounded-full border border-line bg-surface text-xs font-bold tracking-widest text-accent">
+                <span className="lp-live w-1.5 h-1.5 rounded-full bg-success" />
+                DEMO · 23 DETIK
+              </p>
+              <h2 className="lp-display mt-4 text-[2rem] leading-[1.05] md:text-[3rem] font-extrabold">
+                Satu hari autopilot, <span className="lp-gradient-text">tanpa Anda sentuh.</span>
+              </h2>
+              <p className="mt-4 text-[15px] md:text-base text-muted leading-relaxed">
+                Dari tren pagi sampai views malam: inilah yang dikerjakan BotThreads untuk tiap akun, setiap hari.
+              </p>
+            </div>
+            <div className="mt-10 md:mt-12 max-w-[1040px] mx-auto" data-reveal style={{ "--i": 1 } as React.CSSProperties}>
+              <FilmSection />
+            </div>
+            <ul className="mt-8 max-w-[1040px] mx-auto grid grid-cols-2 md:grid-cols-4 gap-3" data-reveal style={{ "--i": 2 } as React.CSSProperties}>
+              {AUTOMATION_FACTS.map(({ Icon, value, label }) => (
+                <li key={label} className="lp-lift lp-glass rounded-2xl border border-line p-4">
+                  <Icon className="w-5 h-5 text-accent" />
+                  <p className="lp-display mt-3 text-2xl font-extrabold tabular-nums">{value}</p>
+                  <p className="mt-0.5 text-[13px] text-muted leading-snug">{label}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
 
         {/* ---------- 06.00 ide ---------- */}
         <section id="cara-kerja" className={`${WRAP} py-16 md:py-24 scroll-mt-24`}>

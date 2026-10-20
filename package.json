@@ -14,6 +14,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@remotion/player": "4.0.537",
+    "@remotion/transitions": "4.0.537",
     "@supabase/supabase-js": "^2.117.3",
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
@@ -21,9 +23,11 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "recharts": "^2.15.1",
+    "remotion": "4.0.537",
     "tailwind-merge": "^3.0.2"
   },
   "devDependencies": {
+    "@breezystack/lamejs": "1.2.7",
     "@electric-sql/pglite": "^0.2.17",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",

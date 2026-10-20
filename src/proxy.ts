@@ -108,8 +108,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Lewati aset statis Next dan file gambar publik
+  // Lewati aset statis Next serta file gambar dan audio publik (soundtrack film demo di halaman perkenalan)
   matcher: [
-    "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|webp|ico|mp3)$).*)",
   ],
 };
