@@ -58,11 +58,12 @@ const isAndroid = () => /Android/i.test(navigator.userAgent);
  * Panduan khusus Android. Bila aplikasi Threads terpasang, halaman login/izin Threads milik Meta sendiri mengalihkan
  * ke aplikasi (manifest web Threads mendaftarkan com.instagram.barcelona), bahkan untuk link yang ditempel manual,
  * dan dialog izin tidak pernah muncul. Dua jalan yang pasti: hubungkan dari komputer, atau matikan "Buka link yang
- * didukung" untuk aplikasi Threads. Di luar Android tidak ditampilkan.
+ * didukung" untuk aplikasi Threads. Jalur komputer memakai QR (/hubungkan) sehingga tidak perlu masuk dashboard di
+ * komputer. Di luar Android tidak ditampilkan.
  */
 export function ThreadsAndroidHelp({ className }: { className?: string }) {
   const android = useSyncExternalStore(noop, isAndroid, () => false);
-  const dashboardUrl = useSyncExternalStore(noop, () => `${window.location.host}/akun`, () => "");
+  const pairUrl = useSyncExternalStore(noop, () => `${window.location.host}/hubungkan`, () => "");
   if (!android) return null;
 
   return (
@@ -79,17 +80,21 @@ export function ThreadsAndroidHelp({ className }: { className?: string }) {
       <div className="mt-3 rounded-lg bg-surface border border-line p-3">
         <p className="font-semibold text-fg flex items-center gap-2">
           <Monitor className="w-4 h-4 shrink-0" />
-          Cara 1 (paling mudah): lewat komputer
+          Cara 1 (paling mudah): lewat komputer, cukup scan QR
         </p>
         <ol className="mt-1.5 list-decimal pl-5 space-y-0.5">
           <li>
-            Buka <b className="text-fg break-all">{dashboardUrl}</b> di browser komputer, masuk dengan akun dashboard yang sama.
+            Buka <b className="text-fg break-all">{pairUrl}</b> di browser komputer. Tidak perlu masuk dashboard di sana.
           </li>
           <li>
-            Klik <b>Hubungkan Akun Threads</b>, masuk ke Threads, lalu tekan <b>Izinkan</b>.
+            Scan QR yang muncul dengan kamera HP ini, lalu tekan <b>Setujui</b>.
           </li>
-          <li>Selesai. Akun langsung bisa dipakai juga dari HP ini.</li>
+          <li>
+            Di komputer, klik <b>Lanjutkan ke Threads</b>, masuk ke Threads, lalu tekan <b>Izinkan</b>. Akun langsung bisa dipakai dari HP
+            ini.
+          </li>
         </ol>
+        <p className="mt-1.5 text-xs">Atau masuk dashboard di komputer dan tekan Hubungkan Akun Threads seperti biasa.</p>
       </div>
 
       <div className="mt-2.5 rounded-lg bg-surface border border-line p-3">

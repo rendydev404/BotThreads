@@ -22,6 +22,9 @@ const PUBLIC_API = [
   "/api/billing/webhook",
   // Callback OAuth Threads: di HP bisa selesai di browser/aplikasi lain tanpa sesi; diamankan state bertanda tangan.
   "/api/threads/oauth/callback",
+  // Hubungkan Threads lewat QR dari komputer tanpa sesi: dibuktikan pollToken acak sekali pakai, dibatasi lajunya.
+  "/api/threads/pair",
+  "/api/threads/pair/status",
   // Webhook Threads dari Meta: diamankan tanda tangan X-Hub-Signature-256 (App Secret).
   "/api/webhooks/threads",
 ];
@@ -41,6 +44,8 @@ const PUBLIC_PAGES = [
   "/kontak",
   // Hasil hubungkan akun Threads bila login selesai di browser tanpa sesi dashboard.
   "/threads-terhubung",
+  // Komputer menampilkan QR untuk menghubungkan akun Threads (persetujuan /hubungkan/<id> tetap wajib sesi).
+  "/hubungkan",
 ];
 
 export async function proxy(request: NextRequest) {
