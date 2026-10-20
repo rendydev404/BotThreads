@@ -25,6 +25,7 @@ import { POST as plansPOST, GET as adminPlansGET } from "@/app/api/admin/plans/r
 import { POST as workspacePOST, } from "@/app/api/admin/workspaces/[id]/route";
 import { GET as workspacesGET } from "@/app/api/admin/workspaces/route";
 import { PUT as autopilotPUT } from "@/app/api/autopilot/accounts/[id]/route";
+import { GET as meGET } from "@/app/api/auth/me/route";
 import { GET as overviewGET } from "@/app/api/autopilot/overview/route";
 import { GET as publicPlansGET } from "@/app/api/plans/route";
 import { POST as teamPOST } from "@/app/api/team/route";
@@ -177,6 +178,9 @@ describe("batas paket ditegakkan di server", () => {
     forgetPlans();
     const p = await json<{ kedaluwarsa: boolean }>(await planGET(req("u-admin", "/api/workspace/plan")));
     expect(p.kedaluwarsa).toBe(true);
+    // Profil membawa status paket habis supaya semua halaman menampilkan peringatannya.
+    const me = await json<{ planExpired: { nama: string | null; berakhir: string | null } | null }>(await meGET(req("u-admin", "/api/auth/me")));
+    expect(me.planExpired).toEqual({ nama: "Pro", berakhir: expect.any(String) });
     const res = await setAutopilot("a1", { mode: "OTOMATIS" });
     expect(res.status).toBe(403);
     expect((await json<{ error: string }>(res)).error).toContain("sudah habis");
@@ -189,6 +193,7 @@ describe("batas paket ditegakkan di server", () => {
 
     // Diperpanjang tanpa batas waktu: tick berikutnya merencanakan lagi.
     expect((await assign("pro", null)).status).toBe(200);
+    expect((await json<{ planExpired: unknown }>(await meGET(req("u-admin", "/api/auth/me")))).planExpired).toBeNull();
     advance(360);
     const next = await runTick({ now: new Date(clock) });
     expect(next.counts.paketHabis).toBeUndefined();

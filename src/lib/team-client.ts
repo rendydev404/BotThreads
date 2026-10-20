@@ -48,6 +48,8 @@ export interface MeResponse {
   accountScoped: boolean;
   /** Jumlah akun Threads yang terlihat pengguna ini; null bila gagal dihitung. */
   accountCount: number | null;
+  /** Paket workspace aktif sudah habis masa berlaku (nama paket dan tanggal berakhir ISO); null bila masih berlaku. */
+  planExpired: { nama: string | null; berakhir: string | null } | null;
   workspaces: WorkspaceRef[];
   /** Tombol "Masuk dengan Google" tersedia. */
   google: boolean;

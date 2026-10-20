@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { internalError, jsonError, readJson } from "@/lib/api-auth";
 import { googleConfigured } from "@/lib/google-oauth";
+import { planLimits } from "@/lib/plan";
 import { listPublishAccounts } from "@/lib/publish-accounts";
 import { NO_WORKSPACE, ROLE_LABEL, withCtx } from "@/lib/request-ctx";
 import { setSessionCookie } from "@/lib/session-cookie";
@@ -11,7 +12,8 @@ import { throttle } from "@/lib/throttle";
 /** Profil pengguna yang sedang masuk: nama, peran, workspace aktif, dan workspace lain yang bisa dipilih. */
 export const GET = withCtx("VIEWER", async (_request, ctx) => {
   try {
-    const [user, accountCount] = await Promise.all([
+    const hasWorkspace = !!ctx.workspaceId && ctx.workspaceId !== NO_WORKSPACE;
+    const [user, accountCount, planExpired] = await Promise.all([
       must<{ username: string; name: string | null; email: string | null } | null>(
         db().from("DashboardUser").select("username, name, email").eq("id", ctx.userId).maybeSingle()
       ),
@@ -20,6 +22,13 @@ export const GET = withCtx("VIEWER", async (_request, ctx) => {
         (rows) => rows.length,
         () => null
       ),
+      // Paket habis masa berlaku (cache paket 30 dtk); gagal memuatnya tidak menggagalkan profil.
+      hasWorkspace
+        ? planLimits(ctx.workspaceId).then(
+            (l) => (l.kedaluwarsa ? { nama: l.plan?.nama ?? null, berakhir: l.berakhir } : null),
+            () => null
+          )
+        : null,
     ]);
     return NextResponse.json(
       {
@@ -38,6 +47,7 @@ export const GET = withCtx("VIEWER", async (_request, ctx) => {
         announcement: ctx.announcement ?? null,
         accountScoped: ctx.accountIds !== null,
         accountCount,
+        planExpired,
         workspaces: ctx.workspaces ?? [],
         google: googleConfigured(),
       },

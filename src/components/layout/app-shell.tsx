@@ -3,13 +3,14 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Ban, CreditCard, Link2, LogOut, Megaphone, ShieldAlert } from "lucide-react";
+import { AlertOctagon, Ban, CreditCard, Link2, LogOut, Megaphone, ShieldAlert, Sparkles } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { BottomNav } from "./bottom-nav";
 import { logout } from "./session-nav";
 import { useMe } from "./use-me";
 import { FloatingAiBubble } from "@/components/chat/floating-ai-bubble";
+import { formatDateWib } from "@/components/settings/format";
 import { ThreadsConnectButton } from "@/components/settings/threads-connect-button";
 
 /** Halaman tanpa sesi (login, terima undangan, reset password, kebijakan legal) tampil polos: tanpa sidebar/header/bubble. */
@@ -79,6 +80,43 @@ function Suspended({ reason, canSwitch }: { reason: string | null; canSwitch: bo
   );
 }
 
+/** Paket workspace habis masa berlaku: autopilot berhenti dan akun baru tidak bisa ditambah sampai diperpanjang. */
+function PlanExpiredBanner({ nama, berakhir, canRenew }: { nama: string | null; berakhir: string | null; canRenew: boolean }) {
+  return (
+    <div
+      role="alert"
+      className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border-2 border-danger bg-danger-soft p-5 sm:p-6"
+    >
+      <div className="flex items-start gap-4 min-w-0">
+        <div className="w-12 h-12 rounded-2xl bg-danger text-white flex items-center justify-center shrink-0">
+          <AlertOctagon className="w-6 h-6" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-xl font-bold text-danger leading-tight">
+            Paket {nama ?? "langganan"} Anda sudah habis
+            {berakhir ? <span className="font-semibold"> sejak {formatDateWib(berakhir)}</span> : null}
+          </h2>
+          <p className="mt-1.5 text-sm text-fg leading-relaxed">
+            Autopilot semua akun dihentikan dan akun Threads baru tidak bisa ditambahkan.{" "}
+            {canRenew
+              ? "Perpanjang paket supaya semuanya berjalan lagi."
+              : "Minta Pemilik atau Admin workspace memperpanjang paket."}
+          </p>
+        </div>
+      </div>
+      {canRenew && (
+        <Link
+          href="/billing"
+          className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-full bg-danger text-white text-sm font-bold whitespace-nowrap shrink-0 hover:opacity-90 transition-opacity"
+        >
+          <Sparkles className="w-4 h-4" />
+          Perpanjang Paket Sekarang
+        </Link>
+      )}
+    </div>
+  );
+}
+
 function Frame({ children, pathname }: { children: React.ReactNode; pathname: string }) {
   const { me } = useMe();
   // Konsol super admin memiliki tata letak terpisah sendiri dan hanya dapat diakses oleh SUPERADMIN.
@@ -100,6 +138,13 @@ function Frame({ children, pathname }: { children: React.ReactNode; pathname: st
               <Megaphone className="w-[18px] h-[18px] mt-0.5 text-accent shrink-0" />
               <p className="leading-relaxed break-words min-w-0">{me.announcement}</p>
             </div>
+          )}
+          {!blocked && me?.planExpired && (
+            <PlanExpiredBanner
+              nama={me.planExpired.nama}
+              berakhir={me.planExpired.berakhir}
+              canRenew={me.role === "OWNER" || me.role === "ADMIN"}
+            />
           )}
           {/* Workspace baru belum punya akun Threads: arahkan ke penghubungan akun mandiri & pilihan paket sewa. */}
           {!blocked && me?.accountCount === 0 && (
