@@ -18,7 +18,7 @@ import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { FormError, TextAreaField } from "./fields";
 import { errorText, formatDateWib, formatInt } from "./format";
 import { BTN_PRIMARY, EmptyState, LoadError, Pill, RefreshButton } from "./states";
-import { ThreadsConnectButton, ThreadsMobileHelp } from "./threads-connect-button";
+import { ThreadsAndroidHelp, ThreadsConnectButton } from "./threads-connect-button";
 import { useRemote } from "./use-remote";
 
 const BTN_SM =
@@ -319,7 +319,7 @@ export function AccountsTab({
         </Banner>
       )}
 
-      {canManage && oneClickReady && !quotaFull && !quota.expired && <ThreadsMobileHelp className="sm:hidden" />}
+      {canManage && oneClickReady && !quotaFull && !quota.expired && <ThreadsAndroidHelp />}
 
       {/* Daftar Akun */}
       {accounts.length === 0 ? (

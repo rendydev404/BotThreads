@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Check, Copy, Loader2 } from "lucide-react";
+import React, { useSyncExternalStore } from "react";
+import { Monitor, Settings, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThreadsMark } from "@/components/landing/threads-mark";
 
@@ -51,80 +51,67 @@ export function ThreadsConnectButton({
   );
 }
 
-const OAUTH_ERRORS: Record<string, string> = {
-  threads_oauth_off: "Fitur hubungkan akun Threads belum diaktifkan oleh pengelola platform.",
-  threads_key_off: "Fitur hubungkan akun Threads belum diaktifkan oleh pengelola platform.",
-  threads_insecure: "Login Threads hanya bisa dari alamat https.",
-};
+const noop = () => () => {};
+const isAndroid = () => /Android/i.test(navigator.userAgent);
 
 /**
- * Bantuan khusus HP. Link threads.net yang diketuk sering dibuka sistem di aplikasi Threads, dan halaman izinnya
- * tidak muncul. Link yang DITEMPEL di address bar browser tidak dialihkan ke aplikasi, jadi tombol ini menyalin
- * alamat izin Threads (state bertanda tangan, berlaku 15 menit) untuk dibuka manual di browser.
+ * Panduan khusus Android. Bila aplikasi Threads terpasang, halaman login/izin Threads milik Meta sendiri mengalihkan
+ * ke aplikasi (manifest web Threads mendaftarkan com.instagram.barcelona), bahkan untuk link yang ditempel manual,
+ * dan dialog izin tidak pernah muncul. Dua jalan yang pasti: hubungkan dari komputer, atau matikan "Buka link yang
+ * didukung" untuk aplikasi Threads. Di luar Android tidak ditampilkan.
  */
-export function ThreadsMobileHelp({ className }: { className?: string }) {
-  const [state, setState] = useState<"idle" | "busy" | "copied">("idle");
-  const [link, setLink] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const copy = async () => {
-    setState("busy");
-    setError(null);
-    try {
-      const res = await fetch("/api/threads/oauth?format=link", { cache: "no-store" });
-      const body = (await res.json().catch(() => null)) as { success?: boolean; url?: string; error?: string } | null;
-      if (!res.ok || !body?.url) throw new Error(OAUTH_ERRORS[body?.error ?? ""] ?? body?.error ?? "Link login gagal dibuat.");
-      setLink(body.url);
-      try {
-        await navigator.clipboard.writeText(body.url);
-        setState("copied");
-      } catch {
-        // Clipboard ditolak (mis. bukan https): tampilkan linknya untuk disalin manual.
-        setState("idle");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Link login gagal dibuat.");
-      setState("idle");
-    }
-  };
+export function ThreadsAndroidHelp({ className }: { className?: string }) {
+  const android = useSyncExternalStore(noop, isAndroid, () => false);
+  const dashboardUrl = useSyncExternalStore(noop, () => `${window.location.host}/akun`, () => "");
+  if (!android) return null;
 
   return (
-    <div className={cn("rounded-xl bg-subtle p-3.5 text-left text-xs text-muted leading-relaxed", className)}>
-      <p className="font-semibold text-fg text-[13px]">Di HP, aplikasi Threads terbuka sendiri?</p>
+    <div className={cn("rounded-xl border border-line bg-subtle p-4 text-left text-[13px] text-muted leading-relaxed", className)}>
+      <p className="font-semibold text-fg text-sm flex items-center gap-2">
+        <Smartphone className="w-4 h-4 text-accent shrink-0" />
+        Pakai HP Android? Aplikasi Threads bisa terbuka sendiri
+      </p>
       <p className="mt-1">
-        Salin link login, tempel di address bar Chrome atau Safari, lalu masuk dan tekan <b>Izinkan</b>. Akun langsung terhubung,
-        walau Anda membukanya di browser lain.
+        Bila aplikasi Threads terpasang, halaman login Threads (milik Meta) langsung pindah ke aplikasi sehingga dialog izin tidak
+        muncul. Pilih salah satu cara ini:
       </p>
-      <button
-        type="button"
-        onClick={() => void copy()}
-        disabled={state === "busy"}
-        className="mt-2.5 h-10 px-4 rounded-full border border-line-strong bg-surface text-[13px] font-semibold text-fg inline-flex items-center gap-2 hover:border-accent hover:text-accent transition-colors cursor-pointer disabled:opacity-60"
-      >
-        {state === "busy" ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : state === "copied" ? (
-          <Check className="w-4 h-4 text-success" />
-        ) : (
-          <Copy className="w-4 h-4" />
-        )}
-        {state === "copied" ? "Link tersalin, tempel di browser" : "Salin link login"}
-      </button>
-      {link && state !== "copied" && (
-        <input
-          readOnly
-          value={link}
-          onFocus={(e) => e.currentTarget.select()}
-          aria-label="Link login Threads"
-          className="mt-2 w-full h-9 px-3 rounded-lg border border-line bg-surface text-[11px] font-mono text-fg"
-        />
-      )}
-      {error && <p role="alert" className="mt-2 font-medium text-danger">{error}</p>}
-      {/* Tombol "Lanjutkan dengan Instagram" di halaman login Threads membuka instagram.com (App Link aplikasi Instagram). */}
-      <p className="mt-3">
-        Bila halaman Threads meminta login, isi username dan password di halaman itu juga, jangan pilih &quot;Lanjutkan dengan
-        Instagram&quot; supaya tidak pindah ke aplikasi.
-      </p>
+
+      <div className="mt-3 rounded-lg bg-surface border border-line p-3">
+        <p className="font-semibold text-fg flex items-center gap-2">
+          <Monitor className="w-4 h-4 shrink-0" />
+          Cara 1 (paling mudah): lewat komputer
+        </p>
+        <ol className="mt-1.5 list-decimal pl-5 space-y-0.5">
+          <li>
+            Buka <b className="text-fg break-all">{dashboardUrl}</b> di browser komputer, masuk dengan akun dashboard yang sama.
+          </li>
+          <li>
+            Klik <b>Hubungkan Akun Threads</b>, masuk ke Threads, lalu tekan <b>Izinkan</b>.
+          </li>
+          <li>Selesai. Akun langsung bisa dipakai juga dari HP ini.</li>
+        </ol>
+      </div>
+
+      <div className="mt-2.5 rounded-lg bg-surface border border-line p-3">
+        <p className="font-semibold text-fg flex items-center gap-2">
+          <Settings className="w-4 h-4 shrink-0" />
+          Cara 2: tetap dari HP ini
+        </p>
+        <ol className="mt-1.5 list-decimal pl-5 space-y-0.5">
+          <li>
+            Buka <b>Setelan HP &gt; Aplikasi &gt; Threads</b>.
+          </li>
+          <li>
+            Ketuk <b>Buka secara default</b> (di Samsung: <b>Tetapkan sebagai default</b>), lalu matikan <b>Buka link yang didukung</b>.
+          </li>
+          <li>
+            Kembali ke sini, ketuk <b>Hubungkan Akun Threads</b>, masuk dengan username dan password Threads, lalu tekan{" "}
+            <b>Izinkan</b>.
+          </li>
+          <li>Setelah terhubung, setelan tadi boleh dinyalakan lagi.</li>
+        </ol>
+      </div>
     </div>
   );
 }
+

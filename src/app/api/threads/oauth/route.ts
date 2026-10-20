@@ -8,18 +8,11 @@ import { tokenKeyConfigured } from "@/lib/threads-token";
 /**
  * Mulai OAuth resmi Meta Threads. Redirect URI `<APP_URL>/api/threads/oauth/callback` harus terdaftar
  * persis di Meta App (Threads use case > Settings > Redirect Callback URLs) dan wajib https.
- *
- * `?format=link` membalas JSON berisi alamat izin Threads (untuk tombol "Salin link login" di HP): link yang
- * ditempel di address bar tidak dialihkan sistem ke aplikasi Threads, jadi halaman izin tetap terbuka di browser.
  */
 export const GET = withCtx("ADMIN", async (request, ctx) => {
   const cfg = await getRawIntegrations();
   const origin = appOrigin(request, cfg.googleOauth.appUrl);
-  const asLink = request.nextUrl.searchParams.get("format") === "link";
-  const back = (code: string) =>
-    asLink
-      ? NextResponse.json({ success: false, error: code }, { status: 400, headers: { "Cache-Control": "no-store" } })
-      : NextResponse.redirect(new URL(`/akun?threads_error=${encodeURIComponent(code)}`, origin));
+  const back = (code: string) => NextResponse.redirect(new URL(`/akun?threads_error=${encodeURIComponent(code)}`, origin));
 
   if (!ctx.workspaceId) return back("Workspace tidak ditemukan.");
   if (!cfg.threadsOauth.enabled || !cfg.threadsOauth.appId || !cfg.threadsOauth.appSecret) return back("threads_oauth_off");
@@ -48,7 +41,6 @@ export const GET = withCtx("ADMIN", async (request, ctx) => {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("state", state);
 
-  if (asLink) return NextResponse.json({ success: true, url: authUrl.toString() }, { headers: { "Cache-Control": "no-store" } });
   // iOS: fragmen #weblink adalah aturan pengecualian PERTAMA di AASA Threads (aturan pertama yang cocok menang), dan
   // fragmen ikut terbawa saat Threads mengalihkan ke /login, jadi halaman login + izin tetap di Safari.
   const browserUrl = `${authUrl.toString()}#weblink`;

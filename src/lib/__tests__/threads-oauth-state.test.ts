@@ -76,12 +76,10 @@ describe("state OAuth Threads", () => {
 describe("mulai OAuth Threads", () => {
   it("halaman izin memakai www.threads.com/oauth/authorize/ (dikecualikan dari universal link, jadi di HP tetap di browser)", async () => {
     h.session = { userId: "u1", workspaceId: "ws1", role: "OWNER", accountIds: null };
-    for (const url of ["https://bottrit.com/api/threads/oauth", "https://bottrit.com/api/threads/oauth?format=link"]) {
-      const res = await start(new NextRequest(url));
-      const target = new URL(res.headers.get("location") ?? ((await res.json()) as { url: string }).url);
-      expect(`${target.origin}${target.pathname}`).toBe("https://www.threads.com/oauth/authorize/");
-      expect(target.searchParams.get("redirect_uri")).toBe("https://bottrit.com/api/threads/oauth/callback");
-    }
+    const res = await start(new NextRequest("https://bottrit.com/api/threads/oauth"));
+    const target = new URL(res.headers.get("location") ?? "");
+    expect(`${target.origin}${target.pathname}`).toBe("https://www.threads.com/oauth/authorize/");
+    expect(target.searchParams.get("redirect_uri")).toBe("https://bottrit.com/api/threads/oauth/callback");
   });
 
   it("Android Chrome: intent yang sengaja gagal (tanpa package) dengan cadangan halaman izin; iPhone & WebView: https + #weblink", async () => {
