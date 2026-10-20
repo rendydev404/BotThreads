@@ -211,8 +211,8 @@ export const actAdminBuzzerCampaign = (campaignId: string, action: "CANCEL" | "R
     body: JSON.stringify({ kind: "campaign_action", campaignId, action }),
   });
 
-export const runAdminBuzzerQueue = () =>
+export const runAdminBuzzerQueue = (forceAll = true) =>
   call<{ success: true; processed: number; succeeded: number; failed: number }>("/api/admin/buzzer", {
     method: "POST",
-    body: JSON.stringify({ kind: "run_queue" }),
+    body: JSON.stringify({ kind: "run_queue", forceAll }),
   });

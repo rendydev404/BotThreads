@@ -100,8 +100,10 @@ export const POST = withAdmin("buzzer.kelola", async (request, admin) => {
     }
 
     if (kind === "run_queue") {
+      const forceAll = (body as { forceAll?: unknown }).forceAll !== false;
+      const horizonMs = forceAll ? 24 * 60 * 60 * 1000 : 5_000;
       const res = await runBuzzerQueue({
-        now: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        now: new Date(Date.now() + horizonMs),
         deadlineMs: Date.now() + 30_000,
       });
       return NextResponse.json({ success: true, ...res }, { headers: NO_STORE });

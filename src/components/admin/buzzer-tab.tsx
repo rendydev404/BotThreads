@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -544,6 +544,32 @@ export function BuzzerTab() {
   const debouncedBuzzerQ = useDebounced(buzzerSearch, SEARCH_DEBOUNCE_MS).toLowerCase().trim();
   const debouncedNicheQ = useDebounced(nicheSearch, SEARCH_DEBOUNCE_MS).toLowerCase().trim();
 
+  const queuedTasksCount = overview.data?.stats.queuedTasks ?? 0;
+
+  // Auto-tick antrean secara otomatis setiap 10 detik selama masih ada tugas terjadwal
+  useEffect(() => {
+    if (queuedTasksCount <= 0) return;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      if (cancelled) return;
+      try {
+        if (canManage) {
+          await runAdminBuzzerQueue(false);
+        }
+        if (!cancelled) {
+          overview.reload();
+          setCampaignRev((v) => v + 1);
+        }
+      } catch {
+        // Abaikan galat sementara saat auto-tick latar belakang
+      }
+    }, 10_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [queuedTasksCount, canManage, overview.reload]);
+
   const filteredTargets = useMemo(() => {
     const list = overview.data?.targets ?? [];
     if (!debouncedTargetQ) return list;
@@ -769,9 +795,10 @@ export function BuzzerTab() {
                 disabled={queueBusy}
                 onClick={handleRunQueueNow}
                 className={cn(BTN_OUTLINE, "h-9 px-3 text-xs")}
+                title="Langsung kirim antrean berikutnya sekarang tanpa menunggu sisa jeda waktu"
               >
                 {queueBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 text-accent" />}
-                Proses Antrean ({formatInt(stats.queuedTasks)})
+                Percepat Antrean ({formatInt(stats.queuedTasks)})
               </button>
             )}
             <RefreshButton busy={overview.refreshing} onClick={overview.reload} />
@@ -801,7 +828,7 @@ export function BuzzerTab() {
             {
               label: "Antrean Terjadwal",
               value: formatInt(stats.queuedTasks),
-              hint: "Menunggu jeda natural antar-buzzer",
+              hint: stats.queuedTasks > 0 ? "Berjalan otomatis tiap jeda (auto-refresh)" : "Menunggu jeda natural antar-buzzer",
               tone: stats.queuedTasks > 0 ? "warning" : "neutral",
             },
           ]}

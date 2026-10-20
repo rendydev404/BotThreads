@@ -83,7 +83,55 @@ interface FallbackMeta {
   inferredFrom?: BuzzerInferredFrom;
 }
 
-const fallbackCampaigns = new Map<string, BuzzerCampaignDTO>();
+const globalForBuzzer = globalThis as unknown as {
+  __buzzerFallbackCampaigns?: Map<string, BuzzerCampaignDTO>;
+  __buzzerBgTimer?: ReturnType<typeof setTimeout> | null;
+  __buzzerBgBusy?: boolean;
+};
+
+const fallbackCampaigns =
+  globalForBuzzer.__buzzerFallbackCampaigns ??
+  (globalForBuzzer.__buzzerFallbackCampaigns = new Map<string, BuzzerCampaignDTO>());
+
+function scheduleBackgroundBuzzerTick(delayMs = 10_000): void {
+  if (process.env.VITEST) return;
+  if (globalForBuzzer.__buzzerBgTimer) return;
+  const timer = setTimeout(async () => {
+    globalForBuzzer.__buzzerBgTimer = null;
+    if (globalForBuzzer.__buzzerBgBusy) {
+      scheduleBackgroundBuzzerTick(10_000);
+      return;
+    }
+    globalForBuzzer.__buzzerBgBusy = true;
+    try {
+      const res = await runBuzzerQueue({
+        now: new Date(Date.now() + 3_000),
+        deadlineMs: Date.now() + 25_000,
+      });
+      // Cek apakah masih ada tugas TERJADWAL/DIPROSES
+      let stillPending = res.processed > 0;
+      if (!stillPending) {
+        for (const c of fallbackCampaigns.values()) {
+          if (c.tasks.some((t) => t.status === "TERJADWAL" || t.status === "DIPROSES")) {
+            stillPending = true;
+            break;
+          }
+        }
+      }
+      if (stillPending) {
+        scheduleBackgroundBuzzerTick(10_000);
+      }
+    } catch {
+      // Abaikan galat sementara background worker
+    } finally {
+      globalForBuzzer.__buzzerBgBusy = false;
+    }
+  }, delayMs);
+  if (typeof timer === "object" && timer !== null && "unref" in timer && typeof timer.unref === "function") {
+    timer.unref();
+  }
+  globalForBuzzer.__buzzerBgTimer = timer;
+}
 
 function parseFallbackNote(note: string | null | undefined): FallbackMeta | null {
   if (!note || !note.startsWith("{")) return null;
@@ -804,6 +852,10 @@ export async function deployBuzzerCampaign(
     campaignId,
     deadlineMs: Date.now() + 25_000,
   });
+
+  if (inserted > execRes.succeeded) {
+    scheduleBackgroundBuzzerTick(10_000);
+  }
 
   return {
     ok: true,
