@@ -39,15 +39,19 @@ const STYLE = `
 
 type Box = { top: number; left: number; width: number; height: number };
 
-function findAnchor(anchors: string[] | undefined): HTMLElement | null {
+function findAnchor(anchors: string[] | undefined): { el: HTMLElement; key: string } | null {
   for (const a of anchors ?? []) {
     for (const el of document.querySelectorAll<HTMLElement>(`[data-tour="${CSS_ESCAPE(a)}"]`)) {
       const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0) return el;
+      if (r.width > 0 && r.height > 0) return { el, key: a };
     }
   }
   return null;
 }
+
+const MOBILE_W = 768;
+/** Jarak kartu dari tepi bawah layar ponsel (di atas bilah navigasi bawah + area aman). */
+const SHEET_BOTTOM = "calc(12px + env(safe-area-inset-bottom))";
 const CSS_ESCAPE = (v: string) => (globalThis.CSS?.escape ? globalThis.CSS.escape(v) : v.replace(/"/g, '\\"'));
 
 /** Kata demi kata muncul (CSS), diulang tiap ganti langkah lewat `key`. */
@@ -76,6 +80,8 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
   const [card, setCard] = useState<{ w: number; h: number }>({ w: CARD_W, h: 260 });
   const [view, setView] = useState({ w: 1280, h: 800 });
   const [poke, setPoke] = useState<string | null>(null);
+  /** Anchor yang ketemu (mis. "bnav:more" = menu ada di "Lainnya" pada ponsel). */
+  const [matched, setMatched] = useState<string | null>(null);
   const elRef = useRef<HTMLElement | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
@@ -104,11 +110,22 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
     let timer: ReturnType<typeof setTimeout>;
     const seek = () => {
       if (!alive) return;
-      const el = findAnchor(step.anchors);
-      if (el) {
+      const hit = findAnchor(step.anchors);
+      if (hit) {
+        const { el } = hit;
         elRef.current = el;
+        setMatched(hit.key);
         const r = el.getBoundingClientRect();
-        if (r.top < 72 || r.bottom > window.innerHeight - 96) el.scrollIntoView({ block: "center", behavior: "smooth" });
+        const fixed = hit.key.startsWith("nav:") || hit.key.startsWith("bnav:");
+        if (!fixed) {
+          if (window.innerWidth < MOBILE_W) {
+            // Ponsel: kartu menempel di bawah, jadi target digulir ke bagian ATAS layar (bukan tengah).
+            const top = 72;
+            if (r.top < top || r.top > window.innerHeight * 0.3) window.scrollBy({ top: r.top - top, behavior: "smooth" });
+          } else if (r.top < 72 || r.bottom > window.innerHeight - 96) {
+            el.scrollIntoView({ block: "center", behavior: "smooth" });
+          }
+        }
         measure();
         return;
       }
@@ -167,6 +184,7 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
         // Lepas sorotan lama dulu; langkah baru mencari elemennya sendiri.
         elRef.current = null;
         setTarget(null);
+        setMatched(null);
         setIdx(to);
       }
     },
@@ -189,14 +207,15 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
   }, [awake, idx, go, onClose]);
 
   // Penempatan kartu: kanan target bila muat (menu samping), lalu bawah/atas; di HP selalu di bawah layar.
-  const mobile = view.w < 768;
+  const mobile = view.w < MOBILE_W;
   let pos: React.CSSProperties;
   let side: "left" | "right" | "none" = "none";
   if (!awake || !target) {
-    pos = mobile ? { left: 12, right: 12, bottom: 92 } : { left: (view.w - card.w) / 2, top: Math.max(24, (view.h - card.h) / 2) };
+    pos = mobile ? { left: 8, right: 8, bottom: SHEET_BOTTOM } : { left: (view.w - card.w) / 2, top: Math.max(24, (view.h - card.h) / 2) };
   } else if (mobile) {
-    const targetLow = target.top > view.h / 2;
-    pos = targetLow ? { left: 12, right: 12, top: Math.max(12, target.top - card.h - GAP) } : { left: 12, right: 12, bottom: 92 };
+    // Target di bagian bawah (bilah navigasi): kartu tepat di atasnya. Selain itu kartu menempel di bawah layar.
+    const targetLow = target.top > view.h * 0.6;
+    pos = targetLow ? { left: 8, right: 8, bottom: Math.max(8, view.h - target.top + GAP) } : { left: 8, right: 8, bottom: SHEET_BOTTOM };
   } else {
     const clampY = (y: number) => Math.min(Math.max(16, y), view.h - card.h - 16);
     const clampX = (x: number) => Math.min(Math.max(16, x), view.w - card.w - 16);
@@ -213,6 +232,19 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
     }
   }
 
+  // Sorotan dipotong ke area yang terlihat (elemen besar seperti tabel tidak menutupi kartu). Di ponsel area
+  // terlihat = di atas kartu bila kartu menempel di bawah.
+  let spot: Box | null = awake ? target : null;
+  if (spot) {
+    const sheetTop = mobile && !(target && target.top > view.h * 0.6) ? view.h - card.h - 12 - GAP : view.h - 8;
+    const top = Math.max(8, spot.top);
+    const bottom = Math.min(spot.top + spot.height, sheetTop);
+    const left = Math.max(4, spot.left);
+    const right = Math.min(view.w - 4, spot.left + spot.width);
+    spot = bottom - top >= 32 && right - left >= 32 ? { top, left, width: right - left, height: bottom - top } : null;
+  }
+  const inMore = mobile && matched === "bnav:more";
+
   const mood: MascotMood = !awake ? "sleep" : poke ? "poke" : step.mood === "point" && !target ? "talk" : step.mood;
 
   return createPortal(
@@ -226,19 +258,25 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
       <div
         className="btt-spot absolute rounded-2xl pointer-events-none"
         style={
-          awake && target
-            ? { top: target.top, left: target.left, width: target.width, height: target.height, boxShadow: "0 0 0 9999px rgba(6,8,18,.72)" }
+          spot
+            ? { top: spot.top, left: spot.left, width: spot.width, height: spot.height, boxShadow: "0 0 0 9999px rgba(6,8,18,.72)" }
             : { top: view.h / 2, left: view.w / 2, width: 0, height: 0, boxShadow: "0 0 0 9999px rgba(6,8,18,.78)" }
         }
       >
-        {awake && target && <div className="btt-ring absolute inset-0 rounded-2xl border-2 border-accent" />}
+        {spot && <div className="btt-ring absolute inset-0 rounded-2xl border-2 border-accent" />}
       </div>
 
       <div
         ref={cardRef}
         key={awake ? step.id : "tidur"}
-        className="btt-card absolute rounded-3xl border border-line bg-surface shadow-pop p-4 sm:p-5"
-        style={{ ...pos, width: mobile ? undefined : CARD_W, maxWidth: mobile ? undefined : "calc(100vw - 32px)" }}
+        className="btt-card absolute flex flex-col rounded-3xl border border-line bg-surface shadow-pop p-4 sm:p-5"
+        style={{
+          ...pos,
+          width: mobile ? undefined : CARD_W,
+          maxWidth: mobile ? undefined : "calc(100vw - 32px)",
+          // Kartu tidak pernah lebih tinggi dari layar; isi panjang digulir di dalam kartu.
+          maxHeight: mobile ? "min(68dvh, calc(100dvh - 96px))" : "calc(100dvh - 32px)",
+        }}
       >
         <button
           type="button"
@@ -251,7 +289,7 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
 
         {!awake ? (
           <div className="flex flex-col items-center text-center pt-2">
-            <Mascot mood="sleep" size={132} onClick={() => setAwake(true)} label="Bangunkan maskot" className="hover:scale-[1.03] transition-transform" />
+            <Mascot mood="sleep" size={mobile ? 104 : 132} onClick={() => setAwake(true)} label="Bangunkan maskot" className="hover:scale-[1.03] transition-transform" />
             <p className="mt-2 text-base font-bold text-fg">Ssst... robotnya lagi tidur</p>
             <p className="mt-1 text-sm text-muted max-w-xs">Wajar, dia kerja semalaman memposting untuk akunmu. Klik robotnya untuk membangunkan dan mulai tur singkat.</p>
             <div className="mt-4 flex gap-2">
@@ -274,10 +312,10 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
           </div>
         ) : (
           <>
-            <div className="flex items-start gap-3 pr-6">
+            <div className="flex items-start gap-2.5 sm:gap-3 pr-6 shrink-0">
               <Mascot
                 mood={mood}
-                size={mobile ? 64 : 76}
+                size={mobile ? 52 : 76}
                 flip={side === "left"}
                 onClick={() => setPoke(POKES[Math.floor(Math.random() * POKES.length)])}
                 label="Colek maskot"
@@ -287,26 +325,32 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
                 <p className="text-[11px] font-bold uppercase tracking-wide text-accent">
                   {idx === 0 ? "Tur singkat" : `Langkah ${idx} dari ${TOUR_STEPS.length - 2}`}
                 </p>
-                <h2 className="mt-0.5 text-[17px] font-bold text-fg leading-snug">{step.title}</h2>
+                <h2 className="mt-0.5 text-[15px] sm:text-[17px] font-bold text-fg leading-snug">{step.title}</h2>
               </div>
             </div>
 
-            <div className="mt-3 rounded-2xl bg-subtle px-3.5 py-3 text-sm text-fg leading-relaxed" aria-live="polite">
+            {/* Bagian isi bisa digulir sendiri bila layar pendek; judul dan tombol tetap terlihat. */}
+            <div className="mt-2.5 sm:mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="rounded-2xl bg-subtle px-3 py-2.5 sm:px-3.5 sm:py-3 text-[13.5px] sm:text-sm text-fg leading-relaxed" aria-live="polite">
               {poke ? <span className="font-semibold">{poke}</span> : <Reveal text={step.body} />}
             </div>
+            {inMore && !poke && (
+              <p className="mt-2 text-xs font-medium text-accent">Di HP, menu ini ada di tombol Lainnya pada bilah bawah.</p>
+            )}
             {!poke && step.points && (
               <ul className="mt-2.5 space-y-1.5">
                 {step.points.map((p, i) => (
-                  <li key={p} className="btt-word flex items-start gap-2 text-[13px] text-muted" style={{ animationDelay: `${500 + i * 120}ms` }}>
+                  <li key={p} className="btt-word flex items-start gap-2 text-xs sm:text-[13px] text-muted" style={{ animationDelay: `${500 + i * 120}ms` }}>
                     <Check className="w-3.5 h-3.5 mt-0.5 text-success shrink-0" />
                     <span>{p}</span>
                   </li>
                 ))}
               </ul>
             )}
+            </div>
 
             {/* Progres: titik per langkah, bisa diklik untuk melompat. */}
-            <div className="mt-4 flex items-center gap-1" role="tablist" aria-label="Langkah tur">
+            <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-1 shrink-0" role="tablist" aria-label="Langkah tur">
               {TOUR_STEPS.map((s, i) => (
                 <button
                   key={s.id}
@@ -324,7 +368,7 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
               ))}
             </div>
 
-            <div className="mt-4 flex items-center gap-2">
+            <div className="mt-3 sm:mt-4 flex items-center gap-2 shrink-0">
               {!last && (
                 <button
                   type="button"

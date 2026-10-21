@@ -19,7 +19,8 @@ export interface TourStep {
   mood: MascotMood;
 }
 
-const nav = (href: string) => [`nav:${href}`, `bnav:${href}`];
+/** Menu samping (desktop), bilah bawah (HP), lalu tombol "Lainnya" bila menunya tidak ada di bilah bawah. */
+const nav = (href: string) => [`nav:${href}`, `bnav:${href}`, "bnav:more"];
 
 export const TOUR_STEPS: TourStep[] = [
   {
@@ -80,7 +81,7 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: "radar",
     chip: "Radar",
-    title: "4. Radar: bahan bakar tulisanku",
+    title: "4. Radar (di HP: Trend): bahan bakar tulisanku",
     body: "Di sini ada bank ide lengkap dengan skor dan preview postingannya, tren yang lagi viral di niche-mu, dan kalender momen penting.",
     points: ['Klik "Pakai berikutnya" supaya ide favoritmu diposting duluan', "Preview ide = teks yang nanti diposting (bila lolos pemeriksaan)"],
     route: "/radar",

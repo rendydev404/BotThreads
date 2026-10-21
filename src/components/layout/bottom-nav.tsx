@@ -9,7 +9,7 @@ import { useMe } from "./use-me";
 import { usePopover } from "./use-popover";
 import { cn } from "@/lib/utils";
 
-const primary = navigationItems.filter((i) => i.mobile);
+const primary = navigationItems.filter((i) => i.mobile).sort((a, b) => (a.mobileOrder ?? 99) - (b.mobileOrder ?? 99));
 const moreBase = navigationItems.filter((i) => !i.mobile);
 
 const ITEM_CLS =
@@ -28,7 +28,7 @@ export function BottomNav() {
       <div className="flex items-stretch max-w-md mx-auto">
         {primary.map((item) => {
           const isActive = isActivePath(pathname, item.href);
-          const Icon = item.icon;
+          const Icon = item.mobileIcon ?? item.icon;
 
           return (
             <Link
@@ -39,7 +39,7 @@ export function BottomNav() {
               className={cn(ITEM_CLS, isActive ? "text-accent font-semibold" : "text-muted")}
             >
               <Icon className="w-5 h-5 shrink-0" strokeWidth={isActive ? 2.4 : 2} />
-              <span className="max-w-full truncate whitespace-nowrap">{item.name}</span>
+              <span className="max-w-full truncate whitespace-nowrap">{item.mobileName ?? item.name}</span>
             </Link>
           );
         })}
@@ -49,6 +49,7 @@ export function BottomNav() {
             ref={triggerRef}
             type="button"
             onClick={() => setOpen((v) => !v)}
+            data-tour="bnav:more"
             aria-haspopup="menu"
             aria-expanded={open}
             className={cn(ITEM_CLS, "cursor-pointer", moreActive || open ? "text-accent font-semibold" : "text-muted")}
