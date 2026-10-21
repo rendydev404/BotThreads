@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { jsonError, readJson } from "@/lib/api-auth";
 import { ID_PATTERN, TOO_MANY, autopilotError } from "@/lib/autopilot-api";
+import { kickOnboarding } from "@/lib/account-onboarding";
+import { afterResponse } from "@/lib/after-safe";
 import { saveSettings } from "@/lib/autopilot-service";
 import { withCtx } from "@/lib/request-ctx";
 import { throttle } from "@/lib/throttle";
 
 const MAX_ACCOUNTS = 200;
+/** Agen riset ulang yang dijalankan setelah satu permintaan massal (sisanya diisi tick autopilot). */
+const MAX_RESEARCH = 10;
+
+/** Agen riset (tren niche + ide + draf pertama) berjalan di `after()` dan ikut batas waktu route ini. */
+export const maxDuration = 300;
 
 /** Terapkan perubahan pengaturan (biasanya mode) ke banyak akun sekaligus. Body: `{ accountIds, settings }`. */
 export const POST = withCtx("EDITOR", async (request, ctx) => {
@@ -26,6 +33,19 @@ export const POST = withCtx("EDITOR", async (request, ctx) => {
   try {
     const result = await saveSettings(ctx, [...new Set(ids as string[])], body?.settings);
     if (!result.ok) return jsonError(result.status, result.error, result.details);
+    // Sama dengan simpan satu akun: topik berubah / autopilot baru dinyalakan -> cari ide otomatis.
+    const { workspaceId, userId } = ctx;
+    const targets = result.research.slice(0, MAX_RESEARCH);
+    if (targets.length) {
+      // Tiga agen sekaligus: cukup cepat untuk selesai dalam batas waktu route, tanpa membanjiri AI.
+      afterResponse("riset ulang massal", async () => {
+        const queue = [...targets];
+        const worker = async () => {
+          for (let id = queue.shift(); id; id = queue.shift()) await kickOnboarding(id, workspaceId, userId);
+        };
+        await Promise.all([worker(), worker(), worker()]);
+      });
+    }
     return NextResponse.json({ success: true, saved: result.saved, skipped: result.skipped });
   } catch (err) {
     return autopilotError("autopilot/bulk", err);

@@ -23,7 +23,7 @@ import { isPublishEnabled } from "./content-config";
 import { generateWithFailover, type GeminiSchema } from "./gemini";
 import { HUMAN_VOICE } from "./human-voice";
 import { forgetPublishAccounts, getPublishAccountMap, type PublishAccount } from "./publish-accounts";
-import { ideaCandidates, loadIdeaContext } from "./radar-store";
+import { ideaCandidates, loadIdeaContext, retireIdeasBefore } from "./radar-store";
 import { startOfWibDay, wibDayKey } from "./scheduling";
 import { db, must, sqlTs, toDate } from "./supabase";
 import { syncInsightsFor } from "./threads-insights";
@@ -349,8 +349,18 @@ export async function runOnboarding(accountId: string, userId: string, now = new
       counts
     ).catch(() => undefined);
     const made = counts.ideBaru ?? 0;
+    // Ide lama disusun dari pengaturan/tren sebelumnya: diganti begitu ide baru berhasil masuk, supaya yang
+    // dipakai autopilot selalu sesuai Profil AI terbaru. Ide yang disematkan pengguna tetap.
+    const replaced = made ? await retireIdeasBefore(accountId, now, new Date()).catch(() => 0) : 0;
     const top = ((await ideaCandidates([accountId], now, 3).catch(() => new Map())).get(accountId) ?? []).map((i: { topik: string }) => i.topik);
-    if (made || top.length) end("ide", "SELESAI", made ? `${made} ide baru siap dipakai` : "Bank ide sudah terisi", top);
+    if (made || top.length) {
+      end(
+        "ide",
+        "SELESAI",
+        made ? `${made} ide baru siap dipakai${replaced ? `, ${replaced} ide lama diganti` : ""}` : "Bank ide sudah terisi",
+        top
+      );
+    }
     else end("ide", "GAGAL", "Ide belum berhasil disusun. Dicoba lagi otomatis oleh autopilot.");
 
     // 5. TULIS postingan pertama hari ini (bila Autopilot aktif)

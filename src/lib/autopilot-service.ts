@@ -141,8 +141,21 @@ export async function getOverview(ctx: RequestCtx, now = new Date()): Promise<Au
 /* ------------------------------------------------------------------ simpan pengaturan */
 
 export type SaveResult =
-  | { ok: true; saved: number; skipped: { accountId: string; error: string }[] }
+  | {
+      ok: true;
+      saved: number;
+      skipped: { accountId: string; error: string }[];
+      /**
+       * Akun yang perlu riset ulang + ide baru: peran/tema, kategori topik, atau gaya sapaan benar-benar
+       * berubah, atau autopilotnya baru dinyalakan. Simpan ulang tanpa perubahan tidak memicu agen.
+       */
+      research: string[];
+    }
   | Failure;
+
+/** Bagian pengaturan yang menentukan isi ide (bukan jadwal). */
+const topicOf = (s: Pick<AutopilotSettings, "brief" | "pillars" | "voiceStyle">): string =>
+  JSON.stringify([(s.brief ?? "").trim(), [...s.pillars].map((p) => p.key.trim().toLowerCase()).sort(), s.voiceStyle ?? null]);
 
 /**
  * Terapkan perubahan pengaturan ke satu atau banyak akun. Field yang tidak dikirim tidak berubah.
@@ -161,6 +174,7 @@ export async function saveSettings(
 
   const items: ConfigWrite[] = [];
   const skipped: { accountId: string; error: string }[] = [];
+  const research: string[] = [];
   for (const id of accountIds) {
     const account = byId.get(id)!;
     const current = state.configs.get(id);
@@ -195,6 +209,7 @@ export async function saveSettings(
       continue;
     }
     items.push({ accountId: id, workspaceId: account.tenantId, ...next });
+    if (topicOf(next) !== topicOf(base) || (base.mode === "MATI" && next.mode !== "MATI")) research.push(id);
   }
   if (items.length === 0) {
     return skipped.length === 1 ? failure(409, skipped[0].error) : failure(409, "Tidak ada akun yang bisa diubah.", skipped.map((s) => s.error));
@@ -211,7 +226,7 @@ export async function saveSettings(
   }
 
   const saved = await upsertConfigs(items, ctx.userId, now);
-  return { ok: true, saved, skipped };
+  return { ok: true, saved, skipped, research };
 }
 
 /** Jeda atau lanjutkan autopilot untuk seluruh workspace yang terlihat pengguna. */

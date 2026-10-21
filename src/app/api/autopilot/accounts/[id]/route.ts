@@ -22,9 +22,9 @@ export const PUT = withCtx<{ id: string }>("EDITOR", async (request, ctx, route)
     const body = await readJson(request);
     const result = await saveSettings(ctx, [id], body);
     if (!result.ok) return jsonError(result.status, result.error, result.details);
-    // Topik/niche berubah atau autopilot baru dinyalakan: agen langsung riset tren, isi ide, dan tulis draf pertama hari ini juga.
-    const b = (body ?? {}) as Record<string, unknown>;
-    if (b.brief !== undefined || b.pillars !== undefined || b.voiceStyle !== undefined || b.mode === "OTOMATIS" || b.mode === "TINJAU") {
+    // Peran/tema, kategori topik, atau gaya sapaan benar-benar berubah (atau autopilot baru dinyalakan):
+    // agen otomatis riset tren niche, menyusun ide baru (ide lama diganti), dan menyiapkan draf hari ini.
+    if (result.research.includes(id)) {
       const { workspaceId, userId } = ctx;
       afterResponse("riset ulang", () => kickOnboarding(id, workspaceId, userId));
     }

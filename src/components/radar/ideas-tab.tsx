@@ -14,6 +14,8 @@ import {
   type IdeaStatus,
 } from "@/lib/radar-types";
 import { ConfirmModal } from "@/components/autopilot/confirm-modal";
+import { IdeaPostPreview } from "./threads-preview";
+import { IdeaAgentProgress } from "./idea-hunt";
 import { Dropdown, type DropdownOption } from "@/components/autopilot/dropdown";
 import {
   Banner,
@@ -92,7 +94,8 @@ const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error,
   const parts = SCORE_PARTS.filter((p) => typeof idea.scoreDetail[p.key] === "number");
 
   return (
-    <li className="card p-4 space-y-3">
+    <li className="card p-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,400px)] items-start">
+      <div className="min-w-0 space-y-3">
       <div className="flex items-start gap-3">
         <AccountAvatar name={idea.account.displayName} src={avatarUrl} size="w-9 h-9" />
         <div className="min-w-0 flex-1">
@@ -222,6 +225,20 @@ const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error,
           </button>
         </div>
       )}
+      </div>
+
+      <div className="min-w-0">
+        <IdeaPostPreview
+          ideaId={idea.id}
+          handle={accountHandle(idea.account)}
+          name={idea.account.displayName}
+          avatarUrl={avatarUrl}
+          initial={idea.previewText ?? null}
+          kind={idea.previewKind ?? null}
+          postAt={idea.postAt ?? null}
+          canGenerate={canEdit && idea.status === "BARU"}
+        />
+      </div>
     </li>
   );
 });
@@ -308,6 +325,14 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
     setRejectTarget(idea);
   }, []);
 
+  const onHuntDone = useCallback(
+    (summary: string) => {
+      reload();
+      showNotice("success", summary);
+    },
+    [reload, showNotice]
+  );
+
   const filtered = accountId !== null;
   const rejecting = rejectTarget ? busy[rejectTarget.id] === "reject" : false;
 
@@ -315,8 +340,8 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
     <div className="space-y-4">
       <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
         {/* `fit`: lebar segmen mengikuti labelnya, supaya ketiganya muat utuh di layar 360px. */}
-        <Segmented ariaLabel="Status ide" options={VIEW_OPTIONS} value={view} onChange={setView} fit className="lg:w-[24rem]" />
-        <div className="flex items-center gap-2 lg:ml-auto">
+        <Segmented ariaLabel="Status ide" options={VIEW_OPTIONS} value={view} onChange={setView} fit className="w-full lg:w-[24rem]" />
+        <div className="flex items-center gap-2 w-full lg:w-auto lg:ml-auto">
           <Dropdown<string>
             ariaLabel="Saring akun"
             value={account}
@@ -328,6 +353,8 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
           <RefreshButton onClick={reload} busy={list.refreshing} disabled={list.loading} />
         </div>
       </div>
+
+      <IdeaAgentProgress accounts={accounts} onDone={onHuntDone} />
 
       {notice && (
         <Banner tone={notice.tone} onClose={clearNotice}>

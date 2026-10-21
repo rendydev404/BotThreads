@@ -207,7 +207,7 @@ export async function draftReply(
   const recent = (job.recentReplies ?? []).slice(0, RECENT_REPLIES).map((t) => clean(t, 200));
   const prompt = [
     `AKUN: @${job.account.username ?? job.account.displayName}`,
-    job.brief ? `TEMA AKUN: ${clean(job.brief, 300)}` : null,
+    job.brief ? `TEMA AKUN: ${clean(job.brief, 1200)}` : null,
     voice ? `GAYA SAPAAN (wajib): ${voice}` : null,
     `<postingan>${clean(job.postText ?? "", 500)}</postingan>`,
     history.length ? `<obrolan>\n${history.join("\n")}\n</obrolan>` : null,

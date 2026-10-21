@@ -3,6 +3,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { AlertCircle, CalendarClock, Loader2, Minus, Plus, Save, Trash2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BriefExpandButton } from "@/components/ai/brief-editor";
 import { previewAutopilotPlan, saveAutopilotSettings } from "@/lib/autopilot-client";
 import {
   ACTIVE_FIRST_HOUR,
@@ -657,12 +658,13 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                   aria-labelledby={labelId}
                   value={form.brief}
                   onChange={(e) => update({ brief: e.target.value })}
-                  rows={3}
+                  rows={8}
                   maxLength={BRIEF_MAX_CHARS}
                   placeholder="Contoh: akun cabang dekat kampus, audiensnya mahasiswa. Bahas menu andalan, suasana makan bareng, dan cerita ringan seputar cabang. Hindari bahasa yang terlalu formal."
                   className="w-full resize-y bg-transparent border-0 px-3.5 pt-3 pb-1 text-sm leading-relaxed text-fg placeholder-faint outline-none focus:outline-none focus-visible:outline-none focus:ring-0"
                 />
-                <div className="flex justify-end px-3.5 pb-2 text-xs">
+                <div className="flex items-center justify-between gap-2 pl-2 pr-3.5 pb-2 text-xs">
+                  <BriefExpandButton value={form.brief} onChange={(brief) => update({ brief })} maxLength={BRIEF_MAX_CHARS} />
                   <span
                     aria-live="polite"
                     className={cn(

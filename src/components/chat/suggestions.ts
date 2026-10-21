@@ -6,6 +6,7 @@ import {
   Search,
   TrendingUp,
   Trophy,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 import type { ChatMessage } from "./use-chat";
@@ -72,6 +73,12 @@ export const suggestionGroups: SuggestionGroup[] = [
     title: "Buat konten",
     tone: "success",
     items: [
+      {
+        label: "Prompt peran akun",
+        hint: "Role lengkap dari data akun, siap pakai",
+        prompt: "Buatkan prompt peran yang lengkap untuk akun saya",
+        icon: UserCog,
+      },
       {
         label: "3 draf untuk besok",
         hint: "Siap edit dan jadwalkan",

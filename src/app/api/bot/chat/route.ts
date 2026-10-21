@@ -18,6 +18,10 @@ import { parseExecution } from "@/lib/execution-summary";
 import { getQueueContext } from "@/lib/queue-context";
 import { withCtx } from "@/lib/request-ctx";
 import { applyBrand, currentBrand } from "@/lib/brand";
+import { buildRolePrompt, isRolePromptRequest } from "@/lib/role-prompt";
+
+/** Menyusun prompt peran bisa memakan puluhan detik pada failover antar-model. */
+export const maxDuration = 60;
 
 const fmt = (n: number) => n.toLocaleString("id-ID");
 
@@ -230,6 +234,28 @@ export const POST = withCtx("VIEWER", async (request) => {
         success: true,
         message: reply.message,
         meta: { latencyMs: Date.now() - startTime, model: reply.model, degraded: reply.model === null },
+      });
+    }
+
+    // Prompt peran akun: dokumen markdown lengkap + versi Profil AI yang bisa diterapkan sekali klik.
+    if (isRolePromptRequest(text)) {
+      const userId = await getRequestUserId(request);
+      if (!userId) {
+        return NextResponse.json({ success: false, error: "Sesi berakhir. Silakan masuk kembali." }, { status: 401 });
+      }
+      const limit = throttle(`role-prompt:${userId}`, 10, 5 * 60_000);
+      if (!limit.ok) {
+        return NextResponse.json(
+          { success: false, error: "Terlalu sering meminta prompt peran. Coba lagi sebentar lagi." },
+          { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
+        );
+      }
+      const reply = await buildRolePrompt({ text, accountFilter: typeof body.account === "string" ? body.account.slice(0, 60) : null });
+      return NextResponse.json({
+        success: true,
+        message: reply.message,
+        rolePrompt: reply.kind === "done" ? reply.profile ?? undefined : undefined,
+        meta: { latencyMs: Date.now() - startTime, model: reply.kind === "done" ? reply.model ?? "fallback" : "router", degraded: reply.kind === "done" && !reply.model },
       });
     }
 

@@ -52,7 +52,7 @@ const clean = (s: string, max: number): string => cleanExternal(s, max);
  * terlalu sedikit): mencari tren tanpa tahu niche hanya menghasilkan tren umum yang sudah ada.
  */
 export function nicheProfile(config: Pick<ConfigRow, "brief" | "pillars">, recents: string[]): NicheProfile | null {
-  const brief = config.brief ? clean(config.brief, 600) || null : null;
+  const brief = config.brief ? clean(config.brief, 1500) || null : null;
   const pillars = config.pillars.map((p) => clean(p.key, 40)).filter(Boolean);
   const samples = recents.map((t) => clean(t, 160)).filter((t) => t.length >= 15);
   if (!brief && pillars.length === 0 && samples.length < MIN_SAMPLES) return null;

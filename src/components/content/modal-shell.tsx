@@ -20,7 +20,8 @@ interface ModalShellProps {
   footer?: React.ReactNode;
   /** Saat sibuk, Esc/klik latar tidak menutup dialog. */
   busy?: boolean;
-  size?: "md" | "lg";
+  /** "full": hampir selebar layar (editor teks panjang). */
+  size?: "md" | "lg" | "full";
 }
 
 /**
@@ -102,7 +103,7 @@ export function ModalShell({ open, onClose, title, description, children, footer
           "relative w-full bg-surface border border-line shadow-pop flex flex-col outline-none",
           "max-h-[92dvh] rounded-t-3xl animate-[sheet-up_220ms_ease-out]",
           "sm:rounded-2xl sm:max-h-[88dvh] sm:animate-[pop-in_150ms_ease-out]",
-          size === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg"
+          size === "full" ? "sm:max-w-5xl sm:h-[88dvh]" : size === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg"
         )}
       >
         <div className="sm:hidden pt-2.5 flex justify-center" aria-hidden>

@@ -15,6 +15,7 @@ import { saveAutopilotSettings } from "@/lib/autopilot-client";
 import { BRIEF_MAX_CHARS, VOICE_STYLES, type AutopilotPillar, type VoiceStyle } from "@/lib/autopilot-types";
 import { ContentApiError } from "@/lib/content-client";
 import { cn } from "@/lib/utils";
+import { BriefExpandButton } from "./brief-editor";
 import { AgentSteps, useStagedSteps } from "./agent-ui";
 
 const MAX_PILLARS = 8;
@@ -193,7 +194,7 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
 
           <TextAreaField
             label="Peran & tema akun"
-            rows={4}
+            rows={8}
             value={brief}
             maxLength={BRIEF_MAX_CHARS}
             onChange={setBrief}
@@ -201,6 +202,9 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
             placeholder="Contoh: Akun pribadi developer yang bahas AI dan coding sehari-hari, gaya santai agak sarkas, buat programmer muda. Tidak pernah bahas politik."
             hint="Tulis seperti menjelaskan ke penulis bayangan: akun ini siapa, bahas apa, untuk siapa, nadanya bagaimana."
           />
+          <div className="-mt-2 flex justify-end">
+            <BriefExpandButton value={brief} onChange={setBrief} maxLength={BRIEF_MAX_CHARS} disabled={busy || suggesting} />
+          </div>
 
           <div>
             <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">Gaya sapaan</p>

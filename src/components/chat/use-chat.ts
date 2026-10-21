@@ -5,6 +5,7 @@ import type { Report } from "@/lib/report";
 import type { ContentDraft, QueueResultDTO } from "@/lib/content-types";
 import type { PublishIntent } from "@/lib/content-intent";
 import type { ActionPlan } from "@/lib/action-plan";
+import type { RolePromptProfileDTO } from "./role-prompt-card";
 
 export interface ChatMessage {
   id: string;
@@ -27,6 +28,8 @@ export interface ChatMessage {
   kind?: "execution";
   /** Rencana aksi otomatis dari saran asisten (kartu pilihan waktu posting). */
   plan?: ActionPlan;
+  /** Prompt peran: versi ringkas untuk Profil AI akun (bisa diterapkan sekali klik). */
+  rolePrompt?: RolePromptProfileDTO;
   /** Kartu sudah tampil, insight AI masih disusun */
   pending?: boolean;
 }
@@ -129,13 +132,13 @@ export function useChat(account = "all") {
           const id = cardId;
           update((prev) =>
             prev.map((m) =>
-              m.id === id ? { ...m, content: data.message, pending: false, report: data.report ?? m.report, drafts: data.drafts?.length ? data.drafts : m.drafts, showOrchestrator: data.showOrchestrator ?? m.showOrchestrator, scopeAsk: data.askScope ?? m.scopeAsk, orchestrator: data.orchestrator ?? m.orchestrator, queued: data.queued ?? m.queued, plan: data.plan ?? m.plan } : m
+              m.id === id ? { ...m, content: data.message, pending: false, report: data.report ?? m.report, drafts: data.drafts?.length ? data.drafts : m.drafts, showOrchestrator: data.showOrchestrator ?? m.showOrchestrator, scopeAsk: data.askScope ?? m.scopeAsk, orchestrator: data.orchestrator ?? m.orchestrator, queued: data.queued ?? m.queued, plan: data.plan ?? m.plan, rolePrompt: data.rolePrompt ?? m.rolePrompt } : m
             )
           );
         } else {
           update((prev) => [
             ...prev,
-            { id: nextId(), role: "assistant", content: data.message, time: nowLabel(), report: data.report, drafts: data.drafts?.length ? data.drafts : undefined, showOrchestrator: data.showOrchestrator, scopeAsk: data.askScope, orchestrator: data.orchestrator, queued: data.queued, plan: data.plan },
+            { id: nextId(), role: "assistant", content: data.message, time: nowLabel(), report: data.report, drafts: data.drafts?.length ? data.drafts : undefined, showOrchestrator: data.showOrchestrator, scopeAsk: data.askScope, orchestrator: data.orchestrator, queued: data.queued, plan: data.plan, rolePrompt: data.rolePrompt },
           ]);
         }
       } catch {

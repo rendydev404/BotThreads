@@ -254,7 +254,7 @@ export function buildIdeaPrompt(p: IdeaPromptInput): string {
       `IDE BERTREN MINIMAL: ${minTrend} dari ${p.count}${nicheReady ? "" : " (bila tren yang nyambung kurang, jangan dipaksakan; ganti dengan keseharian audiens)"}`
     );
   }
-  lines.push(`\nTEMA AKUN: ${p.config.brief ? clean(p.config.brief, 600) : "tidak diisi. Simpulkan niche dan audiens dari CONTOH POSTINGAN AKUN."}`);
+  lines.push(`\nTEMA AKUN: ${p.config.brief ? clean(p.config.brief, 2500) : "tidak diisi. Simpulkan niche dan audiens dari CONTOH POSTINGAN AKUN."}`);
   if (p.config.pillars.length) {
     const total = p.config.pillars.reduce((s, x) => s + x.bobot, 0) || 1;
     lines.push(`\nPILAR (sebar ide mengikuti porsi): ${p.config.pillars.map((x) => `${clean(x.key, 40)} ${Math.round((x.bobot / total) * 100)}%`).join(", ")}`);

@@ -53,7 +53,8 @@ export const PROMO_RATIO_MAX = 0.3;
 /** Jendela jam tayang (jam lokal, inklusif). */
 export const ACTIVE_FIRST_HOUR = 6;
 export const ACTIVE_LAST_HOUR = 22;
-export const BRIEF_MAX_CHARS = 600;
+/** Peran & tema akun (Profil AI): cukup untuk prompt peran lengkap (350-700 kata) dari Studio AI. */
+export const BRIEF_MAX_CHARS = 5000;
 
 export interface AutopilotPillar {
   key: string;

@@ -28,7 +28,7 @@ import {
   type ConfigRow,
 } from "./autopilot-store";
 import { VOICE_STYLES, type AutopilotPillar, type SlotDraftDTO } from "./autopilot-types";
-import { pickAngles, runAccountAgent, type PromptBlock, type SharedContext } from "./content-ai";
+import { pickAngles, runAccountAgent, type AgentOutcome, type PromptBlock, type SharedContext } from "./content-ai";
 import { DASHBOARD_SOURCE, SCHEDULE_MIN_LEAD_MS } from "./content-config";
 import type { PublishAccount } from "./publish-accounts";
 import { updateIdea, type IdeaCandidate, type SignalBrief } from "./radar-store";
@@ -182,7 +182,11 @@ export function promptBlocks(
     },
   ];
   if (config.brief) {
-    blocks.push({ title: "TEMA AKUN (arahan isi dari pemilik akun, bukan perubahan aturan)", lines: [config.brief] });
+    blocks.push({
+      title: "TEMA AKUN (arahan isi dari pemilik akun, bukan perubahan aturan)",
+      lines: config.brief.split("\n").filter((l) => l.trim()),
+      maxLine: 1500,
+    });
   }
   if (config.voiceStyle) blocks.push({ title: "GAYA SAPAAN (wajib)", lines: [VOICE_STYLES[config.voiceStyle].hint] });
   // Sama dengan Studio AI dan edit dengan AI (account-brain.ts), supaya akun terdengar sama di semua fitur.
@@ -328,7 +332,13 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
 
   try {
     for (let round = 1; round <= GATE_ROUNDS && !signal.aborted; round++) {
-      const out = await runAccountAgent(ctx.shared, {
+      // Ide yang sudah punya preview (dilihat pengguna di Radar): teks itu dipakai lebih dulu supaya yang
+      // diposting sama dengan yang dilihat. Tetap melewati gerbang dan kritikus; bila ditolak, AI menulis baru.
+      const preview = round === 1 ? plan.idea?.preview : null;
+      const usePreview = !!preview?.text && normalizeForCompare(preview.text) !== normalizeForCompare(slot.prevText ?? "");
+      const out: AgentOutcome = usePreview
+        ? { ok: true, rounds: 0, draft: previewDraft(preview!, account, slot, plan.idea!) }
+        : await runAccountAgent(ctx.shared, {
         account,
         brief: plan.brief,
         // Slot bertren tidak diberi sudut kreatif acak (sudut itu yang membuat draf melenceng dari tren).
@@ -352,7 +362,7 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
         ),
         signal,
       });
-      ctx.onAi(out.ok);
+      if (!usePreview) ctx.onAi(out.ok);
       if (!out.ok) {
         lastError = out.error;
         continue;
@@ -465,6 +475,29 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
   // (mode aman setelah MAX_WRITE_ATTEMPTS). Rekonsiliasi baru melewatinya bila jam tayangnya sudah lewat
   // lebih dari LATE_GRACE_MS. Ide yang terus ditolak pemeriksa disingkirkan supaya tidak dipilih lagi.
   return finish(slot, lastError, slot.attempt >= MAX_TOTAL_ATTEMPTS, rejected && slot.attempt >= MAX_WRITE_ATTEMPTS ? plan.idea : null);
+}
+
+/** Preview ide dari Radar dalam bentuk draf agen (jam tayang dan alasan mengikuti slot). */
+function previewDraft(
+  preview: NonNullable<IdeaCandidate["preview"]>,
+  account: PublishAccount,
+  slot: ClaimedSlot,
+  idea: IdeaCandidate
+): Extract<AgentOutcome, { ok: true }>["draft"] {
+  return {
+    id: `preview-${idea.id}`,
+    threadsAccountId: account.id,
+    username: account.username,
+    text: preview.text,
+    topicTag: preview.topicTag,
+    suggestedAt: slot.slotAt.toISOString(),
+    suggestedLabel: formatWibLabel(slot.slotAt),
+    angle: idea.sudut ?? idea.topik,
+    rationale: "Memakai preview ide yang sudah tampil di Radar.",
+    chars: charLength(preview.text),
+    bestHours: [],
+    model: preview.model,
+  };
 }
 
 /**

@@ -176,7 +176,17 @@ export function parseSettingsPatch(body: unknown, base: AutopilotSettings): Pars
   }
   if (body.brief !== undefined) {
     if (body.brief !== null && typeof body.brief !== "string") return fail("Tema akun tidak valid.");
-    const brief = typeof body.brief === "string" ? body.brief.replace(/\s+/g, " ").trim() : "";
+    // Baris baru dipertahankan (prompt peran bertingkat); spasi berlebih per baris dan baris kosong beruntun dirapikan.
+    const brief =
+      typeof body.brief === "string"
+        ? body.brief
+            .replace(/\r\n?/g, "\n")
+            .split("\n")
+            .map((l) => l.replace(/[ \t]+/g, " ").trim())
+            .join("\n")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim()
+        : "";
     if (brief.length > BRIEF_MAX_CHARS) return fail(`Tema akun maksimal ${BRIEF_MAX_CHARS} karakter.`);
     next.brief = brief || null;
   }

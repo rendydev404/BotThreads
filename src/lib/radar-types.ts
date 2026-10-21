@@ -101,6 +101,11 @@ export interface IdeaDTO {
   expiresAt: string;
   createdAt: string;
   signals: { id: string; source: SignalSource; title: string }[];
+  /** Teks posting sebenarnya (POSTING, ide terpakai) atau preview AI (PREVIEW); null bila belum ditulis. */
+  previewText?: string | null;
+  previewKind?: "POSTING" | "PREVIEW" | null;
+  /** ISO UTC jam tayang posting (ide terpakai). */
+  postAt?: string | null;
 }
 
 export interface IdeaListResponse {

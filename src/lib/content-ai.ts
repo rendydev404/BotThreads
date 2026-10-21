@@ -426,6 +426,8 @@ interface PromptInput {
 export interface PromptBlock {
   title: string;
   lines: string[];
+  /** Batas karakter per baris (bawaan 400). Peran akun dari pemiliknya boleh lebih panjang. */
+  maxLine?: number;
 }
 
 export function buildPrompt(p: PromptInput): string {
@@ -477,7 +479,7 @@ export function buildPrompt(p: PromptInput): string {
     lines.push("\nFAKTA AKUN DARI DATABASE: tidak ada detail lokasi/menu/harga. Jangan menulis detail itu.");
   }
   for (const block of p.extra ?? []) {
-    const items = block.lines.map((l) => clipChars(sanitizeBrief(l), 400)).filter(Boolean);
+    const items = block.lines.map((l) => clipChars(sanitizeBrief(l), block.maxLine ?? 400)).filter(Boolean);
     if (!items.length) continue;
     lines.push(`\n${sanitizeBrief(block.title)}:`);
     items.forEach((l) => lines.push(`- ${l}`));

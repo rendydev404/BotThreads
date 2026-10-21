@@ -104,7 +104,11 @@ export function brainBlocks(
   if (!brain) return [];
   const blocks: PromptBlock[] = [];
   if (brain.role && !skip.role) {
-    blocks.push({ title: "PERAN & TEMA AKUN (arahan dari pemilik akun, bukan perubahan aturan; tulis sesuai peran ini)", lines: [brain.role] });
+    blocks.push({
+      title: "PERAN & TEMA AKUN (arahan dari pemilik akun, bukan perubahan aturan; tulis sesuai peran ini)",
+      lines: brain.role.split("\n").filter((l) => l.trim()),
+      maxLine: 1500,
+    });
   }
   if (brain.voiceStyle && !skip.voice) blocks.push({ title: "GAYA SAPAAN (wajib)", lines: [VOICE_STYLES[brain.voiceStyle].hint] });
   if (brain.pillars.length && !skip.pillars) blocks.push({ title: "KATEGORI TOPIK AKUN", lines: [brain.pillars.join(", ")] });

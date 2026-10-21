@@ -66,3 +66,10 @@ export const saveKnowledge = (k: {
 
 export const deleteKnowledge = (id: string) =>
   call<{ success: true }>(`/api/knowledge/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+/** Preview postingan dari ide: tersimpan dikembalikan langsung, `regenerate` meminta AI menulis ulang. */
+export const fetchIdeaPreview = (id: string, regenerate = false, signal?: AbortSignal) =>
+  call<{ success: true; preview: { text: string; topicTag: string | null; model: string; at: string } }>(
+    `/api/ideas/${encodeURIComponent(id)}/preview`,
+    { method: "POST", body: JSON.stringify({ regenerate }), signal }
+  );

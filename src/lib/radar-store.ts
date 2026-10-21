@@ -229,6 +229,16 @@ export interface IdeaCandidate {
   signalIds: string[];
   score: number;
   pinned: boolean;
+  /** Preview yang pernah ditulis AI dari ide ini (sql/033); dipakai lebih dulu oleh autopilot. */
+  preview?: IdeaPreview | null;
+}
+
+export interface IdeaPreview {
+  text: string;
+  topicTag: string | null;
+  model: string;
+  /** ISO UTC */
+  at: string;
 }
 
 /** Ide BARU terbaik untuk banyak akun sekaligus (disematkan dulu, lalu skor). */
@@ -254,6 +264,10 @@ export interface IdeaRow {
   expiresAt: string;
   createdAt: string;
   signals: { id: string; source: SignalSource; title: string }[];
+  /** Teks posting (ide terpakai) atau preview AI; null bila belum ada (sql/033). */
+  previewText?: string | null;
+  previewKind?: "POSTING" | "PREVIEW" | null;
+  postAt?: string | null;
 }
 
 export async function listIdeas(q: {
@@ -271,8 +285,36 @@ export async function listIdeas(q: {
     p_cursor_id: q.cursor?.id ?? null,
     p_limit: q.limit,
   });
-  return rows.map((r) => ({ ...r, expiresAt: iso(r.expiresAt), createdAt: iso(r.createdAt) }));
+  return rows.map((r) => ({
+    ...r,
+    expiresAt: iso(r.expiresAt),
+    createdAt: iso(r.createdAt),
+    previewText: r.previewText ?? null,
+    previewKind: r.previewKind ?? null,
+    postAt: r.postAt ? iso(r.postAt) : null,
+  }));
 }
+
+/** Ide BARU tak disematkan yang dibuat sebelum `before` dipindah ke KEDALUWARSA (sql/034). */
+export const retireIdeasBefore = (accountId: string, before: Date, now: Date) =>
+  call<number>("dash_idea_retire_before", { p_account_id: accountId, p_before: before, p_now: now });
+
+export interface IdeaPreviewSource {
+  id: string;
+  accountId: string;
+  topik: string;
+  sudut: string | null;
+  status: IdeaStatus;
+  preview: IdeaPreview | null;
+}
+
+/** Bahan preview satu ide dalam lingkup pengguna; null bila tidak ada. */
+export const ideaPreviewSource = (id: string, workspaceId: string | null, accountIds: string[] | null) =>
+  call<IdeaPreviewSource | null>("dash_idea_preview_source", { p_id: id, p_workspace: workspaceId, p_account_ids: accountIds });
+
+/** Simpan preview ide yang masih siap dipakai. */
+export const saveIdeaPreview = (id: string, preview: IdeaPreview, now: Date) =>
+  call<boolean>("dash_idea_preview_set", { p_id: id, p_preview: preview, p_now: now });
 
 /** Ubah ide secara bersyarat (status asal harus ada di `from`, dan ide berada dalam lingkup pengguna). */
 export const updateIdea = (

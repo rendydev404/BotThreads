@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Markdown, type CodeRenderer } from "./markdown";
 import { IdeaCard } from "./idea-card";
+import { PromptBlock, RolePromptCard } from "./role-prompt-card";
 import { ScopeDialog } from "./scope-dialog";
 import { IDEA_LANG, ideaPlainText, parseIdea } from "@/lib/idea-block";
 import { richBlocksPlainText } from "@/lib/rich-blocks";
@@ -30,6 +31,7 @@ import { ActionPlanCard } from "./action-plan-card";
 /** Blok ```ide pada jawaban asisten dirender sebagai kartu ide bernomor urut. */
 function ideaRenderer(): CodeRenderer {
   return function renderIdea(lang, code, _key, ordinal) {
+    if (lang === "prompt") return <PromptBlock text={code} />;
     if (lang !== IDEA_LANG) return null;
     const idea = parseIdea(code);
     return idea ? <IdeaCard idea={idea} index={ordinal} /> : null;
@@ -316,6 +318,7 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                           publish={m.scopeAsk.publish ?? null}
                         />
                       )}
+                      {m.rolePrompt && <RolePromptCard profile={m.rolePrompt} />}
                       {m.plan && <ActionPlanCard sessionId={m.id} plan={m.plan} onFinished={summarize} />}
                       {m.drafts && m.drafts.length > 0 && (
                         <div className="mt-3 space-y-3">

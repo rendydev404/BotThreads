@@ -48,7 +48,13 @@ describe("pengaturan autopilot", () => {
   it("tema dirapikan, pilar divalidasi, nilai asing ditolak", () => {
     expect(parse({ brief: "  akun   santai soal makan  " })).toMatchObject({ ok: true, value: { brief: "akun santai soal makan" } });
     expect(parse({ brief: "" })).toMatchObject({ ok: true, value: { brief: null } });
-    expect(parse({ brief: "x".repeat(601) })).toMatchObject({ ok: false });
+    expect(parse({ brief: "x".repeat(5000) })).toMatchObject({ ok: true });
+    expect(parse({ brief: "x".repeat(5001) })).toMatchObject({ ok: false });
+    // Prompt peran bertingkat: baris baru dipertahankan, baris kosong beruntun dirapikan.
+    expect(parse({ brief: "IDENTITAS\r\n  Kamu   penulis  \n\n\n\nGAYA\ngue/lo" })).toMatchObject({
+      ok: true,
+      value: { brief: "IDENTITAS\nKamu penulis\n\nGAYA\ngue/lo" },
+    });
     expect(parse({ pillars: [{ key: "Edukasi", bobot: 60 }, { key: "Cerita", bobot: 40 }] })).toMatchObject({ ok: true });
     expect(parse({ pillars: [{ key: "Edukasi", bobot: 60 }, { key: "edukasi", bobot: 40 }] })).toMatchObject({ ok: false });
     expect(parse({ pillars: [{ key: "E", bobot: 60 }] })).toMatchObject({ ok: false });
