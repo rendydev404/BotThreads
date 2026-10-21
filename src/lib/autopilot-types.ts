@@ -154,6 +154,24 @@ export interface SlotDraftDTO {
   affiliate?: { productId: string; nama: string; link: string; replyText: string };
 }
 
+/** Ringkasan hasil kerja AI untuk satu slot (GET /api/autopilot/slots/[id]). */
+export interface SlotWorkDTO {
+  id: string;
+  status: SlotStatus;
+  criticScore: number | null;
+  lastError: string | null;
+  draft: {
+    text: string;
+    angle: string;
+    rationale: string;
+    checks: GateCheckDTO[];
+    topik: string | null;
+    pillar: string | null;
+    promo: boolean;
+    affiliate: string | null;
+  } | null;
+}
+
 export interface AutopilotSlotDetailDTO extends AutopilotSlotDTO {
   draft: SlotDraftDTO | null;
 }

@@ -9,6 +9,7 @@ import type {
   PlanViewResponse,
   SlotAction,
   SlotListResponse,
+  SlotWorkDTO,
 } from "./autopilot-types";
 import { call } from "./content-client";
 
@@ -70,3 +71,7 @@ export function fetchAutopilotPlan(p: { day: "today" | "tomorrow"; accountId?: s
   if (p.accountId) q.set("accountId", p.accountId);
   return call<PlanViewResponse>(`/api/autopilot/plan?${q}`, { signal });
 }
+
+/** Hasil kerja AI untuk satu slot: ide, draf, dan pemeriksaan. */
+export const fetchSlotWork = (slotId: string, signal?: AbortSignal) =>
+  call<{ success: true; item: SlotWorkDTO }>(`/api/autopilot/slots/${encodeURIComponent(slotId)}`, { signal, cache: "no-store" });

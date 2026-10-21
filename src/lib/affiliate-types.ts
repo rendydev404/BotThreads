@@ -55,6 +55,32 @@ export function effectivePerDay(s: Pick<AffiliateSettings, "aktif" | "perHari" |
   return Math.max(0, Math.min(s.perHari, postsPerDay, Math.round(postsPerDay * s.porsi + 1e-9)));
 }
 
+/** Batas porsi efektif sebelum akun dianggap berisiko terlihat seperti akun jualan (1 dari 3 masih wajar). */
+const SPAM_RATIO = 0.34;
+
+/** Jatah efektif terlalu besar dibanding total postingan harian akun. */
+export const looksSpammy = (perDay: number, postsPerDay: number): boolean => postsPerDay > 0 && perDay / postsPerDay > SPAM_RATIO;
+
+/* ------------------------------------------------------------------ preset frekuensi */
+
+export type FrequencyKey = "JARANG" | "SEDANG" | "SERING";
+type FrequencyValues = Pick<AffiliateSettings, "perHari" | "porsi" | "jarakJam" | "jedaHari">;
+
+/** Pilihan frekuensi siap pakai; "Atur sendiri" membuka empat angka di baliknya. */
+export const FREQUENCY_PRESETS: { key: FrequencyKey; label: string; hint: string; values: FrequencyValues }[] = [
+  { key: "JARANG", label: "Jarang", hint: "Maks 1 per hari. Paling aman untuk mulai.", values: { perHari: 1, porsi: 1, jarakJam: 4, jedaHari: 14 } },
+  { key: "SEDANG", label: "Sedang", hint: "Sekitar 1 dari 3 postingan.", values: { perHari: 6, porsi: 0.3, jarakJam: 3, jedaHari: 10 } },
+  { key: "SERING", label: "Sering", hint: "Sekitar separuh postingan. Berisiko terlihat jualan.", values: { perHari: 6, porsi: 0.5, jarakJam: 2, jedaHari: 7 } },
+];
+
+/** Preset yang sama persis dengan pengaturan, atau null bila diatur sendiri. */
+export function presetOf(s: FrequencyValues): FrequencyKey | null {
+  const hit = FREQUENCY_PRESETS.find(
+    ({ values: v }) => v.perHari === s.perHari && Math.abs(v.porsi - s.porsi) < 0.005 && v.jarakJam === s.jarakJam && v.jedaHari === s.jedaHari
+  );
+  return hit?.key ?? null;
+}
+
 const SHOPEE_HOSTS = /^(?:[a-z0-9-]+\.)*shopee\.co\.id$|^(?:www\.)?shope\.ee$/i;
 
 /** Link https ke Shopee Indonesia (termasuk short link s.shopee.co.id dan shope.ee). */
@@ -105,6 +131,21 @@ export interface AffiliateAccountDTO {
   mode: AutopilotMode;
   postsPerDay: number;
   config: AffiliateSettings & { updatedAt: string | null };
+  /** Kenapa affiliate akun ini jalan atau tidak, dalam satu kalimat beserta aksi perbaikannya. */
+  status: AffiliateReadiness;
+}
+
+/**
+ * Status kesiapan affiliate per akun. `ok` = slot affiliate berikutnya bisa terisi produk.
+ * `aksi` menunjuk langkah perbaikan yang ditawarkan UI.
+ */
+export interface AffiliateReadiness {
+  ok: boolean;
+  /** Kalimat pendek untuk pengguna. */
+  teks: string;
+  aksi: "NYALAKAN" | "ATUR_AKUN" | "TAMBAH_PRODUK" | "AUTOPILOT" | "LANJUTKAN" | null;
+  /** Postingan affiliate per hari yang berlaku. */
+  perHari: number;
 }
 
 export type AffiliateReplyStatus = "MENUNGGU" | "TERKIRIM" | "GAGAL" | "BATAL";

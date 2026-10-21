@@ -131,3 +131,7 @@ export const upsertAffiliateConfigs = (items: AffConfigRow[], userId: string, no
 
 export const setAffiliateWorkspace = (workspaceId: string, aktif: boolean, userId: string, now: Date) =>
   call<boolean>("dash_aff_workspace_set", { p_workspace: workspaceId, p_aktif: aktif, p_user: userId, p_now: now });
+
+/** Balasan link GAGAL -> MENUNGGU lagi (percobaan diulang dari nol). false bila tidak memenuhi syarat. */
+export const retryAffiliateReply = (id: string, workspaceId: string, accountIds: string[] | null, now: Date) =>
+  call<boolean>("dash_aff_reply_retry", { p_id: id, p_workspace: workspaceId, p_account_ids: accountIds, p_now: now });

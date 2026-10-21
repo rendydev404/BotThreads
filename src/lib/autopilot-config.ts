@@ -46,8 +46,20 @@ export const TICK_LEASE_MS = 4.5 * MINUTE_MS;
 export const TICK_BUDGET_MS = 200_000;
 /** Batas waktu menulis satu slot (tulis + periksa + tulis ulang). */
 export const SLOT_WRITE_TIMEOUT_MS = 110_000;
-/** Percobaan tulis per slot (lintas tick) sebelum slot dilewati. */
+/**
+ * Percobaan tulis dengan ide/tren biasa. Mulai percobaan berikutnya slot ditulis dalam "mode aman" (tanpa
+ * klaim fakta). Slot TIDAK dilewati karena drafnya ditolak: AI terus menulis versi baru selama masih ada waktu.
+ */
 export const MAX_WRITE_ATTEMPTS = 3;
+/**
+ * Slot yang jam tayangnya baru lewat (tick telat, draf baru lolos di detik terakhir) masih ditulis dan
+ * diterbitkan secepatnya selama belum lewat selama ini. Lebih dari itu slotnya dilewati.
+ */
+/** Batas keras percobaan per slot (biaya AI): lewat dari ini slot baru dilewati. */
+export const MAX_TOTAL_ATTEMPTS = 10;
+export const LATE_GRACE_MS = 45 * MINUTE_MS;
+/** Batas "slot sudah terlambat untuk ditulis": dipakai klaim tick dan rekonsiliasi supaya keduanya sejalan. */
+export const lateBefore = (now: Date): Date => new Date(now.getTime() - LATE_GRACE_MS);
 /** Tick terakhir lebih lama dari ini: penjadwal dianggap mati. */
 export const TICK_STALE_MS = 15 * MINUTE_MS;
 

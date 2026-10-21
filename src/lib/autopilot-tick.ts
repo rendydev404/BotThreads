@@ -14,7 +14,6 @@
 import { randomUUID } from "node:crypto";
 import { topLessons } from "./account-memory";
 import {
-  QUEUE_MIN_LEAD_MS,
   REVIEW_CUTOFF_MS,
   SLOT_LEASE_MS,
   TICK_BUDGET_MS,
@@ -23,6 +22,7 @@ import {
   WRITE_LEAD_REVIEW_MS,
   extraBannedTerms,
   maxSlotsPerTick,
+  lateBefore,
   writeConcurrency,
 } from "./autopilot-config";
 import { emptyAffiliateState, loadAffiliateState, type AffiliateState } from "./affiliate-store";
@@ -269,7 +269,8 @@ export async function writeDueSlots(
     preclaimed ??
     (await claimSlots({
       now,
-      minAt: new Date(now.getTime() + QUEUE_MIN_LEAD_MS),
+      // Slot yang baru lewat jam tayangnya ikut diklaim: lebih baik terbit sedikit telat daripada kosong.
+      minAt: lateBefore(now),
       untilAuto: new Date(now.getTime() + WRITE_LEAD_AUTO_MS),
       untilReview: new Date(now.getTime() + WRITE_LEAD_REVIEW_MS),
       leaseUntil: new Date(now.getTime() + SLOT_LEASE_MS),
@@ -405,7 +406,7 @@ export async function runTick(opts: { now?: Date; budgetMs?: number } = {}): Pro
     const rec = await reconcile(
       now,
       new Date(now.getTime() + REVIEW_CUTOFF_MS),
-      new Date(now.getTime() + QUEUE_MIN_LEAD_MS),
+      lateBefore(now),
       new Date(now.getTime() - WORKER_LATE_MS)
     );
     bump(counts, "terbit", rec.terbit);

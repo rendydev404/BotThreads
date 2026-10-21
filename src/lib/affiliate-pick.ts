@@ -10,7 +10,8 @@
  * 4. produk: aktif, se-workspace, niche cocok, tidak dipakai akun lain di hari yang sama, tidak dipakai
  *    akun ini dalam `jedaHari` terakhir. Yang paling lama tidak dipakai didahulukan.
  */
-import { effectivePerDay, replyFromTemplate } from "./affiliate-types";
+import { effectivePerDay, replyFromTemplate, type AffiliateReadiness, type AffiliateSettings } from "./affiliate-types";
+import type { AutopilotMode } from "./autopilot-types";
 import type { AffProduct, AffiliateState } from "./affiliate-store";
 import { hash32 } from "./autopilot-plan";
 
@@ -92,4 +93,59 @@ export function rememberAffiliate(st: AffiliateState, slot: AffSlot, workspaceId
   const key = `${slot.accountId}|${productId}`;
   const prev = st.lastUse.get(key);
   if (!prev || prev < slot.slotAt) st.lastUse.set(key, slot.slotAt);
+}
+
+/* ------------------------------------------------------------------ status kesiapan (untuk UI) */
+
+export interface ReadinessInput {
+  settings: AffiliateSettings;
+  /** Mode autopilot akun. */
+  mode: AutopilotMode;
+  postsPerDay: number;
+  /** Affiliate dijeda untuk seluruh workspace. */
+  paused: boolean;
+  /** Produk aktif di workspace akun. */
+  products: Pick<AffProduct, "id" | "niche">[];
+  /** productId -> slot terakhir akun ini memakai produk itu. */
+  lastUse: Map<string, Date>;
+  now: Date;
+}
+
+const dateText = (d: Date): string => d.toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
+
+/**
+ * Satu kalimat kenapa affiliate akun ini jalan atau tidak, memakai aturan yang sama dengan `pickAffiliate`.
+ * Urutan pemeriksaan = urutan yang harus diperbaiki pengguna.
+ */
+export function affiliateReadiness(r: ReadinessInput): AffiliateReadiness {
+  const s = r.settings;
+  const perHari = effectivePerDay(s, r.postsPerDay);
+  if (!s.aktif) return { ok: false, teks: "Affiliate mati di akun ini.", aksi: "NYALAKAN", perHari: 0 };
+  if (r.paused) return { ok: false, teks: "Semua affiliate sedang dijeda.", aksi: "LANJUTKAN", perHari };
+  if (r.mode === "MATI") return { ok: false, teks: "Autopilot akun ini mati, jadi tidak ada postingan yang ditulis.", aksi: "AUTOPILOT", perHari };
+  if (s.niche.length === 0) return { ok: false, teks: "Niche akun belum dipilih.", aksi: "ATUR_AKUN", perHari };
+  if (perHari === 0) {
+    return { ok: false, teks: `Jatah 0 per hari dari ${r.postsPerDay} postingan. Pilih frekuensi yang lebih tinggi.`, aksi: "ATUR_AKUN", perHari };
+  }
+  const niche = new Set(s.niche);
+  const matching = r.products.filter((p) => p.niche.some((n) => niche.has(n)));
+  if (matching.length === 0) {
+    return { ok: false, teks: `Belum ada produk aktif untuk niche ${s.niche.join(", ")}.`, aksi: "TAMBAH_PRODUK", perHari };
+  }
+  const repeatMs = s.jedaHari * DAY_MS;
+  const readyAt = matching.map((p) => {
+    const at = r.lastUse.get(p.id);
+    return at ? at.getTime() + repeatMs : 0;
+  });
+  const soonest = Math.min(...readyAt);
+  if (soonest > r.now.getTime()) {
+    return {
+      ok: false,
+      teks: `Semua ${matching.length} produk baru saja dipakai. Tersedia lagi ${dateText(new Date(soonest))}, atau tambah produk.`,
+      aksi: "TAMBAH_PRODUK",
+      perHari,
+    };
+  }
+  const siap = readyAt.filter((t) => t <= r.now.getTime()).length;
+  return { ok: true, teks: `Jalan: ${perHari} postingan affiliate per hari, ${siap} produk siap dipakai.`, aksi: null, perHari };
 }

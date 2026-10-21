@@ -5,6 +5,8 @@ import { fetchAutopilotOverview } from "@/lib/autopilot-client";
 import type { AutopilotOverviewResponse } from "@/lib/autopilot-types";
 
 const POLL_MS = 30_000;
+/** Selama AI sedang menulis slot (MENULIS), data diperbarui lebih rapat supaya hasilnya cepat terlihat. */
+const LIVE_POLL_MS = 5_000;
 /** Kembali ke tab dalam selang ini tidak memicu fetch baru (data masih segar). */
 const FRESH_MS = 5_000;
 
@@ -88,6 +90,16 @@ export function useAutopilotOverview() {
       ctrlRef.current = null;
     };
   }, [refetch]);
+
+  // Hanya selama ada slot yang sedang ditulis dan tab terlihat; berhenti sendiri begitu penulisan selesai.
+  const writing = state.data?.slots.some((s) => s.status === "MENULIS") ?? false;
+  useEffect(() => {
+    if (!writing) return;
+    const t = setTimeout(() => {
+      if (!ctrlRef.current && document.visibilityState === "visible") void refetch();
+    }, LIVE_POLL_MS);
+    return () => clearTimeout(t);
+  }, [writing, state.loadedAt, refetch]);
 
   return { ...state, refetch, patch };
 }

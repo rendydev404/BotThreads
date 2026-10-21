@@ -32,3 +32,7 @@ export const deleteAffiliateProduct = (id: string) =>
 /** Saklar "jeda semua affiliate" (false = jeda, true = lanjutkan). */
 export const setAffiliatePaused = (active: boolean) =>
   call<{ success: true; active: boolean }>("/api/affiliate/pause", { method: "POST", body: JSON.stringify({ active }) });
+
+/** Kirim ulang balasan link yang gagal. */
+export const retryAffiliateReply = (id: string) =>
+  call<{ success: true }>(`/api/affiliate/replies/${encodeURIComponent(id)}/retry`, { method: "POST" });

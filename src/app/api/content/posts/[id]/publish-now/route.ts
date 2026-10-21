@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { internalError, jsonError, PUBLISH_DISABLED } from "@/lib/api-auth";
-import { QUEUE_MIN_LEAD_MS, REVIEW_CUTOFF_MS } from "@/lib/autopilot-config";
+import { REVIEW_CUTOFF_MS, lateBefore } from "@/lib/autopilot-config";
 import { reconcile } from "@/lib/autopilot-store";
 import { isPublishEnabled, WORKER_LATE_MS } from "@/lib/content-config";
 import { withCtx } from "@/lib/request-ctx";
@@ -31,7 +31,7 @@ export const POST = withCtx<{ id: string }>("EDITOR", async (_request, ctx, rout
     await reconcile(
       after,
       new Date(after.getTime() + REVIEW_CUTOFF_MS),
-      new Date(after.getTime() + QUEUE_MIN_LEAD_MS),
+      lateBefore(after),
       new Date(after.getTime() - WORKER_LATE_MS)
     ).catch(() => undefined);
 

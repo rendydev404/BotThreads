@@ -281,7 +281,8 @@ describe("isolasi lewat route", () => {
 
     // Dalam lingkupnya sendiri tindakan berjalan.
     expect((await act("u-editor", "slot-a2", "reject")).status).toBe(200);
-    expect(await updateSlot("slot-a2", { from: ["DILEWATI"], to: "MENUNGGU_TINJAU" }, new Date())).toBe(true);
+    // Tolak = AI menulis draf baru untuk jam yang sama (slot kembali ke rencana, tidak dikosongkan).
+    expect(await updateSlot("slot-a2", { from: ["DIRENCANAKAN"], to: "MENUNGGU_TINJAU" }, new Date())).toBe(true);
   });
 
   it("pindah workspace hanya ke workspace tempat pengguna menjadi anggota", async () => {

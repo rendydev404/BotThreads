@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  Check,
+  CheckCircle2,
   Database,
   ExternalLink,
   Loader2,
@@ -11,6 +14,7 @@ import {
   Pencil,
   Play,
   Plus,
+  RotateCw,
   Save,
   ShoppingBag,
   Trash2,
@@ -20,6 +24,7 @@ import { cn } from "@/lib/utils";
 import {
   deleteAffiliateProduct,
   fetchAffiliate,
+  retryAffiliateReply,
   saveAffiliateAccounts,
   saveAffiliateProduct,
   setAffiliatePaused,
@@ -32,13 +37,15 @@ import {
   AFF_NICHE_MAX,
   AFF_NOTE_MAX,
   AFF_PER_DAY_MAX,
-  AFF_RATIO_WARN,
   AFF_REPEAT_DAYS_MAX,
   AFF_TEMPLATE_MAX,
   DEFAULT_AFFILIATE,
+  FREQUENCY_PRESETS,
   LINK_TOKEN,
   effectivePerDay,
   isShopeeLink,
+  looksSpammy,
+  presetOf,
   normalizeNiche,
   replyFromTemplate,
   type AffiliateAccountDTO,
@@ -93,21 +100,53 @@ function Stepper({ value, min, max, onChange, label, unit }: { value: number; mi
   );
 }
 
-/** Tag niche: chip terpilih + usulan + isian bebas (Enter atau koma menambah). */
-function NicheInput({ value, onChange, suggestions, id }: { value: string[]; onChange: (next: string[]) => void; suggestions: string[]; id: string }) {
+/**
+ * Tag niche: chip terpilih + usulan + isian bebas (Enter atau koma menambah). Niche produk dan akun harus sama
+ * persis supaya cocok, jadi tiap niche menampilkan berapa pasangannya (`counts`) dan niche tanpa pasangan diberi
+ * peringatan: salah ketik langsung terlihat, bukan diam-diam membuat affiliate tidak jalan.
+ */
+function NicheInput({
+  value,
+  onChange,
+  suggestions,
+  id,
+  counts,
+  unit,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+  suggestions: string[];
+  id: string;
+  /** niche -> jumlah pasangan (produk aktif untuk akun, akun untuk produk). */
+  counts: Map<string, number>;
+  /** "produk" atau "akun". */
+  unit: string;
+}) {
   const [draft, setDraft] = useState("");
   const add = (raw: string) => {
     const tags = raw.split(",").map(normalizeNiche).filter((t) => t.length >= 2);
     if (tags.length) onChange([...new Set([...value, ...tags])].slice(0, AFF_NICHE_MAX));
     setDraft("");
   };
-  const rest = suggestions.filter((s) => !value.includes(s)).slice(0, 12);
+  // Usulan yang sudah punya pasangan didahulukan: memilihnya pasti membuat affiliate cocok.
+  const rest = suggestions
+    .filter((s) => !value.includes(s))
+    .sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0))
+    .slice(0, 12);
+  const orphan = value.filter((n) => !counts.get(n));
   return (
     <div>
       <div className="flex flex-wrap gap-1.5">
         {value.map((n) => (
-          <span key={n} className="h-8 pl-3 pr-1 rounded-full bg-accent-soft text-accent text-[13px] font-semibold inline-flex items-center gap-1">
+          <span
+            key={n}
+            className={cn(
+              "h-8 pl-3 pr-1 rounded-full text-[13px] font-semibold inline-flex items-center gap-1",
+              counts.get(n) ? "bg-accent-soft text-accent" : "bg-warning-soft text-warning"
+            )}
+          >
             {n}
+            <span className="text-[11px] font-medium opacity-80 tabular-nums">{counts.get(n) ?? 0}</span>
             <button
               type="button"
               aria-label={`Hapus niche ${n}`}
@@ -146,12 +185,26 @@ function NicheInput({ value, onChange, suggestions, id }: { value: string[]; onC
               className="h-7 px-2.5 rounded-full border border-line-strong text-xs font-semibold text-muted hover:border-accent hover:text-accent cursor-pointer"
             >
               + {s}
+              <span className="ml-1 font-medium opacity-70 tabular-nums">{counts.get(s) ?? 0}</span>
             </button>
           ))}
         </div>
       )}
+      {orphan.length > 0 && (
+        <p className="mt-2 text-xs font-medium text-warning flex items-start gap-1">
+          <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
+          Belum ada {unit} dengan niche {orphan.join(", ")}. Pastikan ejaannya sama persis, atau pilih dari usulan.
+        </p>
+      )}
     </div>
   );
+}
+
+/** Jumlah pasangan per niche. */
+function nicheCounts(items: { niche: string[] }[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const it of items) for (const n of it.niche) out.set(n, (out.get(n) ?? 0) + 1);
+  return out;
 }
 
 /* ------------------------------------------------------------------ modal pengaturan akun */
@@ -181,8 +234,12 @@ function AccountModal({
 
   const posts = first?.postsPerDay ?? 3;
   const eff = effectivePerDay({ ...form, aktif: true }, posts);
+  const productCounts = useMemo(() => nicheCounts(products.filter((p) => p.aktif)), [products]);
   const matching = products.filter((p) => p.aktif && p.niche.some((n) => form.niche.includes(n))).length;
   const templateOk = form.templateBalasan.includes(LINK_TOKEN);
+  const preset = presetOf(form);
+  const [custom, setCustom] = useState(preset === null);
+  const spammy = looksSpammy(eff, posts);
 
   const save = async () => {
     setBusy(true);
@@ -209,7 +266,7 @@ function AccountModal({
       title={accounts.length === 1 ? `Affiliate ${accountHandle(first)}` : `Affiliate untuk ${accounts.length} akun`}
       description={
         accounts.length === 1
-          ? "Semua angka bebas Anda atur. Yang paling ketat antara maks per hari dan porsi yang berlaku."
+          ? "Pilih niche dan seberapa sering. Sisanya otomatis."
           : "Pengaturan ini diterapkan sama ke semua akun terpilih."
       }
       footer={
@@ -239,14 +296,65 @@ function AccountModal({
           <label className={LABEL} htmlFor="aff-niche">
             Niche akun
           </label>
-          <NicheInput id="aff-niche" value={form.niche} onChange={(niche) => update({ niche })} suggestions={suggestions} />
+          <NicheInput
+            id="aff-niche"
+            value={form.niche}
+            onChange={(niche) => update({ niche })}
+            suggestions={suggestions}
+            counts={productCounts}
+            unit="produk"
+          />
           <p className="mt-1.5 text-xs text-muted">
-            Produk katalog dengan niche yang sama yang akan dipakai.{" "}
-            <span className={cn("font-semibold", matching ? "text-fg" : "text-warning")}>{matching} produk aktif cocok.</span>
+            Angka di tiap niche = jumlah produk aktif di katalog.{" "}
+            <span className={cn("font-semibold", matching ? "text-fg" : "text-warning")}>{matching} produk cocok untuk akun ini.</span>
           </p>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <p className={LABEL}>Seberapa sering</p>
+          <div role="radiogroup" aria-label="Frekuensi affiliate" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {FREQUENCY_PRESETS.map((p) => {
+              const on = !custom && preset === p.key;
+              const n = effectivePerDay({ ...p.values, aktif: true }, posts);
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => {
+                    setCustom(false);
+                    update(p.values);
+                  }}
+                  className={cn(
+                    "rounded-xl border p-3 text-left cursor-pointer transition-colors",
+                    on ? "border-accent bg-accent-soft" : "border-line-strong hover:border-accent"
+                  )}
+                >
+                  <span className={cn("block text-sm font-bold", on ? "text-accent" : "text-fg")}>{p.label}</span>
+                  {accounts.length === 1 && <span className="block text-xs font-semibold text-fg tabular-nums">{n}/hari</span>}
+                  <span className="mt-0.5 block text-[11px] leading-snug text-muted">{p.hint}</span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={custom}
+              onClick={() => setCustom(true)}
+              className={cn(
+                "rounded-xl border p-3 text-left cursor-pointer transition-colors",
+                custom ? "border-accent bg-accent-soft" : "border-line-strong hover:border-accent"
+              )}
+            >
+              <span className={cn("block text-sm font-bold", custom ? "text-accent" : "text-fg")}>Atur sendiri</span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-muted">Batas harian, porsi, jarak, dan jeda produk.</span>
+            </button>
+          </div>
+        </div>
+
+        {custom && (
+        <div className="grid gap-5 sm:grid-cols-2 rounded-xl border border-line p-4">
           <div>
             <p className={LABEL}>Maks per hari</p>
             <Stepper value={form.perHari} min={0} max={AFF_PER_DAY_MAX} onChange={(perHari) => update({ perHari })} label="maks per hari" unit="postingan" />
@@ -290,9 +398,11 @@ function AccountModal({
               <span className="text-sm text-muted">hari</span>
             </div>
           </div>
+          <p className="sm:col-span-2 text-xs text-muted">Yang berlaku adalah yang paling ketat antara maks per hari dan porsi.</p>
         </div>
+        )}
 
-        <Banner tone={form.porsi > AFF_RATIO_WARN || eff === 0 ? "warning" : "info"}>
+        <Banner tone={(accounts.length === 1 && spammy) || eff === 0 ? "warning" : "info"}>
           {accounts.length === 1 ? (
             <>
               Akun ini terbit {posts} postingan per hari, jadi yang berlaku <b>{eff} postingan affiliate per hari</b>.
@@ -301,8 +411,10 @@ function AccountModal({
             <>Jatah efektif dihitung per akun dari jumlah postingan hariannya.</>
           )}
           {eff === 0 && " Naikkan maks per hari atau porsi supaya affiliate bisa jalan."}
-          {form.porsi > AFF_RATIO_WARN &&
-            ` Porsi di atas ${pct(AFF_RATIO_WARN)}% berisiko membuat akun terlihat seperti akun jualan dan menurunkan jangkauan.`}
+          {accounts.length === 1 &&
+            spammy &&
+            eff > 0 &&
+            " Lebih dari sepertiga postingan berisi produk berisiko membuat akun terlihat seperti akun jualan dan menurunkan jangkauan."}
         </Banner>
 
         <div>
@@ -336,11 +448,14 @@ function AccountModal({
 function ProductModal({
   product,
   suggestions,
+  accountCounts,
   onClose,
   onSaved,
 }: {
   product: AffiliateProductDTO | null;
   suggestions: string[];
+  /** niche -> jumlah akun yang memakainya. */
+  accountCounts: Map<string, number>;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -422,7 +537,15 @@ function ProductModal({
           <label className={LABEL} htmlFor="aff-pniche">
             Niche
           </label>
-          <NicheInput id="aff-pniche" value={form.niche} onChange={(niche) => update({ niche })} suggestions={suggestions} />
+          <NicheInput
+            id="aff-pniche"
+            value={form.niche}
+            onChange={(niche) => update({ niche })}
+            suggestions={suggestions}
+            counts={accountCounts}
+            unit="akun"
+          />
+          <p className="mt-1.5 text-xs text-muted">Angka di tiap niche = jumlah akun yang memakainya. Produk hanya dipakai akun dengan niche yang sama.</p>
         </div>
         <div>
           <label className={LABEL} htmlFor="aff-catatan">
@@ -452,6 +575,34 @@ function ProductModal({
 
 /* ------------------------------------------------------------------ tab */
 
+/** Judul langkah bernomor; centang hijau bila langkah itu sudah beres. */
+function StepHead({ n, title, hint, done, children }: { n: number; title: string; hint: string; done: boolean; children?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 border-b border-line bg-subtle rounded-t-2xl">
+      <span
+        aria-hidden
+        className={cn(
+          "w-7 h-7 rounded-full shrink-0 inline-flex items-center justify-center text-xs font-bold",
+          done ? "bg-success text-on-accent" : "bg-accent text-on-accent"
+        )}
+      >
+        {done ? <Check className="w-4 h-4" /> : n}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-fg">
+          <span className="sr-only">Langkah {n}{done ? " (selesai)" : ""}: </span>
+          {title}
+        </p>
+        <p className="text-xs text-muted">{hint}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Balasan gagal masih bisa dikirim ulang selama antrean publisher belum membatalkannya (2 hari). */
+const RETRY_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "success" | "danger" }) {
   return (
     <div className="card p-2.5 sm:p-4 min-w-0 flex flex-col">
@@ -470,6 +621,8 @@ const dateTimeOf = (iso: string): string =>
 
 export function AffiliateTab({ active }: { active: boolean }) {
   const [data, setData] = useState<AffiliateOverviewResponse | null>(null);
+  /** Waktu data dimuat: acuan batas kirim ulang (render tetap murni). */
+  const [loadedAt, setLoadedAt] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -478,11 +631,13 @@ export function AffiliateTab({ active }: { active: boolean }) {
   const [deleting, setDeleting] = useState<AffiliateProductDTO | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const loaded = useRef(false);
+  const router = useRouter();
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
       const res = await fetchAffiliate(signal);
       setData(res);
+      setLoadedAt(Date.now());
       setLoadError(null);
       setSelected((s) => new Set([...s].filter((id) => res.accounts.some((a) => a.id === id))));
     } catch (err) {
@@ -538,9 +693,12 @@ export function AffiliateTab({ active }: { active: boolean }) {
         <div className="mx-auto w-12 h-12 rounded-xl bg-accent-soft text-accent flex items-center justify-center">
           <Database className="w-6 h-6" />
         </div>
-        <h3 className="mt-4 text-base font-bold text-fg">Fitur affiliate belum dipasang</h3>
+        <h3 className="mt-4 text-base font-bold text-fg">Fitur affiliate belum aktif</h3>
         <p className="mt-1 text-sm text-muted max-w-md mx-auto">
-          Jalankan <code className="font-mono">sql/019_affiliate.sql</code> di SQL Editor Supabase, lalu muat ulang halaman ini.
+          Minta admin mengaktifkan fitur Shopee Affiliate untuk workspace ini, lalu muat ulang halaman.
+        </p>
+        <p className="mt-2 text-xs text-faint">
+          Untuk admin: jalankan <code className="font-mono">sql/019_affiliate.sql</code> dan <code className="font-mono">sql/032_affiliate_retry.sql</code>.
         </p>
       </div>
     );
@@ -556,6 +714,39 @@ export function AffiliateTab({ active }: { active: boolean }) {
       else next.add(id);
       return next;
     });
+
+  const productStepDone = activeProducts.length > 0;
+  const accountStepDone = data.accounts.some((a) => a.status.ok);
+  const accountCounts = nicheCounts(data.accounts.filter((a) => a.config.niche.length > 0).map((a) => a.config));
+
+  const fixAccount = (a: AffiliateAccountDTO) => {
+    switch (a.status.aksi) {
+      case "NYALAKAN":
+        quickToggle(a, true);
+        break;
+      case "TAMBAH_PRODUK":
+        setEditProduct("new");
+        break;
+      case "LANJUTKAN":
+        void run("jeda", () => setAffiliatePaused(true), "Affiliate berjalan lagi.");
+        break;
+      case "AUTOPILOT":
+        router.push("/autopilot?tab=akun");
+        break;
+      default:
+        setEditAccounts([a]);
+    }
+  };
+  const FIX_LABEL: Record<NonNullable<AffiliateAccountDTO["status"]["aksi"]>, string> = {
+    NYALAKAN: "Nyalakan",
+    ATUR_AKUN: "Atur",
+    TAMBAH_PRODUK: "Tambah produk",
+    AUTOPILOT: "Buka autopilot",
+    LANJUTKAN: "Lanjutkan",
+  };
+
+  const retry = (r: AffiliateRecentDTO) =>
+    void run(`ulang:${r.id}`, () => retryAffiliateReply(r.id), "Link dijadwalkan kirim ulang dalam beberapa menit.");
 
   const quickToggle = (a: AffiliateAccountDTO, on: boolean) => {
     if (on && a.config.niche.length === 0) {
@@ -578,7 +769,8 @@ export function AffiliateTab({ active }: { active: boolean }) {
         <div>
           <h3 className="text-base font-bold text-fg">Shopee Affiliate</h3>
           <p className="text-sm text-muted">
-            AI menyelipkan produk secara natural sesuai niche akun. Link dikirim di balasan pertama setelah postingan terbit.
+            Tiga langkah: isi produk, pilih akun, lalu pantau. AI menyelipkan produk secara natural, dan link dikirim otomatis di
+            balasan pertama 1-3 menit setelah postingan terbit.
           </p>
         </div>
         <button
@@ -599,111 +791,18 @@ export function AffiliateTab({ active }: { active: boolean }) {
 
       {!data.aktif && <Banner tone="warning">Affiliate sedang dijeda untuk seluruh workspace. Slot baru ditulis sebagai postingan biasa.</Banner>}
 
-      <div className="grid grid-cols-4 gap-2 sm:gap-3">
-        <Stat label="Terbit 30 hari" value={data.summary.terbit} />
-        <Stat label="Terjadwal" value={data.summary.terjadwal} />
-        <Stat label="Link terkirim" value={data.summary.balasanTerkirim} tone="success" />
-        <Stat label="Link gagal" value={data.summary.balasanGagal} tone={data.summary.balasanGagal ? "danger" : undefined} />
-      </div>
-
-      {/* Akun */}
-      <section aria-label="Pengaturan affiliate per akun" className="card">
-        <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-line bg-subtle rounded-t-2xl">
-          <div className="flex">
-            <Checkbox
-              checked={allSelected}
-              indeterminate={selected.size > 0 && !allSelected}
-              onChange={() => setSelected(allSelected ? new Set() : new Set(data.accounts.map((a) => a.id)))}
-              disabled={data.accounts.length === 0}
-              label={allSelected ? "Batalkan pilihan semua akun" : "Pilih semua akun"}
-            />
-          </div>
-          <p className="flex-1 text-xs font-semibold text-muted uppercase tracking-wide">
-            Akun ({data.accounts.length}){selected.size > 0 && ` · ${selected.size} dipilih`}
-          </p>
-          {selected.size > 0 && (
-            <button
-              type="button"
-              onClick={() => setEditAccounts(data.accounts.filter((a) => selected.has(a.id)))}
-              className="h-9 px-4 rounded-full bg-accent text-on-accent text-sm font-semibold inline-flex items-center gap-1.5 hover:bg-accent-hover cursor-pointer"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-              Atur {selected.size} akun
-            </button>
-          )}
-        </div>
-        {data.accounts.length === 0 ? (
-          <p className="p-8 text-center text-sm text-muted">Belum ada akun yang dipetakan ke cabang.</p>
-        ) : (
-          <ul className="divide-y divide-line">
-            {data.accounts.map((a) => {
-              const c = a.config;
-              const eff = effectivePerDay(c, a.postsPerDay);
-              const matching = activeProducts.filter((p) => p.niche.some((n) => c.niche.includes(n))).length;
-              const warnings = c.aktif
-                ? [
-                    a.mode === "MATI" && "Autopilot akun ini mati, jadi affiliate belum berjalan.",
-                    eff === 0 && "Jatah efektif 0 per hari: naikkan maks per hari atau porsi.",
-                    matching === 0 && "Belum ada produk aktif untuk niche akun ini.",
-                    c.porsi > AFF_RATIO_WARN && `Porsi ${pct(c.porsi)}% berisiko terlihat seperti akun jualan.`,
-                  ].filter((w): w is string => !!w)
-                : [];
-              return (
-                // Layar kecil: rincian memakai lebar penuh di bawah nama, tidak terjepit sakelar dan tombol edit.
-                <li key={a.id} className="px-4 py-3.5 grid grid-cols-[auto_auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 items-start">
-                  <div className="flex pt-1.5">
-                    <Checkbox checked={selected.has(a.id)} onChange={() => toggle(a.id)} label={`Pilih ${accountHandle(a)}`} />
-                  </div>
-                  <Avatar a={a} />
-                  <p className="self-center text-sm font-semibold text-fg truncate">
-                    <HandleText account={a} />
-                  </p>
-                  <div className="col-start-4 row-start-1 flex items-center gap-1 shrink-0">
-                    <Switch on={c.aktif} busy={busyKey === `akun:${a.id}`} onChange={(on) => quickToggle(a, on)} label={`Affiliate ${accountHandle(a)}`} />
-                    <button
-                      type="button"
-                      aria-label={`Atur affiliate ${accountHandle(a)}`}
-                      onClick={() => setEditAccounts([a])}
-                      className="w-10 h-10 rounded-full inline-flex items-center justify-center text-muted hover:text-accent hover:bg-subtle cursor-pointer"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="col-start-2 col-span-3 sm:col-start-3 sm:col-span-2 min-w-0 sm:-mt-3">
-                    <p className="text-xs text-muted">
-                      {c.aktif
-                        ? `${eff} affiliate/hari dari ${a.postsPerDay} postingan · maks ${c.perHari} · porsi ${pct(c.porsi)}% · jarak ${c.jarakJam} jam · ulang produk ${c.jedaHari} hari`
-                        : "Affiliate mati"}
-                    </p>
-                    {c.niche.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {c.niche.map((n) => (
-                          <span key={n} className="h-6 px-2 rounded-full bg-subtle text-xs font-semibold text-muted inline-flex items-center">
-                            {n}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {warnings.map((w) => (
-                      <p key={w} className="mt-1 text-xs font-medium text-warning flex items-start gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
-                        {w}
-                      </p>
-                    ))}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
       {/* Katalog */}
       <section aria-label="Katalog produk affiliate" className="card">
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-line bg-subtle rounded-t-2xl">
-          <p className="flex-1 text-xs font-semibold text-muted uppercase tracking-wide">
-            Katalog produk ({activeProducts.length} aktif dari {data.products.length})
-          </p>
+        <StepHead
+          n={1}
+          done={productStepDone}
+          title="Isi katalog produk"
+          hint={
+            productStepDone
+              ? `${activeProducts.length} produk aktif dari ${data.products.length}. Tiap produk dipakai akun dengan niche yang sama.`
+              : "Tempel link dari Shopee Affiliate dan beri niche. Mulai dari sini."
+          }
+        >
           <button
             type="button"
             onClick={() => setEditProduct("new")}
@@ -712,7 +811,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
             <Plus className="w-4 h-4" />
             Tambah<span className="max-sm:sr-only"> produk</span>
           </button>
-        </div>
+        </StepHead>
         {data.products.length === 0 ? (
           <div className="p-8 text-center">
             <div className="mx-auto w-12 h-12 rounded-xl bg-accent-soft text-accent flex items-center justify-center">
@@ -744,8 +843,15 @@ export function AffiliateTab({ active }: { active: boolean }) {
                   {p.catatan && <p className="mt-1 text-xs text-muted line-clamp-2">{p.catatan}</p>}
                   <div className="mt-1.5 flex flex-wrap items-center gap-1">
                     {p.niche.map((n) => (
-                      <span key={n} className="h-6 px-2 rounded-full bg-subtle text-xs font-semibold text-muted inline-flex items-center">
-                        {n}
+                      <span
+                        key={n}
+                        title={accountCounts.get(n) ? undefined : "Belum ada akun dengan niche ini"}
+                        className={cn(
+                          "h-6 px-2 rounded-full text-xs font-semibold inline-flex items-center",
+                          accountCounts.get(n) ? "bg-subtle text-muted" : "bg-warning-soft text-warning"
+                        )}
+                      >
+                        {n} · {accountCounts.get(n) ?? 0} akun
                       </span>
                     ))}
                     <span className="text-xs text-muted ml-1">
@@ -777,10 +883,142 @@ export function AffiliateTab({ active }: { active: boolean }) {
         )}
       </section>
 
+      {/* Akun */}
+      <section aria-label="Pengaturan affiliate per akun" className="card">
+        <StepHead
+          n={2}
+          done={accountStepDone}
+          title="Nyalakan di akun"
+          hint={
+            accountStepDone
+              ? `${data.accounts.filter((a) => a.status.ok).length} akun berjalan. Status tiap akun ada di bawah namanya.`
+              : productStepDone
+                ? "Pilih niche dan seberapa sering. Ikuti tombol di tiap akun bila ada yang perlu dibereskan."
+                : "Isi katalog dulu (langkah 1), lalu nyalakan di akun yang niche-nya cocok."
+          }
+        />
+        <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 border-b border-line">
+          <div className="flex">
+            <Checkbox
+              checked={allSelected}
+              indeterminate={selected.size > 0 && !allSelected}
+              onChange={() => setSelected(allSelected ? new Set() : new Set(data.accounts.map((a) => a.id)))}
+              disabled={data.accounts.length === 0}
+              label={allSelected ? "Batalkan pilihan semua akun" : "Pilih semua akun"}
+            />
+          </div>
+          <p className="flex-1 text-xs font-semibold text-muted uppercase tracking-wide">
+            Akun ({data.accounts.length}){selected.size > 0 && ` · ${selected.size} dipilih`}
+          </p>
+          {selected.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setEditAccounts(data.accounts.filter((a) => selected.has(a.id)))}
+              className="h-9 px-4 rounded-full bg-accent text-on-accent text-sm font-semibold inline-flex items-center gap-1.5 hover:bg-accent-hover cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Atur {selected.size} akun
+            </button>
+          )}
+        </div>
+        {data.accounts.length === 0 ? (
+          <p className="p-8 text-center text-sm text-muted">Belum ada akun yang dipetakan ke cabang.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {data.accounts.map((a) => {
+              const c = a.config;
+              const st = a.status;
+              const preset = FREQUENCY_PRESETS.find((p) => p.key === presetOf(c));
+              const spammy = c.aktif && looksSpammy(st.perHari, a.postsPerDay);
+              return (
+                // Layar kecil: rincian memakai lebar penuh di bawah nama, tidak terjepit sakelar dan tombol edit.
+                <li key={a.id} className="px-4 py-3.5 grid grid-cols-[auto_auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 items-start">
+                  <div className="flex pt-1.5">
+                    <Checkbox checked={selected.has(a.id)} onChange={() => toggle(a.id)} label={`Pilih ${accountHandle(a)}`} />
+                  </div>
+                  <Avatar a={a} />
+                  <p className="self-center text-sm font-semibold text-fg truncate">
+                    <HandleText account={a} />
+                  </p>
+                  <div className="col-start-4 row-start-1 flex items-center gap-1 shrink-0">
+                    <Switch on={c.aktif} busy={busyKey === `akun:${a.id}`} onChange={(on) => quickToggle(a, on)} label={`Affiliate ${accountHandle(a)}`} />
+                    <button
+                      type="button"
+                      aria-label={`Atur affiliate ${accountHandle(a)}`}
+                      onClick={() => setEditAccounts([a])}
+                      className="w-10 h-10 rounded-full inline-flex items-center justify-center text-muted hover:text-accent hover:bg-subtle cursor-pointer"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="col-start-2 col-span-3 sm:col-start-3 sm:col-span-2 min-w-0 sm:-mt-3">
+                    <div
+                      className={cn(
+                        "flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium",
+                        st.ok ? "text-success" : c.aktif ? "text-warning" : "text-muted"
+                      )}
+                    >
+                      <span className="inline-flex items-start gap-1 min-w-0">
+                        {st.ok ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 mt-px shrink-0" />
+                        ) : c.aktif ? (
+                          <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
+                        ) : null}
+                        {st.teks}
+                      </span>
+                      {st.aksi && (c.aktif || st.aksi === "NYALAKAN") && (
+                        <button
+                          type="button"
+                          disabled={busyKey !== null}
+                          onClick={() => fixAccount(a)}
+                          className="h-7 px-3 rounded-full border border-current text-xs font-semibold hover:bg-subtle cursor-pointer disabled:opacity-50"
+                        >
+                          {FIX_LABEL[st.aksi]}
+                        </button>
+                      )}
+                    </div>
+                    {c.aktif && (
+                      <p className="mt-1 text-xs text-muted">
+                        {preset ? `Frekuensi ${preset.label.toLowerCase()}` : "Frekuensi diatur sendiri"} · {st.perHari} dari {a.postsPerDay}{" "}
+                        postingan per hari
+                      </p>
+                    )}
+                    {c.niche.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {c.niche.map((n) => (
+                          <span key={n} className="h-6 px-2 rounded-full bg-subtle text-xs font-semibold text-muted inline-flex items-center">
+                            {n}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {spammy && (
+                      <p className="mt-1 text-xs font-medium text-warning flex items-start gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
+                        Lebih dari sepertiga postingan berisi produk: berisiko terlihat seperti akun jualan.
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
       {/* Aktivitas */}
       <section aria-label="Aktivitas affiliate 30 hari" className="card">
-        <div className="px-4 py-3 border-b border-line bg-subtle rounded-t-2xl">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wide">Aktivitas 30 hari terakhir</p>
+        <StepHead
+          n={3}
+          done={false}
+          title="Pantau hasilnya"
+          hint="30 hari terakhir. Link yang gagal bisa dikirim ulang sampai 2 hari setelah terbit."
+        />
+        <div className="grid grid-cols-4 gap-2 sm:gap-3 p-3 sm:p-4 border-b border-line">
+          <Stat label="Terbit" value={data.summary.terbit} />
+          <Stat label="Terjadwal" value={data.summary.terjadwal} />
+          <Stat label="Link terkirim" value={data.summary.balasanTerkirim} tone="success" />
+          <Stat label="Link gagal" value={data.summary.balasanGagal} tone={data.summary.balasanGagal ? "danger" : undefined} />
         </div>
         {data.recent.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted">Belum ada postingan affiliate.</p>
@@ -789,6 +1027,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
             {data.recent.map((r: AffiliateRecentDTO) => {
               const acc = accountById.get(r.accountId);
               const reply = REPLY_LABEL[r.balasan];
+              const canRetry = r.balasan === "GAGAL" && loadedAt - new Date(r.slotAt).getTime() < RETRY_WINDOW_MS;
               return (
                 <li key={r.id} className="px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="text-xs text-muted tabular-nums w-24 shrink-0">{dateTimeOf(r.slotAt)}</span>
@@ -797,9 +1036,18 @@ export function AffiliateTab({ active }: { active: boolean }) {
                   <span className="h-6 px-2 rounded-full bg-subtle text-xs font-semibold text-muted inline-flex items-center">
                     {SLOT_STATUS_LABEL[r.slotStatus as SlotStatus] ?? r.slotStatus}
                   </span>
-                  <span title={r.error ?? undefined} className={cn("h-6 px-2 rounded-full text-xs font-semibold inline-flex items-center", reply.cls)}>
-                    {reply.label}
-                  </span>
+                  <span className={cn("h-6 px-2 rounded-full text-xs font-semibold inline-flex items-center", reply.cls)}>{reply.label}</span>
+                  {canRetry && (
+                    <button
+                      type="button"
+                      disabled={busyKey !== null}
+                      onClick={() => retry(r)}
+                      className="h-7 px-3 rounded-full border border-line-strong text-xs font-semibold text-fg inline-flex items-center gap-1.5 hover:border-accent hover:text-accent cursor-pointer disabled:opacity-50"
+                    >
+                      {busyKey === `ulang:${r.id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
+                      Kirim ulang
+                    </button>
+                  )}
                   {r.releaseUrl && (
                     <a
                       href={r.releaseUrl}
@@ -811,6 +1059,8 @@ export function AffiliateTab({ active }: { active: boolean }) {
                       <ExternalLink className="w-4 h-4" />
                     </a>
                   )}
+                  {/* Alasan gagal tampil langsung: `title` tidak terbaca di layar sentuh. */}
+                  {r.balasan === "GAGAL" && r.error && <p className="basis-full text-xs font-medium text-danger">Alasan: {r.error}</p>}
                 </li>
               );
             })}
@@ -837,6 +1087,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
         <ProductModal
           product={editProduct === "new" ? null : editProduct}
           suggestions={suggestions}
+          accountCounts={accountCounts}
           onClose={() => setEditProduct(null)}
           onSaved={() => {
             setEditProduct(null);

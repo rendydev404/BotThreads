@@ -18,7 +18,10 @@ vi.mock("@/lib/gemini", async (original) => ({
   // LLM tiruan: 3 kandidat dengan kosakata unik per akun dan per panggilan (tidak saling mirip).
   // Akun "akun5" selalu menulis promo karangan, yang harus ditolak gerbang.
   generateWithFailover: vi.fn(async (opts: { system: string; contents: { parts: { text: string }[] }[] }) => {
-    const handle = /AKUN: @(\S+)/.exec(opts.contents[0].parts[0].text)?.[1] ?? "x";
+    const prompt = opts.contents[0].parts[0].text;
+    const handle = /AKUN: @(\S+)/.exec(prompt)?.[1] ?? "x";
+    // Mode aman (setelah percobaan biasa habis): akun5 akhirnya menulis tanpa klaim, jadi lolos gerbang.
+    const safe = prompt.includes("JANGAN menyebut angka");
     llmCalls++;
     // Kritikus: selalu memberi nilai baik tanpa risiko.
     if (opts.system.startsWith("Anda editor media sosial")) {
@@ -42,7 +45,7 @@ vi.mock("@/lib/gemini", async (original) => ({
     }
     const drafts = [1, 2, 3].map((n) => ({
       text:
-        handle === "akun5"
+        handle === "akun5" && !safe
           ? `lagi ada promo diskon 50% nih buat ${handle} panggilan ${llmCalls} kandidat ${n}, buruan mampir sebelum habis ya`
           : Array.from({ length: 10 }, (_, k) => `${handle}c${llmCalls}n${n}w${k}`).join(" ") + " gimana menurut kalian?",
       angle: `Sudut ${n}`,
@@ -300,14 +303,23 @@ describe("tick autopilot: rencana, tulis, antre", () => {
     await db.exec(`UPDATE "AutopilotConfig" SET mode = 'OTOMATIS' WHERE "accountId" = 'a5'`);
   });
 
-  it("slot yang gagal ditulis tiga kali dilewati dengan alasan yang jelas", async () => {
+  it("draf yang terus ditolak tidak membuat jam tayang kosong: AI menulis ulang dalam mode aman sampai lolos", async () => {
     const r = await tick(10);
-    expect(r.counts.dilewati).toBe(1);
-    const [slot] = await slots(`"accountId" = 'a5' AND "dayKey" = '2026-10-13' AND hour = 12`);
-    expect(slot.status).toBe("DILEWATI");
+    expect(r.counts.dilewati).toBeUndefined();
+    let [slot] = await slots(`"accountId" = 'a5' AND "dayKey" = '2026-10-13' AND hour = 12`);
+    expect(slot.status).toBe("DIRENCANAKAN");
     expect(slot.attempt).toBe(3);
-    expect(slot.skipReason).toMatch(/Tidak lolos pemeriksaan/);
-    expect(await count(`"ScheduledPost" p JOIN "PostDispatch" d ON d."postId" = p.id WHERE d."socialAccountId" = 's5'`)).toBe(0);
+    expect(slot.lastError).toMatch(/Tidak lolos pemeriksaan/);
+    const s5 = `"ScheduledPost" p JOIN "PostDispatch" d ON d."postId" = p.id WHERE d."socialAccountId" = 's5'`;
+    expect(await count(s5)).toBe(0);
+
+    // Percobaan ke-4: mode aman (tanpa ide/tren/promo), lolos gerbang, dan jam yang sama tetap terisi.
+    await tick(10.5);
+    [slot] = await slots(`"accountId" = 'a5' AND "dayKey" = '2026-10-13' AND hour = 12`);
+    expect(slot.status).toBe("TERANTRE");
+    expect(slot.attempt).toBe(4);
+    expect(slot.draft?.text).not.toMatch(/diskon/);
+    expect(await count(s5)).toBe(1);
   });
 
   it("dua tick serentak: hanya satu yang bekerja", async () => {

@@ -2,9 +2,13 @@
  * Layanan Shopee Affiliate untuk route API: tab Affiliate di halaman autopilot (pengaturan per akun,
  * katalog produk per niche, saklar jeda, laporan). Semua akses dibatasi lingkup pengguna (`RequestCtx`).
  */
+import { affiliateReadiness } from "./affiliate-pick";
 import {
   affiliateOverview,
   deleteProduct,
+  emptyAffiliateState,
+  loadAffiliateState,
+  retryAffiliateReply,
   setAffiliateWorkspace,
   upsertAffiliateConfigs,
   upsertProduct,
@@ -75,10 +79,15 @@ export async function affiliatePage(ctx: RequestCtx, now = new Date()): Promise<
       affiliateOverview(workspaceId, ctx.accountIds, now),
     ]);
     const configs = new Map(raw.configs.map((c) => [c.accountId, c]));
+    const mine = accounts.filter((a) => a.tenantId === workspaceId);
+    // Pemakaian terakhir per akun-produk (aturan jeda yang sama dengan undian slot) untuk status per akun.
+    const usage = await loadAffiliateState(
+      mine.filter((a) => configs.get(a.id)?.aktif).map((a) => a.id),
+      today
+    ).catch(() => emptyAffiliateState());
+    const activeProducts = raw.products.filter((p) => p.aktif);
     const suggestions = new Set<string>();
-    const list = accounts
-      .filter((a) => a.tenantId === workspaceId)
-      .map((a) => {
+    const list = mine.map((a) => {
         const ap = state.configs.get(a.id);
         for (const p of ap?.pillars ?? []) {
           const n = normalizeNiche(p.key);
@@ -87,14 +96,19 @@ export async function affiliatePage(ctx: RequestCtx, now = new Date()): Promise<
         const c = configs.get(a.id);
         const { accountId, ...settings } = c ?? { accountId: a.id, ...DEFAULT_AFFILIATE, updatedAt: null };
         void accountId;
+        const mode = ap?.mode ?? DEFAULT_SETTINGS.mode;
+        const postsPerDay = ap?.postsPerDay ?? DEFAULT_SETTINGS.postsPerDay;
+        const lastUse = new Map<string, Date>();
+        for (const [key, at] of usage.lastUse) if (key.startsWith(`${a.id}|`)) lastUse.set(key.slice(a.id.length + 1), at);
         return {
           id: a.id,
           username: a.username,
           displayName: a.displayName,
           avatarUrl: a.avatarUrl,
-          mode: ap?.mode ?? DEFAULT_SETTINGS.mode,
-          postsPerDay: ap?.postsPerDay ?? DEFAULT_SETTINGS.postsPerDay,
+          mode,
+          postsPerDay,
           config: settings,
+          status: affiliateReadiness({ settings, mode, postsPerDay, paused: !raw.aktif, products: activeProducts, lastUse, now }),
         };
       });
     for (const p of raw.products) for (const n of p.niche) suggestions.add(n);
@@ -238,4 +252,13 @@ export async function setAffiliateActive(ctx: RequestCtx, aktif: boolean, now = 
   if (!workspaceId) return failure(409, NO_WORKSPACE);
   await setAffiliateWorkspace(workspaceId, aktif, ctx.userId, now);
   return { ok: true };
+}
+
+/** Kirim ulang balasan link yang gagal (maks 2 hari setelah slot, batas yang sama dengan antrean publisher). */
+export async function retryReply(ctx: RequestCtx, id: string, now = new Date()): Promise<{ ok: true } | Failure> {
+  const workspaceId = await resolveWorkspace(ctx);
+  if (!workspaceId) return failure(409, NO_WORKSPACE);
+  return (await retryAffiliateReply(id, workspaceId, ctx.accountIds, now))
+    ? { ok: true }
+    : failure(409, "Link ini tidak bisa dikirim ulang: sudah lewat 2 hari atau statusnya sudah berubah. Muat ulang halaman.");
 }

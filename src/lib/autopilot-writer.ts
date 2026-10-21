@@ -14,7 +14,7 @@ import { afterResponse } from "./after-safe";
 import { anchorHint, mentionsTrend, trendAnchors } from "./trend-anchor";
 import { pickAffiliate, rememberAffiliate, type AffPick } from "./affiliate-pick";
 import { saveAffiliateUse, type AffiliateState } from "./affiliate-store";
-import { MAX_WRITE_ATTEMPTS, SLOT_LEASE_MS, SLOT_WRITE_TIMEOUT_MS } from "./autopilot-config";
+import { MAX_TOTAL_ATTEMPTS, MAX_WRITE_ATTEMPTS, REVIEW_CUTOFF_MS, SLOT_LEASE_MS, SLOT_WRITE_TIMEOUT_MS } from "./autopilot-config";
 import { CRITIC_UNAVAILABLE, criticize } from "./autopilot-critic";
 import { runGate } from "./autopilot-gate";
 import { pickIdea, type TopicUse } from "./autopilot-ideas";
@@ -119,6 +119,17 @@ interface SlotBrief {
   affiliate?: AffPick | null;
 }
 
+/**
+ * Mode aman: dipakai setelah percobaan dengan ide/tren biasa habis (paling sering ditolak karena klaim fakta
+ * yang tidak didukung sumber). Tanpa ide, tren, promo, atau produk; isinya opini/pengalaman/pertanyaan yang
+ * hampir pasti lolos pemeriksaan, supaya jam tayang tidak kosong.
+ */
+export const SAFE_BRIEF =
+  "Tulis postingan ringan sesuai niche, tema, dan gaya akun ini: opini pribadi, pengalaman sehari-hari, atau pertanyaan yang mengajak ngobrol. " +
+  "JANGAN menyebut angka, persentase, tanggal, harga, nama perusahaan, merek, produk, orang, atau klaim fakta apa pun di luar FAKTA BRAND.";
+
+export const isSafeAttempt = (attempt: number): boolean => attempt > MAX_WRITE_ATTEMPTS;
+
 /** Tentukan isi slot: promo (bila gilirannya), affiliate (bila gilirannya), ide dari bank ide, atau bebas dari gaya akun. */
 export function planSlotBrief(
   slot: ClaimedSlot,
@@ -127,6 +138,7 @@ export function planSlotBrief(
   ctx: Pick<WriteContext, "ideas" | "topicsToday" | "affiliate">
 ): SlotBrief {
   const pillar = pickPillar(config.pillars, slot.id);
+  if (isSafeAttempt(slot.attempt)) return { brief: SAFE_BRIEF, idea: null, promo: false, pillar };
   const promo = pickPromo(config.promoRatio, kb.promos, slot.id);
   if (promo) {
     return {
@@ -278,6 +290,11 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
       new Date()
     );
     return { kind: "ditunda", error };
+  }
+
+  // Mode tinjau tanpa sisa waktu untuk ditinjau: menulis sekarang hanya membuang panggilan AI.
+  if (slot.mode === "TINJAU" && slot.slotAt.getTime() - Date.now() < REVIEW_CUTOFF_MS) {
+    return finish(slot, "Tidak sempat ditinjau sebelum jam tayang.", true, null);
   }
 
   const kb = ctx.knowledge.get(account.id) ?? EMPTY_KNOWLEDGE;
@@ -444,8 +461,10 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
     console.error(`[autopilot] slot ${slot.id}:`, err instanceof Error ? err.message : err);
     lastError = "Terjadi kesalahan saat menulis draf.";
   }
-  const final = slot.attempt >= MAX_WRITE_ATTEMPTS;
-  return finish(slot, lastError, final, final && rejected ? plan.idea : null);
+  // Slot tidak dilewati karena drafnya ditolak: kembali ke rencana dan ditulis ulang di tick berikutnya
+  // (mode aman setelah MAX_WRITE_ATTEMPTS). Rekonsiliasi baru melewatinya bila jam tayangnya sudah lewat
+  // lebih dari LATE_GRACE_MS. Ide yang terus ditolak pemeriksa disingkirkan supaya tidak dipilih lagi.
+  return finish(slot, lastError, slot.attempt >= MAX_TOTAL_ATTEMPTS, rejected && slot.attempt >= MAX_WRITE_ATTEMPTS ? plan.idea : null);
 }
 
 /**
@@ -584,15 +603,18 @@ export async function approveSlot(
   return { ok: true, postId: queued.postId };
 }
 
-/** Tolak draf: slotnya dilewati (tidak ada posting pada jam itu). */
+/**
+ * Tolak draf: jam tayangnya tetap dipakai, AI menulis draf baru dengan ide lain (percobaan bertambah, jadi
+ * ide berikutnya yang dipakai; teks lama dihindari). Untuk mengosongkan jam itu, pakai "Lewati".
+ */
 export async function rejectSlot(input: SlotActionInput): Promise<ActionResult> {
   const done = await updateSlot(
     input.slotId,
     {
       workspaceId: input.workspaceId,
       from: ["MENUNGGU_TINJAU"],
-      to: "DILEWATI",
-      patch: { skipReason: "Ditolak peninjau.", actor: input.userId, auditAction: "AUTOPILOT_TOLAK" },
+      to: "DIRENCANAKAN",
+      patch: { lastError: "Ditolak peninjau. AI menulis draf baru dengan ide lain.", actor: input.userId, auditAction: "AUTOPILOT_TOLAK" },
     },
     new Date()
   );

@@ -9,12 +9,13 @@ import type { AutopilotOverviewResponse, SlotStatus } from "@/lib/autopilot-type
 import { ContentApiError } from "@/lib/content-client";
 import { AccountsTab } from "@/components/autopilot/accounts-tab";
 import { AffiliateTab } from "@/components/autopilot/affiliate-tab";
+import { AiPipeline } from "@/components/autopilot/ai-pipeline";
 import { ConfirmModal } from "@/components/autopilot/confirm-modal";
 import { HistoryTab } from "@/components/autopilot/history-tab";
 import { PlanTab } from "@/components/autopilot/plan-tab";
 import { RepliesTab } from "@/components/autopilot/replies-tab";
 import { ReviewTab } from "@/components/autopilot/review-tab";
-import { Banner, durationText, timeOf } from "@/components/autopilot/shared";
+import { Banner, accountHandle, durationText, timeOf } from "@/components/autopilot/shared";
 import { useAutopilotOverview } from "@/components/autopilot/use-autopilot-overview";
 
 type TabKey = "akun" | "rencana" | "tinjau" | "komentar" | "riwayat" | "affiliate";
@@ -123,6 +124,7 @@ function AutopilotInner() {
     document.getElementById(`autopilot-tab-${next.key}`)?.focus();
   };
 
+  const handles = useMemo(() => new Map((data?.accounts ?? []).map((a) => [a.id, accountHandle(a)])), [data?.accounts]);
   const summary = useMemo(() => {
     if (!data) return null;
     const today = data.slots.filter((s) => s.dayKey === data.today);
@@ -275,6 +277,8 @@ function AutopilotInner() {
           <SummaryTile label="Perlu perhatian" value={summary.attention} tone={summary.attention > 0 ? "danger" : undefined} />
         </div>
       )}
+
+      <AiPipeline slots={data.slots} today={data.today} paused={paused} handles={handles} />
 
       {/* Tab */}
       {/* Layar sempit: bar tab digeser di dalam barnya sendiri, halaman tidak ikut melebar. */}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, AlertTriangle, Check, ClipboardCheck, Clock, Loader2, RefreshCw, RotateCw, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Check, ClipboardCheck, Clock, Loader2, RefreshCw, RotateCw, ShoppingBag, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { actOnSlot, listAutopilotSlots } from "@/lib/autopilot-client";
 import type { AutopilotAccountDTO, SlotAction, SlotListResponse, SlotStatus } from "@/lib/autopilot-types";
@@ -23,7 +23,7 @@ const NOTICE_MS = 7000;
 /** Status slot setelah tindakan berhasil (cermin autopilot-writer), untuk memperbarui ringkasan secara lokal. */
 const NEXT_STATUS: Record<ReviewAction, SlotStatus> = {
   approve: "TERANTRE",
-  reject: "DILEWATI",
+  reject: "DIRENCANAKAN",
   rewrite: "DIRENCANAKAN",
 };
 
@@ -123,6 +123,16 @@ const ReviewCard = memo(function ReviewCard({
         <div className="space-y-2">
           {edited && <p className="text-xs font-medium text-accent">Teks sudah Anda ubah; versi ini yang akan diposting.</p>}
           {draft.rationale && <p className="text-xs text-muted leading-relaxed">Alasan AI: {draft.rationale}</p>}
+          {draft.affiliate && (
+            <div className="rounded-xl border border-warning/40 bg-warning-soft/40 p-3 space-y-1.5">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-warning">
+                <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+                Affiliate: {draft.affiliate.nama}
+              </p>
+              <p className="text-xs text-muted">Balasan pertama, dikirim otomatis 1-3 menit setelah terbit:</p>
+              <p className="rounded-lg bg-surface p-2.5 text-[13px] text-fg whitespace-pre-line break-words">{draft.affiliate.replyText}</p>
+            </div>
+          )}
           {draft.checks.length > 0 && (
             <ul className="flex flex-wrap gap-1.5" aria-label="Hasil pemeriksaan draf">
               {draft.checks.map((c) => (
@@ -310,7 +320,7 @@ export function ReviewTab({ accounts, publishEnabled, onResolved, onStale }: Rev
             ? `Draf ${handle} disetujui dan dijadwalkan untuk ${formatWibFull(new Date(item.slotAt))}.`
             : action === "rewrite"
               ? `Draf ${handle} akan ditulis ulang oleh AI.`
-              : `Draf ${handle} ditolak; slotnya dilewati.`
+              : `Draf ${handle} ditolak. AI menulis draf baru dengan ide lain untuk jam yang sama.`
         );
         return true;
       } catch (e) {
@@ -440,14 +450,14 @@ export function ReviewTab({ accounts, publishEnabled, onResolved, onStale }: Rev
         }}
         busy={rejecting}
         variant="danger"
-        title="Tolak draf ini?"
-        confirmLabel="Ya, tolak"
+        title="Tolak dan ganti ide?"
+        confirmLabel="Ya, ganti ide"
         confirmIcon={<X className="w-4 h-4" />}
       >
         {rejectTarget && (
           <p className="text-sm text-fg leading-relaxed">
-            Slot {formatWibFull(new Date(rejectTarget.slotAt))} untuk {accountHandle(rejectTarget.account)} akan dilewati. Tidak
-            ada posting pada jam itu.
+            Jam tayang {formatWibFull(new Date(rejectTarget.slotAt))} untuk {accountHandle(rejectTarget.account)} tetap dipakai. AI
+            membuang draf ini dan menulis draf baru dengan ide lain, lalu draf barunya masuk lagi ke sini untuk Anda tinjau.
           </p>
         )}
       </ConfirmModal>

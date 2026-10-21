@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { jsonError, PUBLISH_DISABLED, readJson } from "@/lib/api-auth";
 import { ID_PATTERN, TOO_MANY, autopilotError } from "@/lib/autopilot-api";
-import { QUEUE_MIN_LEAD_MS, REVIEW_CUTOFF_MS } from "@/lib/autopilot-config";
+import { REVIEW_CUTOFF_MS, lateBefore } from "@/lib/autopilot-config";
 import { getSlot, reconcile } from "@/lib/autopilot-store";
 import type { SlotAction } from "@/lib/autopilot-types";
 import { approveSlot, rejectSlot, rewriteSlot, skipSlot } from "@/lib/autopilot-writer";
 import { isPublishEnabled, WORKER_LATE_MS } from "@/lib/content-config";
-import { withCtx } from "@/lib/request-ctx";
+import { canAccessAccount, withCtx } from "@/lib/request-ctx";
 import { publishPostNow } from "@/lib/threads-publish";
 import { runPublisher } from "@/lib/threads-publisher";
 import { THREADS_MAX_TEXT, charLength, parseTopicTag } from "@/lib/threads-text";
@@ -16,6 +16,46 @@ const ACTIONS: SlotAction[] = ["approve", "reject", "rewrite", "skip", "publish_
 const MAX_RAW_TEXT = 2000;
 
 export const maxDuration = 60;
+
+/**
+ * Hasil kerja AI untuk satu slot (animasi "cara kerja AI"): ide, draf, dan hasil pemeriksaan. Hanya kolom
+ * yang ditampilkan; slot di luar lingkup akun pengguna dianggap tidak ada.
+ */
+export const GET = withCtx<{ id: string }>("VIEWER", async (_request, ctx, route) => {
+  const { id } = await route.params;
+  if (!ID_PATTERN.test(id)) return jsonError(400, "Id slot tidak valid.");
+  try {
+    const slot = await getSlot(id, ctx.workspaceId);
+    if (!slot || !canAccessAccount(ctx, slot.accountId)) return jsonError(404, "Slot tidak ditemukan.");
+    const d = slot.draft;
+    return NextResponse.json(
+      {
+        success: true,
+        item: {
+          id: slot.id,
+          status: slot.status,
+          criticScore: slot.criticScore,
+          lastError: slot.lastError,
+          draft: d
+            ? {
+                text: d.text,
+                angle: d.angle,
+                rationale: d.rationale,
+                checks: d.checks,
+                topik: d.idea?.topik ?? null,
+                pillar: d.pillar ?? null,
+                promo: d.promo === true,
+                affiliate: d.affiliate?.nama ?? null,
+              }
+            : null,
+        },
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  } catch (err) {
+    return autopilotError("autopilot/slots:GET", err);
+  }
+});
 
 /**
  * Tindakan atas satu slot. Body: `{ action, text?, topicTag? }`.
@@ -82,7 +122,7 @@ export const POST = withCtx<{ id: string }>("EDITOR", async (request, ctx, route
       await reconcile(
         after,
         new Date(after.getTime() + REVIEW_CUTOFF_MS),
-        new Date(after.getTime() + QUEUE_MIN_LEAD_MS),
+        lateBefore(after),
         new Date(after.getTime() - WORKER_LATE_MS)
       ).catch(() => undefined);
 
