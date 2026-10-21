@@ -77,6 +77,7 @@ function AccountRow({
         <button
           type="button"
           onClick={onProfile}
+          data-tour="profil-ai"
           className={cn(BTN_SM, "border-accent/40 text-accent hover:bg-accent-soft")}
           title="Peran, gaya, dan memori gaya akun untuk semua fitur AI"
         >

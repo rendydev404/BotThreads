@@ -34,6 +34,7 @@ export function BottomNav() {
             <Link
               key={item.name}
               href={item.href}
+              data-tour={`bnav:${item.href}`}
               aria-current={isActive ? "page" : undefined}
               className={cn(ITEM_CLS, isActive ? "text-accent font-semibold" : "text-muted")}
             >

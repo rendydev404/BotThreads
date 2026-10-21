@@ -63,6 +63,7 @@ export function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
+              data-tour={`nav:${item.href}`}
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "flex items-center gap-3 px-3 h-10 rounded-lg text-sm font-medium transition-colors",

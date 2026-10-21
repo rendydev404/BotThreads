@@ -4,7 +4,8 @@ import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Check, ChevronDown, KeyRound, Loader2, LogOut, Settings } from "lucide-react";
+import { Building2, Check, ChevronDown, Compass, KeyRound, Loader2, LogOut, Settings } from "lucide-react";
+import { startTour } from "@/components/tour/tour-events";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { ROLE_LABELS, switchWorkspace } from "@/lib/team-client";
 import { cn } from "@/lib/utils";
@@ -154,6 +155,18 @@ function UserMenu() {
             >
               <KeyRound className="w-[18px] h-[18px] text-muted shrink-0" />
               Ganti password
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                startTour();
+              }}
+              className={MENU_ITEM_CLS}
+            >
+              <Compass className="w-[18px] h-[18px] text-muted shrink-0" />
+              Tur pengenalan
             </button>
             <Link href="/pengaturan" role="menuitem" onClick={() => setOpen(false)} className={MENU_ITEM_CLS}>
               <Settings className="w-[18px] h-[18px] text-muted shrink-0" />

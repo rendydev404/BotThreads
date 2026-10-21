@@ -248,7 +248,7 @@ export const AiPipeline = memo(function AiPipeline({
         : "Menunggu giliran slot berikutnya.";
 
   return (
-    <section ref={rootRef} aria-label="Kerja AI autopilot" className={cn("card p-3 sm:p-4", !onScreen && "aip-off", reduced && "aip-static")}>
+    <section ref={rootRef} data-tour="ai-pipeline" aria-label="Kerja AI autopilot" className={cn("card p-3 sm:p-4", !onScreen && "aip-off", reduced && "aip-static")}>
       <style href="ai-pipeline" precedence="default">{CSS}</style>
       <div className="flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-accent shrink-0" aria-hidden />

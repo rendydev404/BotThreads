@@ -514,7 +514,7 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
           </p>
         </div>
       ) : (
-        <section aria-label="Daftar akun autopilot" className="card">
+        <section aria-label="Daftar akun autopilot" data-tour="autopilot-accounts" className="card">
           <div
             className={cn(
               "grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 items-center px-4 py-3 border-b border-line bg-subtle rounded-t-2xl",

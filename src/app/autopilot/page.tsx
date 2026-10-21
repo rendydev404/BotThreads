@@ -284,6 +284,7 @@ function AutopilotInner() {
       {/* Layar sempit: bar tab digeser di dalam barnya sendiri, halaman tidak ikut melebar. */}
       <div
         role="tablist"
+        data-tour="autopilot-tabs"
         aria-label="Bagian autopilot"
         onKeyDown={onTabKey}
         className="flex gap-5 sm:gap-6 border-b border-line overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-4 px-4 sm:mx-0 sm:px-0"

@@ -7,6 +7,7 @@ import { AlertOctagon, Ban, CreditCard, Link2, LogOut, Megaphone, ShieldAlert, S
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { BottomNav } from "./bottom-nav";
+import { TourLauncher } from "@/components/tour/tour-launcher";
 import { logout } from "./session-nav";
 import { useMe } from "./use-me";
 import { FloatingAiBubble } from "@/components/chat/floating-ai-bubble";
@@ -178,6 +179,7 @@ function Frame({ children, pathname }: { children: React.ReactNode; pathname: st
       </div>
       <BottomNav />
       {!blocked && <FloatingAiBubble />}
+      {!blocked && <TourLauncher />}
     </>
   );
 }
