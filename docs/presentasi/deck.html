@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>BotThreads Presentasi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=block" rel="stylesheet">
+<style>
+  @page { size: 1920px 1080px; margin: 0; }
+  :root {
+    --ink: #14172b; --muted: #5b6179; --faint: #8b91a7; --line: #e8eaf1; --subtle: #f5f6fa;
+    --accent: #3a4cf0; --accent-soft: #eceefe; --accent-dark: #7b8aff;
+    --dline: #2a2e48; --dmuted: #a4a9c2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #ffffff; }
+  body { font-family: "Plus Jakarta Sans", sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { width: 1920px; height: 1080px; position: relative; overflow: hidden; padding: 104px 124px 0; page-break-after: always; break-after: page; background: #fff; }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+  .dark { background: var(--ink); color: #fff; }
+  .soft { background: var(--subtle); }
+  .eyebrow { font-size: 15px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+  .eyebrow b { color: var(--accent); margin-right: 22px; }
+  .dark .eyebrow { color: var(--dmuted); }
+  .dark .eyebrow b { color: var(--accent-dark); }
+  h2 { font-size: 46px; line-height: 1.08; font-weight: 800; letter-spacing: -.02em; margin-top: 26px; max-width: 1240px; }
+  .lead { font-size: 22px; line-height: 1.6; color: var(--muted); margin-top: 18px; max-width: 1100px; }
+  .footer { position: absolute; left: 124px; right: 124px; bottom: 0; height: 90px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 700; color: var(--faint); letter-spacing: .06em; }
+  .dark .footer { border-color: var(--dline); color: var(--dmuted); }
+
+  /* cover */
+  .brand { display: flex; align-items: center; gap: 16px; font-size: 22px; font-weight: 800; }
+  .mark { width: 44px; height: 44px; border-radius: 12px; background: var(--accent); display: grid; place-items: center; font-size: 22px; font-weight: 800; color: #fff; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; }
+  .topbar .meta { font-size: 14px; font-weight: 700; letter-spacing: .2em; color: var(--dmuted); }
+  .hero { font-size: 104px; line-height: .98; font-weight: 800; letter-spacing: -.035em; margin-top: 150px; }
+  .hero span { color: var(--accent-dark); }
+  .cover-sub { font-size: 26px; line-height: 1.55; color: var(--dmuted); max-width: 980px; margin-top: 40px; }
+  .cover-foot { position: absolute; left: 124px; right: 124px; bottom: 0; height: 120px; border-top: 1px solid var(--dline); display: flex; justify-content: space-between; align-items: center; font-size: 17px; color: var(--dmuted); }
+  .cover-foot strong { color: #fff; font-weight: 700; }
+
+  /* intro */
+  .intro { display: grid; grid-template-columns: 720px 1fr; gap: 140px; }
+  .intro h2 { font-size: 52px; }
+  .modes-label { margin-top: 64px; }
+  .modes { display: flex; gap: 14px; margin-top: 18px; }
+  .mode { background: var(--subtle); border-radius: 16px; padding: 26px 30px; min-width: 210px; }
+  .mode b { display: block; font-size: 23px; font-weight: 700; }
+  .mode small { display: block; font-size: 16px; color: var(--muted); margin-top: 6px; }
+  .mode.on { background: var(--accent); color: #fff; }
+  .mode.on small { color: var(--accent-soft); }
+  .caps { list-style: none; margin-top: 4px; }
+  .caps li { display: grid; grid-template-columns: 72px 1fr; padding: 44px 0; border-top: 1px solid var(--line); }
+  .caps li:first-child { border-top: 0; padding-top: 12px; }
+  .num { font-size: 19px; font-weight: 800; color: var(--accent); padding-top: 5px; }
+  .caps h3 { font-size: 32px; font-weight: 700; letter-spacing: -.01em; }
+  .caps p { font-size: 20px; line-height: 1.55; color: var(--muted); margin-top: 8px; }
+
+  /* problems */
+  .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; margin-top: 64px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 44px 34px; height: 560px; display: flex; flex-direction: column; }
+  .card .bar { width: 44px; height: 5px; background: var(--accent); border-radius: 3px; }
+  .card .big { font-size: 52px; font-weight: 800; margin-top: 28px; letter-spacing: -.02em; }
+  .card h3 { font-size: 27px; font-weight: 700; margin-top: auto; line-height: 1.2; }
+  .card p { font-size: 19px; line-height: 1.5; color: var(--muted); margin-top: 14px; min-height: 120px; }
+
+  /* steps */
+  .steps { display: grid; grid-template-columns: repeat(6, 1fr); margin-top: 120px; position: relative; }
+  .steps::before { content: ""; position: absolute; left: 30px; right: calc(100% / 6 - 30px); top: 32px; height: 2px; background: var(--line); }
+  .step { position: relative; padding-right: 40px; }
+  .dot { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--accent); background: #fff; color: var(--accent); display: grid; place-items: center; font-size: 19px; font-weight: 800; }
+  .step.last .dot { background: var(--accent); color: #fff; }
+  .step h3 { font-size: 32px; font-weight: 700; margin-top: 34px; }
+  .step p { font-size: 19px; line-height: 1.55; color: var(--muted); margin-top: 10px; }
+  .note { position: absolute; left: 124px; right: 124px; bottom: 140px; background: var(--accent-soft); border-radius: 16px; padding: 30px 38px; font-size: 21px; }
+  .note b { color: var(--accent); margin-right: 10px; }
+
+  /* compare */
+  table { width: 100%; border-collapse: collapse; margin-top: 60px; }
+  th { text-align: left; font-size: 14px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); padding: 0 24px 20px 0; }
+  th.us { color: #fff; background: var(--accent); padding: 18px 28px; border-radius: 12px 12px 0 0; }
+  td { border-top: 1px solid var(--line); padding: 38px 24px 38px 0; font-size: 21px; line-height: 1.45; vertical-align: middle; }
+  tr:last-child td { border-bottom: 1px solid var(--line); }
+  td.k { font-weight: 700; font-size: 23px; width: 360px; }
+  td.a { color: var(--faint); width: 560px; }
+  td.b { font-weight: 700; background: #f8f9ff; padding-left: 28px; }
+
+  /* closing */
+  .next { display: grid; grid-template-columns: repeat(4, 1fr); gap: 40px; margin-top: 80px; }
+  .next div { border-top: 3px solid var(--dline); padding-top: 28px; }
+  .next div:first-child { border-color: var(--accent-dark); }
+  .next .num { color: var(--accent-dark); }
+  .next h3 { font-size: 34px; font-weight: 700; margin-top: 14px; }
+  .next p { font-size: 20px; line-height: 1.55; color: var(--dmuted); margin-top: 10px; }
+  .thanks { position: absolute; left: 124px; right: 124px; bottom: 0; height: 270px; border-top: 1px solid var(--dline); display: flex; justify-content: space-between; align-items: center; }
+  .thanks h3 { font-size: 46px; font-weight: 800; letter-spacing: -.02em; }
+  .thanks p { font-size: 19px; color: var(--dmuted); margin-top: 12px; }
+  .contact { text-align: right; }
+  .contact small { font-size: 13px; font-weight: 700; letter-spacing: .2em; color: var(--dmuted); }
+  .contact div { font-size: 19px; font-weight: 700; margin-top: 12px; line-height: 1.55; }
+</style>
+</head>
+<body>
+
+<section class="page dark" data-document-role="page" data-label="Pembukaan">
+  <div class="topbar">
+    <div class="brand"><div class="mark">B</div>BotThreads</div>
+    <div class="meta">PRESENTASI SISTEM · 2026</div>
+  </div>
+  <div class="hero">Threads Anda<br><span>posting sendiri,</span><br>setiap hari.</div>
+  <p class="cover-sub">Sistem autopilot konten AI untuk brand yang mengelola banyak akun Threads: riset, tulis, periksa, jadwalkan, terbitkan, dan belajar dari hasilnya.</p>
+  <div class="cover-foot">
+    <div>Dipresentasikan oleh&nbsp;&nbsp;<strong>[Nama Presenter]</strong></div>
+    <strong>[Tanggal]</strong>
+  </div>
+</section>
+
+<section class="page" data-document-role="page" data-label="Pengenalan Sistem">
+  <div class="eyebrow"><b>01</b>Pengenalan sistem</div>
+  <div class="intro" style="margin-top:8px">
+    <div>
+      <h2>Satu dashboard untuk seluruh akun Threads brand Anda.</h2>
+      <p class="lead">BotThreads menjalankan produksi konten harian dari hulu ke hilir. Tim cukup menentukan arah, AI mengerjakan sisanya, dan setiap langkah tetap bisa diawasi.</p>
+      <div class="eyebrow modes-label">Tiga mode per akun</div>
+      <div class="modes">
+        <div class="mode"><b>Mati</b><small>Manual penuh</small></div>
+        <div class="mode"><b>Tinjau Dulu</b><small>AI menulis, tim menyetujui</small></div>
+        <div class="mode on"><b>Otomatis</b><small>Berjalan sendiri</small></div>
+      </div>
+    </div>
+    <ul class="caps" style="margin-top:30px">
+      <li><span class="num">01</span><div><h3>Pusat kendali multi-akun</h3><p>Kelola puluhan akun cabang dalam satu brand, dari satu tempat.</p></div></li>
+      <li><span class="num">02</span><div><h3>Ide dari data, bukan tebakan</h3><p>AI membaca posting terbaik akun sendiri dan tren Indonesia hari ini.</p></div></li>
+      <li><span class="num">03</span><div><h3>Menulis dengan suara brand</h3><p>Draf diperiksa otomatis, lalu terbit di jam akun paling ramai.</p></div></li>
+      <li><span class="num">04</span><div><h3>Multi-user dan workspace</h3><p>Peran dan akses dipisah per tim, per workspace, per akun.</p></div></li>
+    </ul>
+  </div>
+  <div class="footer"><span>BotThreads</span><span>02 / 06</span></div>
+</section>
+
+<section class="page soft" data-document-role="page" data-label="Masalah">
+  <div class="eyebrow"><b>02</b>Masalah</div>
+  <h2>Mengelola banyak akun Threads secara manual tidak bisa diskalakan.</h2>
+  <div class="cards">
+    <div class="card"><div class="bar"></div><div class="big">01</div><h3>Beban kerja harian</h3><p>Posting konsisten setiap hari di puluhan akun cabang menyita waktu dan tenaga tim.</p></div>
+    <div class="card"><div class="bar"></div><div class="big">02</div><h3>Jam tayang ditebak</h3><p>Waktu posting ditentukan kebiasaan, bukan dihitung dari data views tiap akun.</p></div>
+    <div class="card"><div class="bar"></div><div class="big">03</div><h3>Konten kembar</h3><p>Akun cabang sering memposting hal serupa sehingga terlihat seperti salinan.</p></div>
+    <div class="card"><div class="bar"></div><div class="big">04</div><h3>AI mengarang fakta</h3><p>Tools AI umum menulis harga dan promo yang tidak pernah ada.</p></div>
+    <div class="card"><div class="bar"></div><div class="big">05</div><h3>Tanpa umpan balik</h3><p>Hasil posting tidak dipakai untuk memperbaiki konten berikutnya.</p></div>
+  </div>
+  <div class="footer"><span>BotThreads</span><span>03 / 06</span></div>
+</section>
+
+<section class="page" data-document-role="page" data-label="Cara Kerja">
+  <div class="eyebrow"><b>03</b>Cara kerja</div>
+  <h2>Enam langkah otomatis, setiap hari, untuk setiap akun.</h2>
+  <p class="lead">Siklus tertutup: hasil langkah terakhir menjadi masukan langkah pertama keesokan harinya.</p>
+  <div class="steps">
+    <div class="step"><div class="dot">1</div><h3>Riset</h3><p>Data performa sendiri, tren pencarian Indonesia, dan momen kalender.</p></div>
+    <div class="step"><div class="dot">2</div><h3>Ide</h3><p>Bank ide berskor yang tidak mengulang topik sebelumnya.</p></div>
+    <div class="step"><div class="dot">3</div><h3>Tulis</h3><p>Draf ditulis sesuai profil suara tiap akun.</p></div>
+    <div class="step"><div class="dot">4</div><h3>Jadwal</h3><p>Minimal 3 posting per hari di jam ramai akun.</p></div>
+    <div class="step"><div class="dot">5</div><h3>Terbit</h3><p>Masuk antrean, lalu dikirim ke Threads.</p></div>
+    <div class="step last"><div class="dot">6</div><h3>Belajar</h3><p>Hasil tiap posting memilih ide dan jam berikutnya.</p></div>
+  </div>
+  <div class="note"><b>Hasilnya</b>AI makin paham konten mana yang bekerja untuk tiap akun, tanpa perlu diatur ulang manual.</div>
+  <div class="footer"><span>BotThreads</span><span>04 / 06</span></div>
+</section>
+
+<section class="page" data-document-role="page" data-label="Kenapa BotThreads">
+  <div class="eyebrow"><b>04</b>Kenapa BotThreads</div>
+  <h2>Dari kerja manual harian menjadi pengawasan.</h2>
+  <table>
+    <tr><th></th><th>Tanpa sistem</th><th class="us">Dengan BotThreads</th></tr>
+    <tr><td class="k">Gerbang kualitas</td><td class="a">Harga dan promo bisa dikarang AI</td><td class="b">Draf yang menyebut fakta di luar data brand ditolak otomatis</td></tr>
+    <tr><td class="k">Keunikan antar akun</td><td class="a">Cabang memposting konten serupa</td><td class="b">Tidak ada dua akun memposting konten mirip di hari yang sama</td></tr>
+    <tr><td class="k">Jam tayang</td><td class="a">Ditebak dari kebiasaan</td><td class="b">Dihitung dari data views tiap akun</td></tr>
+    <tr><td class="k">Kontrol</td><td class="a">Sulit dipantau saat akun bertambah</td><td class="b">Semua jadwal bisa ditinjau, diubah, dibatalkan, dengan batas harian dan kill switch</td></tr>
+    <tr><td class="k">Peran tim</td><td class="a">Menulis dan memposting setiap hari</td><td class="b">Menentukan arah dan mengawasi hasil</td></tr>
+  </table>
+  <div class="footer"><span>BotThreads</span><span>05 / 06</span></div>
+</section>
+
+<section class="page dark" data-document-role="page" data-label="Langkah Selanjutnya">
+  <div class="eyebrow"><b>05</b>Langkah selanjutnya</div>
+  <h2 style="font-size:58px">Mulai dalam empat langkah.</h2>
+  <div class="next">
+    <div><span class="num">01</span><h3>Hubungkan</h3><p>Sambungkan akun Threads brand ke dashboard.</p></div>
+    <div><span class="num">02</span><h3>Atur niche</h3><p>Tentukan niche dan topik tiap akun.</p></div>
+    <div><span class="num">03</span><h3>Pilih mode</h3><p>Mati, Tinjau Dulu, atau Otomatis per akun.</p></div>
+    <div><span class="num">04</span><h3>Pantau</h3><p>Lihat hasil dan jadwal dari satu dashboard.</p></div>
+  </div>
+  <div class="thanks">
+    <div><h3>Terima kasih.</h3><p>Mari diskusikan kebutuhan brand Anda. Sesi tanya jawab dibuka.</p></div>
+    <div class="contact"><small>KONTAK</small><div>[email / nomor WhatsApp]<br>[alamat website]</div></div>
+  </div>
+</section>
+
+</body>
+</html>

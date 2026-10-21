@@ -648,8 +648,8 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
           </Field>
 
           <Field
-            label="Tema akun"
-            hint="AI memakai tema dan kategori topik ini untuk mencari tren yang lagi naik di niche akun, lalu menyusun ide dari tren itu. Bila kosong, niche disimpulkan dari postingan akun."
+            label="Peran & tema akun (Profil AI)"
+            hint="Berlaku untuk SEMUA fitur AI akun ini (Studio AI, edit dengan AI, Autopilot, balas komentar), sama dengan Profil AI di halaman Akun Threads. AI juga memakainya untuk mencari tren di niche akun. Bila kosong, niche disimpulkan dari postingan akun."
           >
             {(labelId) => (
               <div className="rounded-xl border border-line-strong bg-surface transition-colors focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/15">

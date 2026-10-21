@@ -13,12 +13,13 @@ import {
   Pencil,
   Plus,
   RotateCw,
+  Send,
   Sparkles,
   Trash2,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ContentApiError, cancelPost, cancelPosts, listPosts, retryPost } from "@/lib/content-client";
+import { ContentApiError, cancelPost, cancelPosts, listPosts, publishPostNow, retryPost } from "@/lib/content-client";
 import type { PostItemDTO, PostStatusKey, PostsSummaryDTO } from "@/lib/content-types";
 import { clipChars } from "@/lib/threads-text";
 import { formatWibFull, wibDayKey, wibParts } from "@/lib/scheduling";
@@ -116,6 +117,7 @@ export default function JadwalPage() {
   const [cancelTarget, setCancelTarget] = useState<PostItemDTO | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkCancelling, setBulkCancelling] = useState(false);
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
@@ -252,6 +254,26 @@ export default function JadwalPage() {
       showNotice("error", e instanceof ContentApiError ? e.message : "Gagal mengirim ulang.");
     } finally {
       setRetryingId(null);
+    }
+  };
+
+  const publishNow = async (it: PostItemDTO) => {
+    setPublishingId(it.id);
+    try {
+      const res = await publishPostNow(it.id);
+      const published = res.post?.status === "PUBLISHED";
+      showNotice(
+        "success",
+        published
+          ? "Postingan langsung diterbitkan ke Threads."
+          : "Postingan dimajukan dan sedang diterbitkan ke Threads."
+      );
+      setTick((t) => t + 1);
+    } catch (e) {
+      showNotice("error", e instanceof ContentApiError ? e.message : "Gagal menerbitkan postingan sekarang.");
+      setTick((t) => t + 1);
+    } finally {
+      setPublishingId(null);
     }
   };
 
@@ -546,6 +568,17 @@ export default function JadwalPage() {
                         </p>
                       )}
                       <div className="flex flex-wrap items-center gap-1 -ml-2.5">
+                        {it.cancellable && (it.status === "SCHEDULED" || it.status === "QUEUED") && (
+                          <button
+                            type="button"
+                            onClick={() => publishNow(it)}
+                            disabled={!publishEnabled || publishingId === it.id}
+                            className={cn(ICON_BTN, "text-accent hover:text-accent")}
+                          >
+                            {publishingId === it.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                            Posting sekarang
+                          </button>
+                        )}
                         {it.editable && (
                           <button type="button" onClick={() => setEditing(it)} disabled={!publishEnabled} className={ICON_BTN}>
                             <Pencil className="w-3.5 h-3.5" />

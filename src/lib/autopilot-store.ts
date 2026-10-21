@@ -43,6 +43,7 @@ export function missingSchemaFile(err: unknown): string {
   if (/dash_(?:learn|notif)_|ContentOutcome|DashboardNotification/.test(msg)) return "sql/007_autopilot_learning.sql";
   if (/dash_idea_retire_stale/.test(msg)) return "sql/028_idea_retire_stale.sql";
   if (/dash_radar_niche/.test(msg)) return "sql/027_radar_niche_trends.sql";
+  if (/dash_ap_claim_account|dash_style_lesson_add|AccountStyleLesson|AccountOnboarding/.test(msg)) return "sql/031_account_ai_brain.sql";
   if (/dash_ap_plan_drafts|dash_radar_signal_briefs|dash_idea_details/.test(msg)) return "sql/021_autopilot_plan_view.sql";
   if (/dash_(?:radar|idea|kb|moment)_|TrendSignal|ContentIdea|KnowledgeBase|ContentMoment/.test(msg)) return "sql/006_autopilot_radar.sql";
   return "sql/005_autopilot.sql";
@@ -435,8 +436,30 @@ export const reconcile = (now: Date, reviewCutoff: Date, staleBefore: Date, late
 export const acquireLease = (name: string, holder: string, now: Date, until: Date) =>
   call<boolean>("dash_ap_lease", { p_name: name, p_holder: holder, p_now: now, p_until: until });
 
-export const releaseLease = (name: string, holder: string) =>
-  call<boolean>("dash_ap_release", { p_name: name, p_holder: holder });
+export const releaseLease = (name: string, holder: string) => call<boolean>("dash_ap_release", { p_name: name, p_holder: holder });
+
+export interface ClaimAccountWindow {
+  accountId: string;
+  now: Date;
+  minAt: Date;
+  until: Date;
+  leaseUntil: Date;
+  limit: number;
+}
+
+/** Klaim slot jatuh tempo untuk satu akun saja (dipakai agen onboarding untuk draf pertama hari ini). */
+export async function claimAccountSlots(w: ClaimAccountWindow): Promise<ClaimedSlot[]> {
+  const rows = await call<(Omit<ClaimedSlot, "slotAt"> & { slotAt: string })[]>("dash_ap_claim_account", {
+    p_account_id: w.accountId,
+    p_now: w.now,
+    p_min_at: w.minAt,
+    p_until: w.until,
+    p_lease_until: w.leaseUntil,
+    p_limit: w.limit,
+  });
+  return rows.map((r) => ({ ...r, slotAt: utc(r.slotAt), prevText: r.prevText ?? null }));
+}
+
 
 export const logRun = (run: { startedAt: Date; finishedAt: Date; durasiMs: number; hitung: Record<string, number>; error?: string }) =>
   call<boolean>("dash_ap_run_log", { p_run: run });

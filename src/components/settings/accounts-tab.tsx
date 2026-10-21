@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, ArrowRight, Bot, CheckCircle2, Link2, Loader2, RefreshCw, Sparkles, Trash2, UserCheck } from "lucide-react";
+import { AiProfileModal } from "@/components/ai/ai-profile-modal";
+import { OnboardingPanel } from "@/components/ai/onboarding-panel";
 import {
   connectWorkspaceThreadsAccount,
   fetchConnectedThreadsAccounts,
@@ -31,6 +33,7 @@ function AccountRow({
   busy,
   onSync,
   onRemove,
+  onProfile,
 }: {
   acc: ConnectedThreadsAccountDTO;
   canManage: boolean;
@@ -38,6 +41,7 @@ function AccountRow({
   busy: boolean;
   onSync: () => void;
   onRemove: () => void;
+  onProfile: () => void;
 }) {
   return (
     <li className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -70,6 +74,15 @@ function AccountRow({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 shrink-0 lg:justify-end">
+        <button
+          type="button"
+          onClick={onProfile}
+          className={cn(BTN_SM, "border-accent/40 text-accent hover:bg-accent-soft")}
+          title="Peran, gaya, dan memori gaya akun untuk semua fitur AI"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          Profil AI
+        </button>
         <Link href="/autopilot" className={BTN_SM}>
           <Bot className="w-3.5 h-3.5" />
           Atur Autopilot
@@ -128,8 +141,11 @@ export function AccountsTab({
   const [rowError, setRowError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<ConnectedThreadsAccountDTO | null>(null);
   const [notice, setNotice] = useState<string | null>(() =>
-    oauthConnected ? `Akun Threads @${oauthConnected} berhasil dihubungkan.` : null
+    oauthConnected ? `Akun Threads @${oauthConnected} berhasil dihubungkan. Agen AI langsung mempelajarinya.` : null
   );
+  const [profileFor, setProfileFor] = useState<{ id: string; username: string } | null>(null);
+  /** Naik setiap akun baru dihubungkan, supaya panel agen mulai memantau walau agennya belum tercatat. */
+  const [expectSignal, setExpectSignal] = useState(oauthConnected ? 1 : 0);
   const formId = useId();
 
   // Login Threads di HP bisa selesai di browser/aplikasi lain: begitu pengguna kembali ke tab ini, muat ulang daftar.
@@ -189,7 +205,8 @@ export function AccountsTab({
       });
       setModalOpen(false);
       setAccessToken("");
-      setNotice(`Akun Threads @${res.account.username} berhasil dihubungkan dan siap dipakai untuk Autopilot.`);
+      setNotice(`Akun Threads @${res.account.username} berhasil dihubungkan. Agen AI langsung mempelajarinya.`);
+      setExpectSignal((n) => n + 1);
       onAccountConnected?.();
     } catch (e) {
       setFormError(errorText(e, "Gagal menghubungkan akun Threads."));
@@ -321,6 +338,16 @@ export function AccountsTab({
 
       {canManage && oneClickReady && !quotaFull && !quota.expired && <ThreadsAndroidHelp />}
 
+      <OnboardingPanel
+        accounts={accounts}
+        expectSignal={expectSignal}
+        canRun={canManage}
+        onOpenProfile={(id) => {
+          const acc = accounts.find((a) => a.id === id);
+          if (acc) setProfileFor({ id: acc.id, username: acc.username });
+        }}
+      />
+
       {/* Daftar Akun */}
       {accounts.length === 0 ? (
         <EmptyState
@@ -357,10 +384,13 @@ export function AccountsTab({
               busy={rowBusy === acc.id}
               onSync={() => void syncAccount(acc)}
               onRemove={() => setRemoving(acc)}
+              onProfile={() => setProfileFor({ id: acc.id, username: acc.username })}
             />
           ))}
         </ul>
       )}
+
+      <AiProfileModal account={profileFor} onClose={() => setProfileFor(null)} />
 
       {/* Konfirmasi hapus akun */}
       {removing && (

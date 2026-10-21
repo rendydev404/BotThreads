@@ -3,8 +3,23 @@ import Image from "next/image";
 import Link from "next/link";
 import { Fragment, Suspense } from "react";
 import { Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
-import { ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock, Eye, Flame, PlayCircle, Repeat2, ShieldAlert, ShieldCheck, Workflow, Zap } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  BadgeCheck,
+  ChevronDown,
+  Clock,
+  Eye,
+  Flame,
+  PlayCircle,
+  Repeat2,
+  ShieldAlert,
+  ShieldCheck,
+  Workflow,
+  Zap,
+} from "lucide-react";
 import { GateDemo, HoursPlanner, IdeaSources } from "@/components/landing/demos";
+import { OnboardingFlow } from "@/components/landing/onboarding-flow";
 import { FilmSection } from "@/components/landing/film/film-section";
 import { DeskSection } from "@/components/landing/hero-film/desk-section";
 import { HeroCopy } from "@/components/landing/hero-film/hero-copy";
@@ -163,6 +178,9 @@ export default function LandingPage() {
             </a>
             <a href="#cara-kerja" className="hidden lg:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
               Cara kerja
+            </a>
+            <a href="#cara-mulai" className="hidden xl:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
+              Cara mulai
             </a>
             <a href="#paket" className="hidden sm:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
               Harga & Paket
@@ -405,6 +423,28 @@ export default function LandingPage() {
               </li>
             ))}
           </ol>
+        </section>
+
+        {/* ---------- cara mulai: alur pengguna baru dalam empat langkah ---------- */}
+        <section id="cara-mulai" className="bg-surface border-y border-line scroll-mt-24">
+          <div className={`${WRAP} py-16 md:py-24`}>
+            <div className="max-w-2xl" data-reveal>
+              <p className="lp-mono text-xs font-bold tracking-widest text-accent">CARA MULAI</p>
+              <h2 className="lp-display mt-4 text-[2rem] leading-[1.05] md:text-[2.75rem] font-extrabold">Dari daftar sampai autopilot, empat langkah</h2>
+              <p className="mt-4 text-[15px] md:text-base text-muted leading-relaxed">
+                Klik tiap langkah dan coba layarnya. Tidak perlu memasang apa pun, dan Anda yang memutuskan kapan AI boleh berjalan sendiri.
+              </p>
+            </div>
+            <div className="mt-10" data-reveal style={{ "--i": 1 } as React.CSSProperties}>
+              <OnboardingFlow />
+            </div>
+            <div className="mt-8" data-reveal style={{ "--i": 5 } as React.CSSProperties}>
+              <Link href="/daftar" className={`${BTN} bg-accent hover:bg-accent-hover text-on-accent`}>
+                Mulai langkah pertama
+                <ArrowRight className="lp-arrow w-[18px] h-[18px]" />
+              </Link>
+            </div>
+          </div>
         </section>
 
         {/* ---------- paket: dari database, tampil hanya bila super admin sudah mengisinya ---------- */}

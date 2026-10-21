@@ -171,7 +171,8 @@ export function listPosts(p: ListParams, signal?: AbortSignal) {
 export const fetchPostsByIds = (ids: string[], all = false) =>
   call<PostsResponse>(`/api/content/posts?ids=${encodeURIComponent(ids.join(","))}${all ? "&all=1" : ""}`);
 
-export const patchPost = (id: string, body: { text?: string; topicTag?: string | null; publishAt?: string }) =>
+/** `aiBase`: versi AI yang dipilih sebelum diubah lagi pengguna (bahan AI belajar gaya akun). */
+export const patchPost = (id: string, body: { text?: string; topicTag?: string | null; publishAt?: string; aiBase?: string }) =>
   call<{ success: true; post: PostItemDTO | null }>(`/api/content/posts/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: JSON.stringify(body),
@@ -182,6 +183,11 @@ export const cancelPost = (id: string) =>
 
 export const cancelPosts = (ids: string[]) =>
   call<{ success: true }>(`/api/content/posts`, { method: "DELETE", body: JSON.stringify({ ids }) });
+
+export const publishPostNow = (id: string) =>
+  call<{ success: true; post: PostItemDTO | null }>(`/api/content/posts/${encodeURIComponent(id)}/publish-now`, {
+    method: "POST",
+  });
 
 export const retryPost = (id: string) =>
   call<{ success: true; post: PostItemDTO | null }>(`/api/content/posts/${encodeURIComponent(id)}/retry`, {

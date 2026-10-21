@@ -9,7 +9,7 @@ export const CRON_HEADER = "x-cron-secret";
 const MIN_SECRET_LENGTH = 32;
 
 /** Endpoint yang boleh dipanggil tanpa sesi asalkan membawa rahasia cron. */
-export const CRON_PATHS = ["/api/internal/autopilot/tick", "/api/internal/publisher/tick"];
+export const CRON_PATHS = ["/api/internal/autopilot/tick", "/api/internal/publisher/tick", "/api/internal/insights/tick"];
 
 export const cronSecretConfigured = (): boolean =>
   (process.env.AUTOPILOT_CRON_SECRET?.length ?? 0) >= MIN_SECRET_LENGTH;

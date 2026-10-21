@@ -232,6 +232,8 @@ export interface PatchBody {
   text?: string;
   topicTag?: string | null;
   publishAt?: string;
+  /** Versi AI yang dipilih di editor sebelum diubah lagi pengguna (bahan memori gaya); bukan perubahan. */
+  aiBase?: string;
 }
 
 export function parsePatchBody(body: unknown): Parsed<PatchBody> {
@@ -256,6 +258,9 @@ export function parsePatchBody(body: unknown): Parsed<PatchBody> {
   }
   if (out.text === undefined && out.topicTag === undefined && out.publishAt === undefined) {
     return fail("Tidak ada perubahan yang dikirim.");
+  }
+  if (typeof body.aiBase === "string" && body.aiBase.trim() && body.aiBase.length <= MAX_RAW_TEXT) {
+    out.aiBase = body.aiBase;
   }
   return { ok: true, value: out };
 }

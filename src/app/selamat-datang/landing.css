@@ -417,7 +417,39 @@
   pointer-events: none;
 }
 
+/* Cara mulai: bar progres langkah aktif. Saat animasinya selesai, langkah berikutnya dipilih (onAnimationEnd),
+   jadi tidak perlu timer JS. Berhenti sementara selama kursor/fokus ada di peraga. */
+@keyframes lp-step-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.lp-step-fill {
+  transform-origin: left;
+  animation: lp-step-fill 6s linear forwards;
+}
+.lp-flow:hover .lp-step-fill,
+.lp-flow:focus-within .lp-step-fill {
+  animation-play-state: paused;
+}
+@keyframes lp-panel {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.985);
+  }
+}
+.lp-panel {
+  animation: lp-panel 0.45s var(--lp-ease);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .lp-step-fill,
+  .lp-panel {
+    animation: none;
+  }
   .lp[data-anim="on"] [data-reveal] {
     opacity: 1;
     transform: none;

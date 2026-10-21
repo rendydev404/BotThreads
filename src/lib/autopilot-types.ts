@@ -262,7 +262,7 @@ export interface PlanViewResponse {
   items: PlanItemDTO[];
 }
 
-export type SlotAction = "approve" | "reject" | "rewrite" | "skip";
+export type SlotAction = "approve" | "reject" | "rewrite" | "skip" | "publish_now";
 
 /** Alasan jeda dari penjaga ➜ kalimat untuk UI. */
 export function pausedText(reason: string | null): string | null {

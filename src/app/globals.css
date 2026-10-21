@@ -180,3 +180,80 @@ body {
   60% { transform: translateX(-5px); }
   80% { transform: translateX(3px); }
 }
+
+/* ------------------------------------------------------------------ AI: aura, shimmer, ketik */
+
+/* Bingkai gradasi yang berputar pelan di sekeliling panel AI yang sedang bekerja. */
+@property --ai-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes ai-spin {
+  to { --ai-angle: 360deg; }
+}
+.ai-aura {
+  position: relative;
+  isolation: isolate;
+}
+.ai-aura::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--ai-angle), var(--c-accent), #a855f7, #22d3ee, #f472b6, var(--c-accent));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: ai-spin 3.2s linear infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+.ai-aura-idle::before {
+  animation-duration: 9s;
+  opacity: 0.55;
+}
+
+/* Kilau berjalan di atas teks/kerangka saat AI sedang menulis. */
+@keyframes ai-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.ai-shimmer {
+  background: linear-gradient(90deg, var(--c-subtle) 25%, var(--c-accent-soft) 50%, var(--c-subtle) 75%);
+  background-size: 200% 100%;
+  animation: ai-shimmer 1.6s ease-in-out infinite;
+}
+.ai-shimmer-text {
+  background: linear-gradient(90deg, var(--c-muted) 20%, var(--c-accent) 45%, #a855f7 55%, var(--c-muted) 80%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ai-shimmer 2.2s linear infinite;
+}
+
+/* Kursor ketik untuk teks yang "diketik" AI. */
+@keyframes ai-caret {
+  50% { opacity: 0; }
+}
+.ai-caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: -0.15em;
+  background: var(--c-accent);
+  animation: ai-caret 0.9s steps(1) infinite;
+}
+
+/* Langkah agen muncul berurutan. */
+@keyframes ai-step-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+}
+.ai-step-in {
+  animation: ai-step-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}

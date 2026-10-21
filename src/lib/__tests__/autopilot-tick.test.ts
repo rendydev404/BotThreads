@@ -446,4 +446,36 @@ describe("tindakan manusia atas slot", () => {
     expect(after).toMatchObject({ status: "TERANTRE", postId: "p-putus" });
     expect(await count(`"PostDispatch" WHERE "socialAccountId" = 's1'`)).toBe(posts);
   });
+
+  it("claimAccountSlots mengklaim slot khusus satu akun dan approveSlot immediate memajukan jadwal ke sekarang", async () => {
+    const { claimAccountSlots } = await import("../autopilot-store");
+    const { publishPostNow } = await import("../threads-publish");
+    const now = at(185);
+    vi.setSystemTime(now);
+
+    // Klaim 1 slot untuk akun a1 hari ini (hanya slot 19.xx yang masih DIRENCANAKAN).
+    const claimed = await claimAccountSlots({
+      accountId: "a1",
+      now,
+      minAt: now,
+      until: new Date("2026-10-13T17:00:00Z"),
+      leaseUntil: new Date(now.getTime() + 120_000),
+      limit: 1,
+    });
+    expect(claimed).toHaveLength(1);
+    expect(claimed[0].accountId).toBe("a1");
+    expect(claimed[0].hour).toBe(19);
+
+    // Slot akun a4 tidak ikut diklaim oleh claimAccountSlots untuk a1.
+    expect(claimed.every((s) => s.accountId === "a1")).toBe(true);
+
+    // publishPostNow memajukan waktu tayang posting terjadwal ke sekarang.
+    const [scheduledSlot] = await slots(`"accountId" = 'a1' AND status = 'TERANTRE' AND "postId" = 'p-putus'`);
+    expect(scheduledSlot.postId).toBe("p-putus");
+    const moved = await publishPostNow({ userId: "u-editor", postId: "p-putus" }, now);
+    expect(moved.ok).toBe(true);
+    if (moved.ok) {
+      expect(moved.post?.tayangPada).toBe(now.toISOString());
+    }
+  });
 });

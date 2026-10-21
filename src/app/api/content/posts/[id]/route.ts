@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { afterResponse } from "@/lib/after-safe";
+import { learnFromEdit } from "@/lib/account-memory";
 import { internalError, jsonError, PUBLISH_DISABLED, readJson } from "@/lib/api-auth";
 import { isPublishEnabled } from "@/lib/content-config";
 import { parsePatchBody } from "@/lib/content-validation";
@@ -18,9 +20,23 @@ export const PATCH = withCtx<{ id: string }>("EDITOR", async (request, ctx, rout
   const parsed = parsePatchBody(await readJson(request));
   if (!parsed.ok) return jsonError(400, parsed.error);
 
+  const { aiBase, ...edit } = parsed.value;
   try {
-    const result = await editPost({ userId, postId: id, ...parsed.value });
+    const result = await editPost({ userId, postId: id, ...edit });
     if (!result.ok) return jsonError(result.status, result.error, result.details);
+    // AI belajar dari koreksi pemilik akun: versi AI yang dipilih (bila ada) atau teks lama -> teks akhir.
+    const learn = result.learn;
+    if (learn) {
+      afterResponse("memori gaya", () =>
+        learnFromEdit({
+          accountId: learn.accountId,
+          workspaceId: ctx.workspaceId,
+          before: aiBase ?? learn.before,
+          after: learn.after,
+          source: aiBase ? "AI_EDIT" : "EDIT",
+        })
+      );
+    }
     return NextResponse.json({ success: true, post: result.post });
   } catch (err) {
     return internalError("content/posts/[id]:PATCH", err);

@@ -328,7 +328,7 @@ function AutopilotInner() {
         </Activity>
         <Activity mode={tab === "rencana" ? "visible" : "hidden"}>
           <div role="tabpanel" id="autopilot-panel-rencana" aria-labelledby="autopilot-tab-rencana">
-            <PlanTab data={data} active={tab === "rencana"} />
+            <PlanTab data={data} active={tab === "rencana"} onRefresh={onStale} />
           </div>
         </Activity>
         <Activity mode={tab === "tinjau" ? "visible" : "hidden"}>

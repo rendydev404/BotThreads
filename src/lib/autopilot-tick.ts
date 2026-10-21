@@ -12,6 +12,7 @@
  * draf yang sebanding dengan jumlah slot yang jatuh tempo.
  */
 import { randomUUID } from "node:crypto";
+import { topLessons } from "./account-memory";
 import {
   QUEUE_MIN_LEAD_MS,
   REVIEW_CUTOFF_MS,
@@ -256,21 +257,24 @@ export async function planMissingSlots(
 
 /* ------------------------------------------------------------------ tulis */
 
-async function writeDueSlots(
+export async function writeDueSlots(
   state: AutopilotState,
   accounts: Map<string, PublishAccount>,
   now: Date,
   deadline: number,
-  counts: Counts
+  counts: Counts,
+  preclaimed?: ClaimedSlot[]
 ): Promise<void> {
-  const claimed = await claimSlots({
-    now,
-    minAt: new Date(now.getTime() + QUEUE_MIN_LEAD_MS),
-    untilAuto: new Date(now.getTime() + WRITE_LEAD_AUTO_MS),
-    untilReview: new Date(now.getTime() + WRITE_LEAD_REVIEW_MS),
-    leaseUntil: new Date(now.getTime() + SLOT_LEASE_MS),
-    limit: maxSlotsPerTick(),
-  });
+  const claimed =
+    preclaimed ??
+    (await claimSlots({
+      now,
+      minAt: new Date(now.getTime() + QUEUE_MIN_LEAD_MS),
+      untilAuto: new Date(now.getTime() + WRITE_LEAD_AUTO_MS),
+      untilReview: new Date(now.getTime() + WRITE_LEAD_REVIEW_MS),
+      leaseUntil: new Date(now.getTime() + SLOT_LEASE_MS),
+      limit: maxSlotsPerTick(),
+    }));
   bump(counts, "diklaim", claimed.length);
   if (claimed.length === 0) return;
 
@@ -304,6 +308,8 @@ async function writeDueSlots(
       }),
     ]);
     const stats = buildStats(statRows);
+    // Memori gaya per akun (satu kueri berindeks); skema belum dipasang = tulis tanpa pelajaran gaya.
+    const lessons = await topLessons(ids).catch(() => new Map<string, { lesson: string }[]>());
     // Konteks tren untuk ide yang akan ditulis (satu kueri; gagal = tulis tanpa konteks tren).
     const signals = await signalBriefs([...ideas.values()].flat().flatMap((i) => i.signalIds)).catch((err): Map<string, SignalBrief> => {
       if (isMissingAutopilotSchema(err)) counts.konteksTrenBelumDipasang = 1;
@@ -332,6 +338,7 @@ async function writeDueSlots(
       topicsToday,
       critic: criticEnabled(),
       proven: new Map(ids.map((id) => [id, provenPatterns(statRows, id, stats.get(id))])),
+      lessons: new Map(ids.map((id) => [id, (lessons.get(id) ?? []).map((l) => l.lesson)])),
       affiliate,
       deadline,
       seed: Math.floor(Math.random() * CREATIVE_ANGLES.length),

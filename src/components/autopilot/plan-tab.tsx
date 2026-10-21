@@ -1,10 +1,25 @@
 "use client";
 
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CalendarRange, ExternalLink, Flame, Lightbulb, PenLine, RefreshCw, RotateCw, ShoppingBag, Sparkles, Tag } from "lucide-react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  CalendarRange,
+  ExternalLink,
+  Flame,
+  Lightbulb,
+  Loader2,
+  PenLine,
+  RefreshCw,
+  RotateCw,
+  Send,
+  ShoppingBag,
+  Sparkles,
+  Tag,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fetchAutopilotPlan } from "@/lib/autopilot-client";
+import { actOnSlot, fetchAutopilotPlan } from "@/lib/autopilot-client";
 import type { AutopilotOverviewResponse, AutopilotSlotDTO, PlanItemDTO, PlanViewResponse } from "@/lib/autopilot-types";
+import { ContentApiError, publishPostNow } from "@/lib/content-client";
 import { charLength, clipChars } from "@/lib/threads-text";
 import { AccountFilterSelect } from "@/components/dashboard/account-filter-select";
 import { AccountAvatar } from "@/components/content/post-status-chip";
@@ -44,14 +59,18 @@ interface PlanRowProps {
   slot: AutopilotSlotDTO;
   item: PlanItemDTO;
   account: { username: string | null; displayName: string; avatarUrl: string | null } | undefined;
+  publishEnabled: boolean;
+  publishing: boolean;
+  onPublishNow: (slot: AutopilotSlotDTO) => void;
 }
 
-const PlanRow = memo(function PlanRow({ slot, item, account }: PlanRowProps) {
+const PlanRow = memo(function PlanRow({ slot, item, account, publishEnabled, publishing, onPublishNow }: PlanRowProps) {
   const [open, setOpen] = useState(false);
   const badge = KIND_BADGE[item.kind];
   const text = item.text ?? "";
   const long = charLength(text) > EXCERPT_CHARS;
   const trending = item.signals.some((s) => s.source !== "JARINGAN" && s.source !== "MANUAL");
+  const canPublishNow = (slot.status === "TERANTRE" && Boolean(slot.postId)) || (slot.status === "MENUNGGU_TINJAU" && Boolean(text));
 
   return (
     <li className="p-4 grid sm:grid-cols-[3.5rem_minmax(0,1fr)] gap-x-3 gap-y-2">
@@ -71,6 +90,17 @@ const PlanRow = memo(function PlanRow({ slot, item, account }: PlanRowProps) {
           )}
           <SlotStatusChip status={slot.status} />
           <SlotKindChip kind={slot.kind} />
+          {canPublishNow && (
+            <button
+              type="button"
+              onClick={() => onPublishNow(slot)}
+              disabled={!publishEnabled || publishing}
+              className="ml-auto h-7 px-3 rounded-full border border-line-strong text-xs font-semibold text-accent inline-flex items-center gap-1.5 hover:border-accent hover:bg-accent-soft transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {publishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              Posting sekarang
+            </button>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
@@ -185,6 +215,7 @@ interface PlanTabProps {
   data: AutopilotOverviewResponse;
   /** Tab sedang terlihat: fetch hanya terjadi saat ini benar. */
   active: boolean;
+  onRefresh?: () => void;
 }
 
 /**
@@ -194,11 +225,13 @@ interface PlanTabProps {
  * Fetch hanya saat tab terlihat. Hasil disimpan per (hari, akun) selama 60 detik, dan dimuat ulang bila
  * status slot hari itu di ringkasan (yang sudah dipolling halaman) berubah, jadi tidak ada polling sendiri.
  */
-export function PlanTab({ data, active }: PlanTabProps) {
+export function PlanTab({ data, active, onRefresh }: PlanTabProps) {
   const [day, setDay] = useState<DayKey>("today");
   /** "all" atau username (format AccountFilterSelect). */
   const [account, setAccount] = useState("all");
   const [tick, setTick] = useState(0);
+  const [publishingSlotId, setPublishingSlotId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ tone: "info" | "danger"; text: string } | null>(null);
   const [state, setState] = useState<{ key: string; res: PlanViewResponse | null; error: string | null; loading: boolean }>({
     key: "",
     res: null,
@@ -257,6 +290,39 @@ export function PlanTab({ data, active }: PlanTabProps) {
     return () => ctrl.abort();
   }, [active, key, sig, day, accountId, tick]);
 
+  const handlePublishNow = useCallback(
+    async (slot: AutopilotSlotDTO) => {
+      setPublishingSlotId(slot.id);
+      setNotice(null);
+      try {
+        if (slot.status === "TERANTRE" && slot.postId) {
+          const res = await publishPostNow(slot.postId);
+          setNotice({
+            tone: "info",
+            text:
+              res.post?.status === "PUBLISHED"
+                ? "Postingan langsung diterbitkan ke Threads."
+                : "Postingan dimajukan dan sedang diterbitkan ke Threads.",
+          });
+        } else {
+          await actOnSlot(slot.id, "publish_now");
+          setNotice({ tone: "info", text: "Draf disetujui dan langsung diterbitkan ke Threads." });
+        }
+        cache.current.delete(key);
+        setTick((t) => t + 1);
+        onRefresh?.();
+      } catch (e) {
+        setNotice({
+          tone: "danger",
+          text: e instanceof ContentApiError ? e.message : "Gagal menerbitkan postingan sekarang.",
+        });
+      } finally {
+        setPublishingSlotId(null);
+      }
+    },
+    [key, onRefresh]
+  );
+
   const items = state.key === key ? state.res?.items : undefined;
   const byId = useMemo(() => new Map((items ?? []).map((i) => [i.slotId, i])), [items]);
   const rows = daySlots.filter((s) => byId.has(s.id));
@@ -293,6 +359,8 @@ export function PlanTab({ data, active }: PlanTabProps) {
           </button>
         </div>
       </div>
+
+      {notice && <Banner tone={notice.tone}>{notice.text}</Banner>}
 
       <Banner tone="info">
         Slot yang belum ditulis menampilkan perkiraan topik dari bank ide; ide yang menumpang tren didahulukan. Teksnya ditulis AI sekitar 90
@@ -334,7 +402,15 @@ export function PlanTab({ data, active }: PlanTabProps) {
           </p>
           <ul className="card divide-y divide-line">
             {rows.map((s) => (
-              <PlanRow key={s.id} slot={s} item={byId.get(s.id)!} account={accountsById.get(s.accountId)} />
+              <PlanRow
+                key={s.id}
+                slot={s}
+                item={byId.get(s.id)!}
+                account={accountsById.get(s.accountId)}
+                publishEnabled={data.publishEnabled}
+                publishing={publishingSlotId === s.id}
+                onPublishNow={handlePublishNow}
+              />
             ))}
           </ul>
         </>

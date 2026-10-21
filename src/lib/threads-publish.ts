@@ -564,7 +564,7 @@ async function checkRules(prepared: Prepared[], now: Date, autoReschedule = fals
 
 /* ------------------------------------------------------------------ ubah / batal / kirim ulang */
 
-interface PostRecord {
+export interface PostRecord {
   id: string;
   source: string | null;
   status: string;
@@ -600,7 +600,7 @@ async function loadPost(id: string): Promise<PostRecord | null> {
 const NOT_MINE = "Hanya postingan dari dashboard yang bisa diubah di sini. Kelola lainnya di SukaPost.";
 
 /** Muat posting hanya bila akunnya berada dalam lingkup tenant pengguna; selain itu dianggap tidak ada. */
-async function loadScopedPost(id: string): Promise<PostRecord | null> {
+export async function loadScopedPost(id: string): Promise<PostRecord | null> {
   const post = await loadPost(id);
   if (!post || !currentScope()) return post;
   const accountId = post.dispatch?.threadsAccountId;
@@ -616,10 +616,16 @@ export interface EditInput {
   publishAt?: string;
 }
 
-export async function editPost(
-  input: EditInput,
-  now = new Date()
-): Promise<{ ok: true; post: PostItemDTO | null } | Failure> {
+/** Teks sebelum diedit, untuk memori gaya akun (AI belajar dari koreksi pemilik akun). */
+export interface EditLearn {
+  accountId: string;
+  before: string;
+  after: string;
+}
+
+export type EditResult = { ok: true; post: PostItemDTO | null; learn: EditLearn | null } | Failure;
+
+export async function editPost(input: EditInput, now = new Date()): Promise<EditResult> {
   const post = await loadScopedPost(input.postId);
   if (!post) return failure(404, "Postingan tidak ditemukan.");
   if (post.source !== DASHBOARD_SOURCE) return failure(403, NOT_MINE);
@@ -664,7 +670,7 @@ async function commitEdit(
   post: PostRecord,
   next: { newAt: Date; newCaption: string; check: { text: string; topicTag: string | null }; accountId: string | null },
   now: Date
-): Promise<{ ok: true; post: PostItemDTO | null } | Failure> {
+): Promise<EditResult> {
   const { newAt, newCaption, check, accountId } = next;
   const timeChanged = newAt.getTime() !== post.tayangPada.getTime();
   const textChanged = normalizeForCompare(newCaption) !== normalizeForCompare(post.caption);
@@ -727,7 +733,11 @@ async function commitEdit(
     return failure(409, "Postingan sudah diproses oleh penerbit, sehingga tidak bisa diubah lagi.");
   }
   const [item] = await getPostsByIds([post.id], false, now);
-  return { ok: true, post: item ?? null };
+  return {
+    ok: true,
+    post: item ?? null,
+    learn: textChanged && accountId ? { accountId, before: post.caption, after: check.text } : null,
+  };
 }
 
 export async function cancelPost(
@@ -799,3 +809,79 @@ export const statusLabel = (key: PostStatusKey): string => STATUS_LABEL[key];
 
 // splitThreadsHashtagLines diekspor ulang agar konsumen domain cukup satu import.
 export { splitThreadsHashtagLines };
+
+/**
+ * Majukan waktu tayang posting terjadwal ke `now` agar langsung diambil penerbit, sambil tetap
+ * memeriksa aturan jarak minimal dan kuota harian akun.
+ */
+export async function publishPostNow(
+  input: { userId: string; postId: string },
+  now = new Date()
+): Promise<{ ok: true; post: PostItemDTO | null } | Failure> {
+  const post = await loadScopedPost(input.postId);
+  if (!post) return failure(404, "Postingan tidak ditemukan.");
+  if (post.source !== DASHBOARD_SOURCE) return failure(403, NOT_MINE);
+  if (!post.dispatch) return failure(409, "Postingan ini tidak punya tujuan Threads.");
+
+  const view = postStatusView(
+    {
+      postStatus: post.status,
+      dispatchStatus: post.dispatch.status,
+      tayangPada: post.tayangPada,
+      platformContainerId: post.dispatch.platformContainerId,
+      lockedAt: post.dispatch.lockedAt,
+    },
+    now
+  );
+  if (view.key !== "SCHEDULED" && view.key !== "QUEUED") {
+    return failure(409, "Postingan sudah diproses atau telah terbit.");
+  }
+
+  const accountId = post.dispatch.threadsAccountId;
+  return withKeys(accountId ? [accountKey(accountId)] : [], async () => {
+    if (accountId) {
+      const account = (await getPublishAccountMap([accountId])).get(accountId);
+      if (account && !account.ready) {
+        return failure(409, `Akun belum siap diposting: ${reasonText(account.reason)}.`);
+      }
+      const gapMs = minGapMinutes() * 60_000;
+      const from = new Date(startOfWibDay(now).getTime() - gapMs);
+      const to = new Date(startOfWibDay(now).getTime() + DAY_MS + gapMs);
+      const schedule = await fetchSchedule([accountId], from, to);
+      const others = schedule.filter((r) => r.postId !== post.id);
+      const violation = findScheduleViolation(
+        now,
+        others.map((r) => ({ at: r.at.getTime(), dashboard: r.source === DASHBOARD_SOURCE })),
+        { minGapMs: gapMs, maxPerDay: maxPostsPerDay() }
+      );
+      if (violation) return failure(409, violation);
+    }
+
+    if (post.tayangPada.getTime() > now.getTime()) {
+      let updated: boolean;
+      try {
+        updated = await rpc<boolean>("dash_edit_post", {
+          p_id: post.id,
+          p_user: input.userId,
+          p_set_content: false,
+          p_caption: null,
+          p_judul: null,
+          p_hashtags: null,
+          p_set_time: true,
+          p_tayang: now,
+          p_min_time: new Date(0),
+          p_detail: { publishNow: true, from: post.tayangPada.toISOString(), time: now.toISOString() },
+        });
+      } catch (err) {
+        if (isMissingAuditTable(err)) throw new MissingAuditTableError();
+        throw err;
+      }
+      if (!updated) {
+        return failure(409, "Postingan sudah diproses oleh penerbit, sehingga tidak bisa dimajukan lagi.");
+      }
+    }
+
+    const [item] = await getPostsByIds([post.id], false, now);
+    return { ok: true, post: item ?? null };
+  });
+}

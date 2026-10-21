@@ -13,7 +13,7 @@ import { db, excludedIdList, must, rpc, sqlTs } from "@/lib/supabase";
 import { bestHoursForAccounts, toBestHourDTO, type AccountHours } from "./best-hours";
 import { DASHBOARD_SOURCE, maxPostsPerDay, minGapMinutes } from "./content-config";
 import type { ContentDraft } from "./content-types";
-import { HUMAN_VOICE, dropDashes } from "./human-voice";
+import { HUMAN_VOICE, dropDashes, humanScore, slopTells } from "./human-voice";
 import type { PublishAccount } from "./publish-accounts";
 import {
   DEFAULT_SLOT_HOURS,
@@ -39,6 +39,8 @@ import {
 } from "./threads-text";
 import { generateWithFailover, type GeminiSchema } from "./gemini";
 import { getAccountFacts } from "./account-facts";
+import { brainBlocks, loadBrains, type AccountBrain } from "./account-brain";
+import { mentionsTrend, trendAnchors, type TrendAnchors } from "./trend-anchor";
 import { PLACEHOLDER } from "./threads-text";
 import { scopeKey } from "@/lib/tenant-scope";
 
@@ -493,7 +495,8 @@ export function buildPrompt(p: PromptInput): string {
     p.extraAvoid.slice(0, 8).forEach((t) => lines.push(`- ${clipChars(oneLine(t), 160)}`));
   }
   if (p.revise) {
-    lines.push(`\nDRAF YANG DIREVISI:\n${oneLine(p.revise)}`);
+    // Jeda baris dipertahankan: pemenggalan baris bagian dari gaya tulisan yang sedang direvisi.
+    lines.push(`\nDRAF YANG DIREVISI:\n<draf>${clipChars(p.revise.replace(/[<>]/g, " ").trim(), 1200)}</draf>`);
     lines.push(`Revisi draf di atas sesuai arahan pengguna${p.instruction ? ` ("${sanitizeBrief(p.instruction)}")` : ""}. Pertahankan gaya akun.`);
   }
   return lines.join("\n");
@@ -541,7 +544,8 @@ export function screenDrafts(
     const check = validateThreadsText(cleaned, opts.outletNama, topic);
     if (!check.ok) continue;
     const exact = normalizeForCompare(check.text);
-    if (seen.some((s) => normalizeForCompare(s) === exact) || isTooSimilar(check.text, seen)) {
+    // Revisi dari teks yang sama wajar saling mirip: cukup tolak yang kembar persis.
+    if (seen.some((s) => normalizeForCompare(s) === exact) || (!opts.allowSimilarToKnown && isTooSimilar(check.text, seen))) {
       rejected.push(check.text);
       continue;
     }
@@ -718,7 +722,8 @@ export function rankCandidates(
   const score = (d: AcceptedDraft): number => {
     const overlap = peers.reduce((max, p) => Math.max(max, jaccard(d.text, p)), 0);
     const off = targetChars ? Math.min(1, Math.abs(charLength(d.text) - targetChars) / targetChars) : 0;
-    return overlap + 0.3 * off + 0.4 * blandness(d.text);
+    // Ciri tulisan mesin (tanda pisah panjang, kata khas AI, pembuka template) menurunkan peringkat.
+    return overlap + 0.3 * off + 0.4 * blandness(d.text) + 0.5 * (1 - humanScore(d.text) / 100);
   };
   return candidates
     .map((d) => ({ d, s: score(d) }))
@@ -739,6 +744,8 @@ export interface AgentTask {
   fixedTime: { hour: number; minute: number } | null;
   /** Blok arahan tambahan untuk prompt (autopilot). */
   extra?: PromptBlock[];
+  /** Jangkar tren yang wajib disebut draf (slot yang menumpang tren); null = bebas. */
+  anchors?: TrendAnchors | null;
   signal?: AbortSignal;
 }
 
@@ -804,9 +811,11 @@ export async function runAccountAgent(shared: SharedContext, task: AgentTask): P
       known,
       need: AGENT_CANDIDATES,
     });
-    const best = rankCandidates(screened.accepted, task.peers, voice?.medianChars ?? null)[0];
+    const ranked = rankCandidates(screened.accepted, task.peers, voice?.medianChars ?? null);
+    // Slot bertren: utamakan kandidat yang benar-benar menyebut trennya; putaran terakhir terima yang terbaik.
+    const best = ranked.find((d) => mentionsTrend(d.text, task.anchors)) ?? (round === AGENT_ROUNDS ? ranked[0] : undefined);
     if (!best) {
-      extraAvoid = [...extraAvoid, ...screened.rejected];
+      extraAvoid = [...extraAvoid, ...screened.rejected, ...ranked.map((d) => d.text)];
       continue;
     }
 
@@ -851,7 +860,10 @@ export async function runAccountAgent(shared: SharedContext, task: AgentTask): P
 export async function recommendDrafts(input: RecommendInput, now = new Date()): Promise<RecommendOutput> {
   const started = Date.now();
   const ids = input.accounts.map((a) => a.id);
-  const { contexts, queues, hours: hoursMap, network, facts } = await loadSharedContext(ids, now);
+  const [{ contexts, queues, hours: hoursMap, network, facts }, brains] = await Promise.all([
+    loadSharedContext(ids, now),
+    loadBrains(input.accounts, now).catch(() => new Map<string, AccountBrain>()),
+  ]);
   const dayLabel = input.dayKey ? `tanggal ${input.dayKey} (WIB)` : null;
 
   let usedModel: string | null = null;
@@ -883,6 +895,7 @@ export async function recommendDrafts(input: RecommendInput, now = new Date()): 
           extraAvoid,
           instruction: revise ? input.brief : null,
           facts: facts.get(account.id),
+          extra: brainBlocks(brains.get(account.id)),
         });
 
       const ask = Math.min(input.count + 1, MAX_ASK);
@@ -953,4 +966,161 @@ export async function recommendDrafts(input: RecommendInput, now = new Date()): 
     latencyMs: Date.now() - started,
     failedAccountIds,
   };
+}
+
+/* ------------------------------------------------------------------ edit dengan AI (satu postingan) */
+
+export type EditAction = "humanize" | "hook" | "shorter" | "casual" | "idea" | "custom";
+export const EDIT_ACTIONS: EditAction[] = ["humanize", "hook", "shorter", "casual", "idea", "custom"];
+
+/** Arahan revisi per tombol. Bahasanya ikut santai supaya model tidak terpancing menulis kaku. */
+const EDIT_INSTRUCTIONS: Record<Exclude<EditAction, "idea" | "custom">, string> = {
+  humanize:
+    "Tulis ulang supaya terasa diketik langsung oleh pemilik akun di HP: buang kata dan pola khas AI, ritme kalimat jangan terlalu rapi, pakai bahasa sehari-hari akun ini. Maksud dan isi tetap sama.",
+  hook: "Ganti kalimat pertama jadi hook yang bikin orang berhenti scroll (detail spesifik, ketegangan, atau pernyataan berani). Sisanya rapikan seperlunya, isi tetap.",
+  shorter: "Padatkan jadi jauh lebih singkat dan nendang. Buang basa-basi dan kalimat yang tidak perlu, isi utama tetap.",
+  casual: "Bikin lebih santai dan akrab, seperti ngobrol sama teman sendiri. Boleh receh sedikit, jangan lebay.",
+};
+
+const EDIT_CANDIDATES = 3;
+/** Kemiripan kata minimum revisi dengan teks asal; di bawah ini dianggap ganti topik. */
+const REVISE_MIN_OVERLAP = 0.08;
+const REVISE_RULE: PromptBlock = {
+  title: "ATURAN REVISI (wajib)",
+  lines: [
+    "Semua versi membahas isi dan maksud yang SAMA dengan DRAF YANG DIREVISI. Jangan ganti topik, jangan pakai SUDUT KREATIF baru.",
+    "Bedakan versi hanya lewat cara penyampaian: pembuka, ritme, pilihan kata, panjang.",
+  ],
+};
+const EDIT_DEADLINE_MS = 45_000;
+const EDIT_TIMEOUT_MS = 28_000;
+const EDIT_HEDGE_MS = 18_000;
+
+export interface EditCandidate {
+  id: string;
+  text: string;
+  topicTag: string | null;
+  angle: string;
+  /** 0-100, tanpa ciri tulisan mesin = 100. */
+  humanScore: number;
+  tells: string[];
+}
+
+export interface EditResult {
+  candidates: EditCandidate[];
+  model: string;
+  latencyMs: number;
+  /** Bagian otak akun yang ikut dipakai (ditampilkan ke pengguna supaya tahu AI paham akunnya). */
+  used: { role: boolean; voice: boolean; lessons: number; facts: number; samples: number };
+  /** Ide bank ide yang dipakai (aksi "idea"). */
+  idea: { topik: string; sudut: string | null } | null;
+}
+
+/**
+ * Beberapa versi baru untuk satu postingan: revisi teks yang ada (humanize, hook, singkat, santai, arahan
+ * bebas) atau ide baru dari bank ide/tren akun. Tidak menulis apa pun ke database; pengguna memilih versi,
+ * lalu menyimpan lewat alur edit biasa (semua pagar teks Threads tetap berlaku).
+ */
+export async function editCandidates(
+  input: {
+    account: PublishAccount;
+    text: string;
+    action: EditAction;
+    instruction?: string | null;
+    idea?: { topik: string; sudut: string | null } | null;
+    signal?: AbortSignal;
+  },
+  now = new Date()
+): Promise<{ ok: true; result: EditResult } | { ok: false; error: string }> {
+  const started = Date.now();
+  const { account } = input;
+  const [shared, brains] = await Promise.all([
+    loadSharedContext([account.id], now),
+    loadBrains([account], now).catch(() => new Map<string, AccountBrain>()),
+  ]);
+  const brain = brains.get(account.id);
+  const raw = shared.contexts.get(account.id) ?? EMPTY_CONTEXT;
+  const hours = shared.hours.get(account.id) ?? NO_HOURS;
+  const queue = shared.queues.get(account.id) ?? [];
+  const ownStyle = raw.style.filter((s) => isVoiceSample(s.text));
+  const ctx: AccountContext = { ...raw, style: ownStyle.length >= 2 ? ownStyle : raw.style };
+  const voice = voiceProfile([...ctx.style.map((s) => s.text), ...ctx.recents].filter(isVoiceSample));
+  const current = input.text.trim();
+
+  const { action } = input;
+  const fresh = action === "idea";
+  const instruction =
+    action === "custom" ? sanitizeBrief(input.instruction ?? "").slice(0, 300) : action === "idea" ? null : EDIT_INSTRUCTIONS[action];
+  if (input.action === "custom" && !instruction) return { ok: false, error: "Tulis arahan untuk AI dulu." };
+  const brief = fresh && input.idea ? `${input.idea.topik}${input.idea.sudut ? `. Arah cerita: ${input.idea.sudut}` : ""}` : "";
+  // Revisi boleh mirip teks asal (memang dari situ; yang sama persis dibuang di bawah); ide baru harus
+  // berbeda dari postingan lama dan antrean. Antar-kandidat tetap tidak boleh kembar (screenDrafts).
+  const known = fresh ? [...ctx.recents, ...queue.map((q) => q.caption), current] : [];
+
+  let extraAvoid = fresh ? [current] : [];
+  let model = "";
+  for (let round = 1; round <= 2; round++) {
+    if (input.signal?.aborted) return { ok: false, error: "Dibatalkan." };
+    const reply = await askAi(
+      buildPrompt({
+        account,
+        ctx,
+        network: shared.network,
+        hours,
+        queue,
+        brief,
+        ask: EDIT_CANDIDATES,
+        dayLabel: "slot terdekat",
+        revise: fresh ? null : current,
+        extraAvoid,
+        instruction,
+        voice,
+        angles: fresh && !input.idea ? pickAngles(0, Math.floor(Math.random() * CREATIVE_ANGLES.length)) : undefined,
+        facts: shared.facts.get(account.id),
+        extra: [...brainBlocks(brain), ...(fresh ? [] : [REVISE_RULE])],
+      }),
+      EDIT_DEADLINE_MS,
+      { system: AGENT_SYSTEM_PROMPT, temperature: 0.95, timeoutMs: EDIT_TIMEOUT_MS, hedgeMs: EDIT_HEDGE_MS, signal: input.signal }
+    );
+    if (!reply) continue;
+    model = reply.model;
+    const screened = screenDrafts(toRaw(reply.json), {
+      outletNama: account.outletNama ?? "",
+      known,
+      need: EDIT_CANDIDATES,
+      allowSimilarToKnown: !fresh,
+    });
+    const accepted = screened.accepted.filter(
+      (d) =>
+        normalizeForCompare(d.text) !== normalizeForCompare(current) &&
+        // Revisi yang hampir tidak berbagi kata dengan teks asal berarti AI mengganti topik: buang.
+        (fresh || jaccard(d.text, current) >= REVISE_MIN_OVERLAP)
+    );
+    if (!accepted.length) {
+      extraAvoid = [...extraAvoid, ...screened.rejected];
+      continue;
+    }
+    // Ide dari bank ide: versi yang menyebut trennya didahulukan, lalu yang paling natural.
+    const anchors = fresh && input.idea ? trendAnchors([input.idea.topik]) : null;
+    const candidates = accepted
+      .map((d) => ({ id: randomUUID(), text: d.text, topicTag: d.topicTag, angle: d.angle, humanScore: humanScore(d.text), tells: slopTells(d.text) }))
+      .sort((a, b) => Number(mentionsTrend(b.text, anchors)) - Number(mentionsTrend(a.text, anchors)) || b.humanScore - a.humanScore);
+    return {
+      ok: true,
+      result: {
+        candidates,
+        model,
+        latencyMs: Date.now() - started,
+        used: {
+          role: !!brain?.role,
+          voice: !!brain?.voiceStyle || !!voice,
+          lessons: brain?.lessons.length ?? 0,
+          facts: brain?.facts.length ?? 0,
+          samples: ctx.style.length,
+        },
+        idea: fresh ? input.idea ?? null : null,
+      },
+    };
+  }
+  return { ok: false, error: model ? "Semua versi terlalu mirip postingan lama. Coba lagi." : "AI tidak membalas. Coba lagi sebentar lagi." };
 }

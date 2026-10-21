@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
+import { afterResponse } from "@/lib/after-safe";
 import { internalError, jsonError, readJson } from "@/lib/api-auth";
+import { kickOnboarding } from "@/lib/account-onboarding";
 import { withCtx } from "@/lib/request-ctx";
 import { connectThreadsAccount, listWorkspaceThreadsAccounts, removeThreadsAccount, syncThreadsAccount } from "@/lib/threads-connect";
 import { throttle } from "@/lib/throttle";
 
 const NO_STORE = { "Cache-Control": "no-store" };
+
+/** Agen onboarding (baca postingan, riset tren, isi ide) berjalan di `after()` dan ikut batas waktu route. */
+export const maxDuration = 300;
 
 /** Daftar akun Threads yang terhubung di workspace saat ini beserta kuota paketnya. */
 export const GET = withCtx("VIEWER", async (_request, ctx) => {
@@ -27,6 +32,9 @@ export const POST = withCtx("ADMIN", async (request, ctx) => {
     const accessToken = typeof body?.accessToken === "string" ? body.accessToken.slice(0, 1000) : "";
     const res = await connectThreadsAccount({ workspaceId: ctx.workspaceId, userId: ctx.userId, accessToken, via: "token" });
     if (!res.ok) return jsonError(res.status, res.error);
+    // Agen AI langsung mempelajari akun hari ini juga: baca postingan, kenali peran, riset tren, isi ide.
+    const { workspaceId, userId } = ctx;
+    afterResponse("onboarding", () => kickOnboarding(res.account.id, workspaceId, userId));
     return NextResponse.json({ success: true, account: res.account }, { headers: NO_STORE });
   } catch (err) {
     return internalError("threads/connect:POST", err);

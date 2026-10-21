@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { afterResponse } from "@/lib/after-safe";
+import { kickOnboarding } from "@/lib/account-onboarding";
 import { appOrigin } from "@/lib/google-oauth";
 import { getRawIntegrations } from "@/lib/integrations";
 import { ctxForUser, getCtx, hasRole, scopeOf, type RequestCtx } from "@/lib/request-ctx";
@@ -18,6 +20,9 @@ import { isUserActive } from "@/lib/users";
  * jadi callback bisa datang tanpa cookie sesi dashboard. Identitas diambil dari `state` bertanda tangan
  * (pengguna + workspace + masa berlaku). Bila ada sesi, sesinya harus milik pengguna yang sama.
  */
+/** Agen onboarding berjalan di `after()` dan ikut batas waktu route ini. */
+export const maxDuration = 300;
+
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const cfg = await getRawIntegrations();
@@ -81,6 +86,9 @@ export async function GET(request: NextRequest) {
         via: "oauth",
       });
       if (!connected.ok) return fail(connected.error);
+      // Agen AI langsung mempelajari akun hari ini juga: baca postingan, kenali peran, riset tren, isi ide.
+      const accountId = connected.account.id;
+      afterResponse("onboarding", () => kickOnboarding(accountId, state.workspaceId, ctx.userId));
       return finish(`threads_connected=${encodeURIComponent(connected.account.username)}`);
     } catch (err) {
       console.warn("[threads/oauth] callback gagal:", err instanceof Error ? err.message : err);

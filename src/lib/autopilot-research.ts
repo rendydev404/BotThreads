@@ -275,6 +275,36 @@ export async function researchNiches(niche: NicheState, now: Date, deadline: num
   );
 }
 
+export interface NicheResearchResult {
+  status: "no_profile" | "failed" | "ok";
+  /** Sinyal tren niche yang tersimpan. */
+  signals: number;
+  /** Judul tren teratas, untuk ditampilkan di panel agen. */
+  topics: string[];
+}
+
+/**
+ * Riset tren niche untuk SATU akun sekarang juga (agen onboarding), tanpa menunggu jam aktif, anggaran
+ * tick, atau mode autopilot. Jadwal riset akun ini di tick ikut digeser supaya tidak diulang sia-sia.
+ */
+export async function researchNicheFor(config: ConfigRow, recents: string[], now: Date, deadlineMs = NICHE_DEADLINE_MS): Promise<NicheResearchResult> {
+  const profile = nicheProfile(config, recents);
+  if (!profile) return { status: "no_profile", signals: 0, topics: [] };
+  nicheNextTry.set(config.accountId, now.getTime() + NICHE_RETRY_MS);
+  const [research, kb] = await Promise.all([
+    researchNiche(profile, now, deadlineMs),
+    loadKnowledge([config], now).catch(() => new Map<string, AccountKnowledge>()),
+  ]);
+  if (!research) return { status: "failed", signals: 0, topics: [] };
+  const drafts = nicheTopicsToSignals(research, { accountId: config.accountId, workspaceId: config.workspaceId }, now, [
+    ...extraBannedTerms(),
+    ...(kb.get(config.accountId)?.banned ?? []),
+  ]);
+  const signals = drafts.length ? await upsertSignals(drafts, now) : 0;
+  nicheNextTry.set(config.accountId, now.getTime() + NICHE_REFRESH_MS);
+  return { status: "ok", signals, topics: drafts.slice(0, 5).map((d) => d.title) };
+}
+
 /** Butir knowledge base yang berlaku untuk satu akun, sudah dipilah menurut kegunaannya. */
 export interface AccountKnowledge {
   /** Fakta, produk, dan promo: sumber klaim yang sah (gerbang + prompt). */
@@ -357,6 +387,21 @@ export async function refillIdeas(
     // Stok yang menipis didahulukan, lalu yang paling sedikit idenya.
     .sort((a, b) => Number(low(b)) - Number(low(a)) || stock(a) - stock(b))
     .slice(0, IDEA_ACCOUNTS_PER_TICK);
+  await fillIdeasFor(need, accounts, niche.installed, now, deadline, counts);
+}
+
+/**
+ * Susun ide untuk akun-akun tertentu (tanpa syarat stok atau mode autopilot). Dipakai `refillIdeas` di tick
+ * dan oleh agen onboarding saat akun baru dihubungkan, supaya bank idenya langsung terisi hari itu juga.
+ */
+export async function fillIdeasFor(
+  need: ConfigRow[],
+  accounts: Map<string, PublishAccount>,
+  nicheInstalled: boolean,
+  now: Date,
+  deadline: number,
+  counts: Counts
+): Promise<void> {
   if (need.length === 0 || Date.now() >= deadline) return;
 
   const ids = need.map((c) => c.accountId);
@@ -367,7 +412,7 @@ export async function refillIdeas(
     // Skema belajar belum dipasang atau kosong: ide dinilai tanpa komponen kinerja (0,5).
     loadLearnStats(ids, now).catch(() => [] as StatRow[]),
     // Tren niche dibaca per akun (bukan lewat daftar workspace) supaya tidak berebut batas baris.
-    niche.installed
+    nicheInstalled
       ? listNicheSignals(ids, now, NICHE_SIGNALS_PER_ACCOUNT).catch(() => new Map<string, SignalRow[]>())
       : new Map<string, SignalRow[]>(),
     ...workspaces.map((w) => listSignals({ workspaceId: w, sources: SHARED_SOURCES, now, cursor: null, limit: SIGNALS_FOR_IDEAS })),
