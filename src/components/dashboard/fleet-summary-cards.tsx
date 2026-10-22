@@ -48,9 +48,9 @@ export function FleetSummaryCards({
 }: FleetSummaryCardsProps) {
   const cards: Card[] = [
     {
-      title: isAll ? "Akun cabang" : "Akun dipilih",
+      title: isAll ? "Akun" : "Akun dipilih",
       value: isAll ? String(activeAccounts) : `@${accountName}`,
-      hint: isAll ? "Semua cabang terhubung" : displayName,
+      hint: isAll ? "Semua akun terhubung" : displayName,
       icon: Users,
       tone: "bg-subtle text-muted",
     },
