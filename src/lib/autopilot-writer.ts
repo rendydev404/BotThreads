@@ -29,7 +29,17 @@ import {
   type ConfigRow,
 } from "./autopilot-store";
 import { VOICE_STYLES, type AutopilotPillar, type SlotDraftDTO } from "./autopilot-types";
-import { pickAngles, runAccountAgent, type AgentOutcome, type PromptBlock, type SharedContext } from "./content-ai";
+import {
+  exemplarTexts,
+  isListIdea,
+  pickAngles,
+  runAccountAgent,
+  styleFor,
+  styleWorkspaceOf,
+  type AgentOutcome,
+  type PromptBlock,
+  type SharedContext,
+} from "./content-ai";
 import { DASHBOARD_SOURCE, SCHEDULE_MIN_LEAD_MS } from "./content-config";
 import type { PublishAccount } from "./publish-accounts";
 import { updateIdea, type IdeaCandidate, type SignalBrief } from "./radar-store";
@@ -37,6 +47,7 @@ import { HOOK_FORMULAS, SIGNAL_SOURCE_LABEL } from "./radar-types";
 import { formatWibLabel, wibParts } from "./scheduling";
 import { charLength, normalizeForCompare } from "./threads-text";
 import { createPosts, type Failure } from "./threads-publish";
+import type { PostFormat } from "./style-types";
 
 /** Putaran tulis per percobaan: draf yang ditolak gerbang ditulis ulang sekali dengan catatan pemeriksa. */
 const GATE_ROUNDS = 2;
@@ -70,6 +81,8 @@ export interface WriteContext {
   critic: boolean;
   /** Pola yang terbukti berhasil per akun (dari hasil posting sebelumnya), untuk prompt. */
   proven: Map<string, string[]>;
+  /** Format yang terbukti berhasil per akun (pembelajaran), diutamakan saat memilih contoh gaya. */
+  formats?: Map<string, PostFormat[]>;
   /** Pelajaran gaya per akun dari koreksi pemilik akun (memori gaya, account-memory.ts). */
   lessons?: Map<string, string[]>;
   /** Pengaturan, katalog, dan pemakaian Shopee Affiliate (diubah di tempat saat slot memakai produk). */
@@ -342,6 +355,19 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
     .map((s) => s.title);
   const anchors = plan.idea && trendTitles.length ? trendAnchors([plan.idea.topik, ...trendTitles]) : null;
 
+  // Contoh gaya + pola layout dimuat sekali per slot (diingat per tick di ctx.shared, korpus di-cache), lalu
+  // dipakai prompt agen di semua putaran dan gerbang anti-jiplak tanpa memuat ulang. Tidak pernah melempar.
+  const style = await styleFor(ctx.shared, {
+    // Slot menyimpan workspace dashboard (= tenant akun), kunci korpus gaya.
+    workspaceId: slot.workspaceId || styleWorkspaceOf(account),
+    accountId: account.id,
+    topicHint: plan.idea?.topik ?? plan.pillar ?? undefined,
+    // Format yang terbukti di akun ini; kosong = korpus memakai format teratas dari profil layout.
+    preferFormats: ctx.formats?.get(account.id)?.slice(0, 2),
+    listIdea: plan.idea?.formulaHook === "daftar" || isListIdea(plan.idea?.topik),
+  });
+  const exemplars = exemplarTexts(style);
+
   try {
     for (let round = 1; round <= GATE_ROUNDS && !signal.aborted; round++) {
       // Ide yang sudah punya preview (dilihat pengguna di Radar): teks itu dipakai lebih dulu supaya yang
@@ -372,6 +398,8 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
           trends,
           ctx.lessons?.get(account.id)
         ),
+        workspaceId: slot.workspaceId,
+        style,
         signal,
       });
       if (!usePreview) ctx.onAi(out.ok);
@@ -384,6 +412,8 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
         sources,
         peers: others,
         bannedTerms,
+        // Anti-jiplak: draf (termasuk teks preview) tidak boleh menyalin frasa contoh gaya; ditolak = ditulis ulang.
+        exemplars,
         ...(aff ? { affiliate: { nama: aff.product.nama } } : {}),
       });
       if (!gate.ok) {

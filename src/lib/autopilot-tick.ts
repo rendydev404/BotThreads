@@ -27,7 +27,16 @@ import {
 } from "./autopilot-config";
 import { emptyAffiliateState, loadAffiliateState, type AffiliateState } from "./affiliate-store";
 import { criticEnabled } from "./autopilot-critic";
-import { buildStats, loadLearnStats, notify, provenPatterns, runLearning, type NotificationWrite, type StatRow } from "./autopilot-learning";
+import {
+  buildStats,
+  loadLearnStats,
+  notify,
+  preferredFormats,
+  provenPatterns,
+  runLearning,
+  type NotificationWrite,
+  type StatRow,
+} from "./autopilot-learning";
 import type { TopicUse } from "./autopilot-ideas";
 import { planDay } from "./autopilot-plan";
 import {
@@ -339,6 +348,7 @@ export async function writeDueSlots(
       topicsToday,
       critic: criticEnabled(),
       proven: new Map(ids.map((id) => [id, provenPatterns(statRows, id, stats.get(id))])),
+      formats: new Map(ids.map((id) => [id, preferredFormats(statRows, id, stats.get(id))])),
       lessons: new Map(ids.map((id) => [id, (lessons.get(id) ?? []).map((l) => l.lesson)])),
       affiliate,
       deadline,

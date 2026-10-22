@@ -92,8 +92,17 @@ export async function ideaPreview(
   const account = (await getPublishAccountMap([idea.accountId])).get(idea.accountId);
   if (!account) return failure(404, "Akun Threads ide ini tidak ditemukan.");
 
+  // Contoh gaya dari korpus workspace ide (blok CONTOH GAYA THREADS + POLA LAYOUT); kandidat yang menyalin
+  // frasa contoh sudah dibuang editCandidates, jadi preview yang tersimpan juga lolos anti-jiplak autopilot.
   const res = await editCandidates(
-    { account, text: idea.preview?.text ?? "", action: "idea", idea: { topik: idea.topik, sudut: idea.sudut }, signal: opts.signal },
+    {
+      account,
+      text: idea.preview?.text ?? "",
+      action: "idea",
+      idea: { topik: idea.topik, sudut: idea.sudut },
+      workspaceId: idea.workspaceId ?? ctx.workspaceId ?? undefined,
+      signal: opts.signal,
+    },
     now
   );
   if (!res.ok) return failure(502, res.error);

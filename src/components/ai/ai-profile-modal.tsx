@@ -17,6 +17,7 @@ import { ContentApiError } from "@/lib/content-client";
 import { cn } from "@/lib/utils";
 import { BriefExpandButton } from "./brief-editor";
 import { AgentSteps, useStagedSteps } from "./agent-ui";
+import { StyleExamplesPanel } from "./style-examples-panel";
 
 const MAX_PILLARS = 8;
 const SOURCE_LABEL: Record<LessonDTO["source"], string> = {
@@ -317,6 +318,8 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
               </button>
             </form>
           </div>
+
+          <StyleExamplesPanel account={account} />
 
           <FormError message={error} />
         </div>

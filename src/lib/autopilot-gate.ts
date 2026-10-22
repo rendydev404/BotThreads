@@ -8,9 +8,11 @@
  * 2. terlarang - topik sensitif bawaan dan daftar kata terlarang workspace.
  * 3. kembar    - tidak mirip draf akun lain pada hari yang sama (jaringan satu brand rawan terlihat spam).
  * 4. bentuk    - panjang dan placeholder diperiksa ulang (draf bisa saja diedit sebelum disetujui).
- * 5. affiliate  - (slot affiliate saja) tanpa link, tanpa ajakan jualan keras, dan produknya disebut.
+ * 5. asli      - tidak menyalin frasa (6 kata berurutan) dari contoh gaya yang ada di prompt.
+ * 6. affiliate  - (slot affiliate saja) tanpa link, tanpa ajakan jualan keras, dan produknya disebut.
  */
 import type { GateCheckDTO } from "./autopilot-types";
+import { copiedPhrase } from "./style-types";
 import { DRAFT_MAX_CHARS, PLACEHOLDER, THREADS_MAX_TEXT, charLength, jaccard } from "./threads-text";
 
 /** Draf autopilot antar-akun pada hari yang sama tidak boleh semirip ini. */
@@ -136,7 +138,12 @@ export interface GateInput {
   bannedTerms?: string[];
   /** Slot affiliate: nama produk yang harus disebut. */
   affiliate?: { nama: string };
+  /** Teks contoh gaya yang ada di prompt: draf tidak boleh menyalin frasanya (anti-jiplak). */
+  exemplars?: string[];
 }
+
+/** Draf yang berbagi sekian kata berurutan dengan contoh gaya dianggap menjiplak. */
+export const COPY_NGRAM = 6;
 
 export interface GateResult {
   ok: boolean;
@@ -190,6 +197,17 @@ export function runGate(input: GateInput): GateResult {
       ? { detail: `Kemiripan ${Math.round(closest * 100)}% dengan draf akun lain.` }
       : {}),
   });
+
+  if (input.exemplars?.length) {
+    // Yang ditiru dari contoh gaya adalah ritme dan layout; frasa yang sama persis berarti menjiplak.
+    const phrase = copiedPhrase(text, input.exemplars, COPY_NGRAM);
+    checks.push({
+      key: "asli",
+      label: "Tidak menyalin contoh gaya",
+      ok: !phrase,
+      ...(phrase ? { detail: `Draf menyalin frasa dari contoh gaya: "${phrase}". Tulis dengan kata sendiri.` } : {}),
+    });
+  }
 
   if (input.affiliate) {
     const problems = affiliateProblems(text, input.affiliate.nama);

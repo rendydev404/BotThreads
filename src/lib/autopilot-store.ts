@@ -45,6 +45,8 @@ export function missingSchemaFile(err: unknown): string {
   if (/dash_(?:pub_)?media_tmp/.test(msg)) return "sql/040_media_tmp.sql";
   if (/dash_media_policy/.test(msg)) return "sql/039_media_policy.sql";
   if (/dash_idea_media_set/.test(msg)) return "sql/038_idea_media.sql";
+  if (/dash_learn_label_/.test(msg)) return "sql/042_learning_format.sql";
+  if (/dash_style_|StyleExample/.test(msg)) return "sql/041_style_corpus.sql";
   if (/dash_idea_retire_stale/.test(msg)) return "sql/028_idea_retire_stale.sql";
   if (/dash_radar_niche/.test(msg)) return "sql/027_radar_niche_trends.sql";
   if (/dash_ap_claim_account|dash_style_lesson_add|AccountStyleLesson|AccountOnboarding/.test(msg)) return "sql/031_account_ai_brain.sql";

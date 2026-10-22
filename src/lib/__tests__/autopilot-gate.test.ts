@@ -79,6 +79,20 @@ describe("runGate", () => {
     expect(r.checks.find((c) => c.key === "kembar")?.detail).toMatch(/Kemiripan \d+%/);
   });
 
+  it("anti-jiplak: menolak draf yang menyalin 6 kata berurutan dari contoh gaya", () => {
+    const exemplar = "jujur ya, kerja remote itu enak\ntapi kangen juga ngobrol random di pantry kantor";
+    const copy = runGate({ text: "aku setuju, kangen juga ngobrol random di pantry kantor tiap pagi", sources: [], peers: [], exemplars: [exemplar] });
+    expect(copy.ok).toBe(false);
+    expect(copy.checks.find((c) => c.key === "asli")?.ok).toBe(false);
+    expect(copy.reason).toMatch(/^Draf menyalin frasa dari contoh gaya: "kangen juga ngobrol random di pantry/);
+
+    // Lima kata sama (ritme mirip) masih boleh; tanpa contoh, pemeriksaan tidak ditambahkan.
+    const own = runGate({ text: "kangen juga ngobrol random di warung kopi depan rumah", sources: [], peers: [], exemplars: [exemplar] });
+    expect(own.ok).toBe(true);
+    expect(own.checks.find((c) => c.key === "asli")?.ok).toBe(true);
+    expect(runGate({ text: OK_TEXT, sources: [], peers: [], exemplars: [] }).checks.some((c) => c.key === "asli")).toBe(false);
+  });
+
   it("menolak placeholder dan teks kepanjangan", () => {
     expect(runGate({ text: "mampir ke [isi alamat cabang] ya, ditunggu sore ini juga", sources: [], peers: [] }).ok).toBe(false);
     expect(runGate({ text: "a".repeat(501), sources: [], peers: [] }).ok).toBe(false);

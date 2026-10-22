@@ -99,6 +99,8 @@ describe("preview ide dengan gambar", () => {
       expect.objectContaining({ workspaceId: "ws1", accountId: "a1", ideaId: "i1", topik: "sambal matah", text: TEXT })
     );
     expect((await stored("i1"))?.media?.items[0].imageKey).toBe("k1");
+    // Penulis preview memakai korpus gaya workspace ide (blok CONTOH GAYA THREADS).
+    expect(h.edit).toHaveBeenCalledWith(expect.objectContaining({ action: "idea", workspaceId: "ws1" }), NOW);
   });
 
   it("tidak mencari gambar bila kebijakan gambar akun menolak", async () => {

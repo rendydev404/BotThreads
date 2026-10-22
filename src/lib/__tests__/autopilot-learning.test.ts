@@ -9,17 +9,22 @@ const h = vi.hoisted(() => ({ db: null as unknown }));
 
 vi.mock("@supabase/supabase-js", async () => (await import("./helpers/pg")).supabaseMock(() => h.db as TestDb));
 
-import { bootDb, useTestSupabaseEnv } from "./helpers/pg";
+import { bootDb, pgRpc, useTestSupabaseEnv } from "./helpers/pg";
 import {
+  LABEL_BATCH,
   buildStats,
   ideaPerformance,
+  labelOutcome,
+  labelOutcomes,
   loadLearnStats,
+  preferredFormats,
   provenPatterns,
   runLearning,
   shrunk,
   toUnit,
   type StatRow,
 } from "../autopilot-learning";
+import { engagementScore } from "../style-types";
 import { getHealth, getPerformance, listNotifications, markNotificationsRead } from "../notification-service";
 import type { RequestCtx } from "../request-ctx";
 
@@ -67,7 +72,108 @@ describe("statistik belajar (murni)", () => {
     expect(lines[0]).toMatch(/^Pembuka gaya "Pertanyaan terbuka" rata-rata 1,\dx views biasa \(9 posting\)\.$/);
     expect(provenPatterns(rows, "a2", stats.get("a2"))).toEqual([]);
   });
+
+  // Dimensi gaya: format + layout (sql/042).
+  const style: StatRow[] = [
+    ...rows,
+    { aid: "a1", dim: "format", val: "TIPS_LIST", n: 8, avg: 0.9 },
+    { aid: "a1", dim: "format", val: "CERITA", n: 6, avg: 0.4 },
+    { aid: "a1", dim: "format", val: "CURHAT", n: 2, avg: 2 }, // sampel terlalu sedikit
+    { aid: "a1", dim: "format", val: "OPINI", n: 9, avg: -0.4 },
+    { aid: "a1", dim: "format", val: "BUKAN_FORMAT", n: 9, avg: 1.5 },
+    { aid: "a1", dim: "baris", val: "2-4", n: 12, avg: 0.5 },
+    { aid: "a1", dim: "baris", val: "1", n: 7, avg: -0.3 },
+    { aid: "a1", dim: "daftar", val: "ya", n: 3, avg: 1.2 }, // sampel terlalu sedikit
+    { aid: "a1", dim: "daftar", val: "tidak", n: 20, avg: 0.02 },
+    { aid: null, dim: "format", val: "TIPS_LIST", n: 30, avg: 0.3 },
+    { aid: null, dim: "baris", val: "2-4", n: 40, avg: 0.2 },
+    { aid: null, dim: "baris", val: "1", n: 40, avg: -0.1 },
+  ];
+  const styleStats = buildStats(style);
+
+  it("pola gaya: format dan perbandingan layout ikut tampil, hanya dengan sampel cukup", () => {
+    const lines = provenPatterns(style, "a1", styleStats.get("a1"));
+    // Pola lama tetap pertama dan tidak berubah.
+    expect(lines[0]).toMatch(/^Pembuka gaya "Pertanyaan terbuka"/);
+    const styleLines = lines.slice(1);
+    expect(styleLines.length).toBeLessThanOrEqual(3);
+    expect(styleLines).toContainEqual(
+      expect.stringMatching(/^Di akun ini, tips berbentuk daftar rata-rata \d,\dx hasil biasa \(views \+ balasan, 8 postingan\)\.$/)
+    );
+    expect(styleLines).toContainEqual(
+      expect.stringMatching(/^Postingan 2-4 baris lebih berhasil daripada 1 baris: \d,\dx vs 0,\dx hasil biasa \(12 vs 7 postingan\)\.$/)
+    );
+    expect(styleLines.join(" ")).not.toMatch(/curhat|berbentuk daftar \(poin|BUKAN_FORMAT|opini/);
+  });
+
+  it("preferredFormats: format bersampel cukup dengan hasil di atas biasanya, terbaik dulu", () => {
+    expect(preferredFormats(style, "a1")).toEqual(["TIPS_LIST", "CERITA"]);
+    expect(preferredFormats(style, "a1", styleStats.get("a1"))).toEqual(["TIPS_LIST", "CERITA"]);
+    expect(preferredFormats(style, "a2")).toEqual([]);
+    expect(preferredFormats(rows, "a1")).toEqual([]);
+  });
+
+  it("label hasil: format dan layout dari teks; teks kosong tanpa format", () => {
+    const l = labelOutcome("3 cara biar kopi tetap enak:\n1. pakai susu dingin\n2. gula aren cair\n3. es batu terpisah");
+    expect(l.format).toBe("TIPS_LIST");
+    expect(l.layout).toMatchObject({ lines: 4, isList: true, startsLowercase: true });
+    expect(labelOutcome("   ")).toMatchObject({ format: null, layout: { chars: 0, lines: 0 } });
+  });
 });
+
+const daysAgo = (d: number, hourUtc = 5) => new Date(Date.UTC(2026, 9, 20 - d, hourUtc, 10)).toISOString().replace("Z", "");
+const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7);
+const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
+
+/** Satu posting autopilot yang sudah terbit: slot + antrean + statistik Threads. `caption` = teks yang diterbitkan. */
+const published = (
+  id: string,
+  aid: string,
+  ago: number,
+  views: number,
+  hook: string | null,
+  pilar: string | null,
+  opts: { caption?: string; replies?: number } = {}
+) => {
+  const caption = opts.caption ?? `teks ${id}`;
+  return `
+    INSERT INTO "ContentIdea" (id, "workspaceId", "accountId", topik, "topicKey", "formulaHook", pilar, "expiresAt", "createdAt", "updatedAt", status)
+      VALUES ('idea-${id}', 'ws1', '${aid}', 'topik ${id}', 'topik ${id}', ${hook ? `'${hook}'` : "NULL"}, ${pilar ? `'${pilar}'` : "NULL"}, '2027-01-01', '${daysAgo(ago)}', '${daysAgo(ago)}', 'DIPAKAI');
+    INSERT INTO "ScheduledPost" (id, "workspaceId", caption, "tayangPada", status, source) VALUES ('p-${id}', 'ws1', ${q(caption)}, '${daysAgo(ago)}', 'SELESAI', 'DASHBOARD_AI');
+    INSERT INTO "PostDispatch" (id, "postId", "outletId", "socialAccountId", publisher, status, "platformPostId")
+      VALUES ('d-${id}', 'p-${id}', 'o-${aid}', 's-${aid}', 'THREADS', 'TERBIT', 'm-${id}');
+    INSERT INTO "AutopilotSlot" (id, "workspaceId", "accountId", "dayKey", "slotIndex", "slotAt", hour, kind, status, "postId", "ideaId", draft)
+      VALUES ('sl-${id}', 'ws1', '${aid}', '${daysAgo(ago).slice(0, 10)}', ${Math.abs(hash(id)) % 30000}, '${daysAgo(ago)}', 12, 'RAMAI', 'TERBIT', 'p-${id}', 'idea-${id}',
+              ${q(JSON.stringify({ text: caption, pillar: pilar }))});
+    INSERT INTO "ThreadsPostStat" ("threadsAccountId", "mediaId", text, permalink, "postedAt", views, likes, replies, reposts)
+      VALUES ('${aid}', 'm-${id}', ${q(caption)}, 'https://threads.net/p/${id}', '${daysAgo(ago)}', ${views}, 10, ${opts.replies ?? 5}, 1);`;
+};
+
+/** Akun ws1 (outlet, akun Threads, autopilot OTOMATIS) + kebiasaan 30 hari: 12 posting biasa ~1.000 views, 5 balasan. */
+const accountsSql = (ids: string[]) =>
+  ids
+    .map(
+      (a) => `
+INSERT INTO "Outlet" VALUES ('o-${a}', 'ws1', 'Cabang ${a}', true);
+INSERT INTO "ThreadsAccount" (id, "workspaceId", username, "displayName", "accessExpiresAt", scopes)
+  VALUES ('${a}', 'ws1', 'akun_${a}', 'Akun ${a}', '2027-01-01', '{threads_content_publish}');
+INSERT INTO "SocialAccount" VALUES ('s-${a}', 'o-${a}', '${a}');
+INSERT INTO "AutopilotConfig" ("accountId", "workspaceId", mode, "updatedAt") VALUES ('${a}', 'ws1', 'OTOMATIS', '2026-09-01');`
+    )
+    .join("\n") +
+  `
+INSERT INTO "ThreadsPostStat" ("threadsAccountId", "mediaId", text, "postedAt", views, replies) VALUES ${ids
+    .flatMap((a) => Array.from({ length: 12 }, (_, i) => `('${a}', 'base-${a}-${i}', 'posting biasa ${i}', '${daysAgo(3 + i * 2, 9)}', ${900 + i * 20}, 5)`))
+    .join(", ")};`;
+
+const LEARN_SQL = [
+  "sql/002_dashboard_post_log.sql",
+  "sql/003_dashboard_rpc.sql",
+  "sql/005_autopilot.sql",
+  "sql/006_autopilot_radar.sql",
+  "sql/007_autopilot_learning.sql",
+  "sql/042_learning_format.sql",
+];
 
 describe("belajar dari hasil posting (SQL asli)", () => {
   const NOW = new Date("2026-10-20T04:00:00Z");
@@ -78,53 +184,15 @@ describe("belajar dari hasil posting (SQL asli)", () => {
   const counts: Record<string, number> = {};
 
   const count = async (sql: string): Promise<number> => (await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM ${sql}`)).rows[0].n;
-  const daysAgo = (d: number, hourUtc = 5) => new Date(Date.UTC(2026, 9, 20 - d, hourUtc, 10)).toISOString().replace("Z", "");
-
-  /** Satu posting autopilot yang sudah terbit: slot + antrean + statistik Threads. */
-  const published = (id: string, aid: string, ago: number, views: number, hook: string | null, pilar: string | null) => `
-    INSERT INTO "ContentIdea" (id, "workspaceId", "accountId", topik, "topicKey", "formulaHook", pilar, "expiresAt", "createdAt", "updatedAt", status)
-      VALUES ('idea-${id}', 'ws1', '${aid}', 'topik ${id}', 'topik ${id}', ${hook ? `'${hook}'` : "NULL"}, ${pilar ? `'${pilar}'` : "NULL"}, '2027-01-01', '${daysAgo(ago)}', '${daysAgo(ago)}', 'DIPAKAI');
-    INSERT INTO "ScheduledPost" (id, "workspaceId", caption, "tayangPada", status, source) VALUES ('p-${id}', 'ws1', 'teks ${id}', '${daysAgo(ago)}', 'SELESAI', 'DASHBOARD_AI');
-    INSERT INTO "PostDispatch" (id, "postId", "outletId", "socialAccountId", publisher, status, "platformPostId")
-      VALUES ('d-${id}', 'p-${id}', 'o-${aid}', 's-${aid}', 'THREADS', 'TERBIT', 'm-${id}');
-    INSERT INTO "AutopilotSlot" (id, "workspaceId", "accountId", "dayKey", "slotIndex", "slotAt", hour, kind, status, "postId", "ideaId", draft)
-      VALUES ('sl-${id}', 'ws1', '${aid}', '${daysAgo(ago).slice(0, 10)}', ${Math.abs(hash(id)) % 30000}, '${daysAgo(ago)}', 12, 'RAMAI', 'TERBIT', 'p-${id}', 'idea-${id}',
-              '${JSON.stringify({ text: `teks ${id}`, pillar: pilar })}');
-    INSERT INTO "ThreadsPostStat" ("threadsAccountId", "mediaId", text, permalink, "postedAt", views, likes, replies, reposts)
-      VALUES ('${aid}', 'm-${id}', 'teks posting ${id} yang cukup panjang untuk dibaca ulang', 'https://threads.net/p/${id}', '${daysAgo(ago)}', ${views}, 10, 5, 1);`;
-  const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7);
 
   beforeAll(async () => {
     vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
     useTestSupabaseEnv();
     delete process.env.CONTENT_PUBLISH_TEST_ACCOUNTS;
     delete process.env.EXCLUDED_THREADS_ACCOUNTS;
-    db = await bootDb([
-      "sql/002_dashboard_post_log.sql",
-      "sql/003_dashboard_rpc.sql",
-      "sql/005_autopilot.sql",
-      "sql/006_autopilot_radar.sql",
-      "sql/007_autopilot_learning.sql",
-    ]);
+    db = await bootDb(LEARN_SQL);
     h.db = db;
-    await db.exec(
-      ["a1", "a2"]
-        .map(
-          (a) => `
-INSERT INTO "Outlet" VALUES ('o-${a}', 'ws1', 'Cabang ${a}', true);
-INSERT INTO "ThreadsAccount" (id, "workspaceId", username, "displayName", "accessExpiresAt", scopes)
-  VALUES ('${a}', 'ws1', 'akun_${a}', 'Akun ${a}', '2027-01-01', '{threads_content_publish}');
-INSERT INTO "SocialAccount" VALUES ('s-${a}', 'o-${a}', '${a}');
-INSERT INTO "AutopilotConfig" ("accountId", "workspaceId", mode, "updatedAt") VALUES ('${a}', 'ws1', 'OTOMATIS', '2026-09-01');`
-        )
-        .join("\n")
-    );
-    // Kebiasaan akun: posting biasa (bukan autopilot) sekitar 1.000 views selama 30 hari.
-    await db.exec(
-      `INSERT INTO "ThreadsPostStat" ("threadsAccountId", "mediaId", text, "postedAt", views) VALUES ${["a1", "a2"]
-        .flatMap((a) => Array.from({ length: 12 }, (_, i) => `('${a}', 'base-${a}-${i}', 'posting biasa ${i}', '${daysAgo(3 + i * 2, 9)}', ${900 + i * 20})`))
-        .join(", ")}`
-    );
+    await db.exec(accountsSql(["a1", "a2"]));
     await db.exec(
       [
         // Akun 1: "pertanyaan" konsisten di atas biasanya, "daftar" di bawah; satu posting baru meledak.
@@ -144,7 +212,7 @@ INSERT INTO "AutopilotConfig" ("accountId", "workspaceId", mode, "updatedAt") VA
 
   it("sinkron pertama mencatat hasil, mengenali posting viral, dan menurunkan mode akun yang anjlok", async () => {
     await runLearning(NOW, counts);
-    expect(counts).toEqual({ viral: 1, modeDiturunkan: 1 });
+    expect(counts).toEqual({ viral: 1, modeDiturunkan: 1, hasilDilabeli: 17 });
     expect(await count(`"ContentOutcome"`)).toBe(17);
 
     const viral = await db.query<{ isViral: boolean; score: number; baseline: number; formulaHook: string; pilar: string }>(
@@ -256,5 +324,131 @@ INSERT INTO "AutopilotConfig" ("accountId", "workspaceId", mode, "updatedAt") VA
     expect(health.last24h).toEqual({ ticks: 2, errors: 1, putaranAi: 8, diantre: 2, dilewati: 1, avgMs: 2000 });
     // Umur tick dihitung klien dari jam server, dengan ambang dan saklar posting dari server juga.
     expect(health).toMatchObject({ serverNow: NOW.toISOString(), staleAfterMs: 15 * 60_000, publishEnabled: process.env.CONTENT_PUBLISH_ENABLED === "true" });
+  });
+});
+
+describe("belajar format dan layout (SQL asli, sql/042)", () => {
+  const NOW = new Date("2026-10-20T04:00:00Z");
+  const later = (min: number) => new Date(NOW.getTime() + min * 60_000);
+  let db: TestDb;
+
+  const LIST = "3 cara biar kopi tetap enak:\n1. pakai susu dingin\n2. gula aren cair\n3. es batu terpisah";
+  const ONE_LINER = "Menurut gue kopi susu kekinian itu overrated.";
+  const CURHAT = "capek banget hari ini.\nkopi doang yang ngerti.";
+
+  type Row = { score: number; baseline: number; medianReplies: number; views: number; replies: number; format: string | null; layout: Record<string, unknown> | null };
+  const outcome = async (postId: string): Promise<Row> =>
+    (await db.query<Row>(`SELECT score, baseline, "medianReplies", views, replies, format, layout FROM "ContentOutcome" WHERE "postId" = $1`, [postId])).rows[0];
+  const unlabeled = async (): Promise<number> =>
+    (await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM "ContentOutcome" WHERE layout IS NULL`)).rows[0].n;
+
+  beforeAll(async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    useTestSupabaseEnv();
+    db = await bootDb(LEARN_SQL);
+    h.db = db;
+    await db.exec(accountsSql(["a1"]));
+    await db.exec(
+      [
+        // Daftar 2-4 baris: views dan balasan di atas biasanya.
+        ...[2, 4, 6, 8, 10].map((d, i) => published(`li${i}`, "a1", d, 2500, "daftar", "Edukasi", { caption: LIST, replies: 12 })),
+        // Satu baris: di bawah biasanya.
+        ...[3, 5, 7, 9, 11].map((d, i) => published(`op${i}`, "a1", d, 600, "cerita", "Opini", { caption: ONE_LINER, replies: 2 })),
+        // Views sama, balasan beda: hanya bobot balasan yang membedakan skornya.
+        published("rA", "a1", 12, 1000, "cerita", "Opini", { caption: "Kopi susu gula aren tetap juara.", replies: 30 }),
+        published("rB", "a1", 13, 1000, "cerita", "Opini", { caption: "Kopi susu gula aren tetap juara.", replies: 0 }),
+        // Curhat sangat ramai tapi baru 2 posting: belum boleh disebut pola.
+        ...[6, 8].map((d, i) => published(`cu${i}`, "a1", d, 5000, "cerita", "Curhat", { caption: CURHAT, replies: 40 })),
+      ].join("\n")
+    );
+  });
+
+  it("skor memberi bobot balasan (sama dengan engagementScore) dan label terisi di run yang sama", async () => {
+    const c: Record<string, number> = {};
+    await runLearning(NOW, c);
+    expect(c.hasilDilabeli).toBe(14);
+    expect(await unlabeled()).toBe(0);
+
+    const li = await outcome("p-li0");
+    expect(li.medianReplies).toBeGreaterThan(0);
+    expect(li.score).toBeCloseTo(
+      engagementScore({ views: li.views, replies: li.replies, likes: 0, reposts: 0 }, { views: li.baseline, replies: li.medianReplies }),
+      4
+    );
+    const [a, b] = [await outcome("p-rA"), await outcome("p-rB")];
+    expect(a.score - b.score).toBeCloseTo(0.5 * Math.log(31), 4);
+
+    expect(li.format).toBe("TIPS_LIST");
+    expect(li.layout).toMatchObject({ lines: 4, isList: true, startsLowercase: true });
+    expect(await outcome("p-op0")).toMatchObject({ format: "OPINI", layout: expect.objectContaining({ lines: 1, isList: false, startsLowercase: false }) });
+    expect((await outcome("p-cu0")).format).toBe("CURHAT");
+  });
+
+  it("pelabelan idempoten: label yang ada tidak ditimpa, antrean kosong tidak memanggil apa pun lagi", async () => {
+    const layout = { chars: 1, lines: 1, isList: false, startsLowercase: false };
+    expect(await pgRpc(db, "dash_learn_label_set", { p_items: [{ id: "p-li0", format: "PROMO", layout }] })).toBe(0);
+    expect((await outcome("p-li0")).format).toBe("TIPS_LIST");
+    expect(await labelOutcomes(NOW)).toEqual({ labeled: 0, more: false });
+    await expect(pgRpc(db, "dash_learn_label_set", { p_items: [{ id: "p-li0", format: "OPINI", layout: { chars: "x" } }] })).rejects.toThrow(/layout tidak valid/);
+
+    const c: Record<string, number> = {};
+    await runLearning(later(5), c);
+    expect(c).toEqual({});
+  });
+
+  it("pelabelan dibatasi per tick: paling banyak LABEL_BATCH, sisanya di tick berikutnya; di luar 60 hari dilewati", async () => {
+    // 60 hasil lama di workspace lain + 1 hasil di luar jendela 60 hari.
+    await db.exec(`
+      INSERT INTO "ScheduledPost" (id, "workspaceId", caption, "tayangPada", status, source)
+        SELECT 'pz-' || g, 'ws9', 'posting lama ' || g, '${daysAgo(20)}'::timestamp - g * interval '1 minute', 'SELESAI', 'DASHBOARD_AI'
+        FROM generate_series(1, 60) g;
+      INSERT INTO "ContentOutcome" ("postId", "slotId", "workspaceId", "accountId", "jamLokal", "jenisSlot", "postedAt", "diukurPada")
+        SELECT 'pz-' || g, 'slz-' || g, 'ws9', 'z9', 12, 'RAMAI', '${daysAgo(20)}'::timestamp - g * interval '1 minute', '${daysAgo(19)}'
+        FROM generate_series(1, 60) g;
+      INSERT INTO "ContentOutcome" ("postId", "slotId", "workspaceId", "accountId", "jamLokal", "jenisSlot", "postedAt", "diukurPada")
+        VALUES ('pz-kuno', 'slz-kuno', 'ws9', 'z9', 12, 'RAMAI', '${daysAgo(70)}', '${daysAgo(69)}');`);
+
+    expect(await labelOutcomes(NOW, 3)).toEqual({ labeled: 3, more: true });
+    expect(await unlabeled()).toBe(58);
+
+    // Sinkron berikutnya (lease 3 jam) menyalakan antrean: satu batch penuh, lalu sisanya di tick berikut.
+    const t1: Record<string, number> = {};
+    await runLearning(later(3 * 60 + 1), t1);
+    expect(t1.hasilDilabeli).toBe(LABEL_BATCH);
+    const t2: Record<string, number> = {};
+    await runLearning(later(3 * 60 + 6), t2);
+    expect(t2).toEqual({ hasilDilabeli: 57 - LABEL_BATCH });
+    const t3: Record<string, number> = {};
+    await runLearning(later(3 * 60 + 11), t3);
+    expect(t3).toEqual({});
+    // Hanya yang di luar jendela 60 hari yang tetap tanpa label.
+    expect(await unlabeled()).toBe(1);
+    expect((await outcome("pz-1")).format).toBe("OPINI");
+  });
+
+  it("dimensi gaya teragregasi (sampel minimal), pola terbukti dan format pilihan; dimensi lama tetap", async () => {
+    const rows = await loadLearnStats(["a1"], NOW);
+    const mine = (dim: string, val: string) => rows.find((r) => r.aid === "a1" && r.dim === dim && r.val === val);
+    expect(mine("format", "TIPS_LIST")?.n).toBe(5);
+    expect(mine("format", "OPINI")?.n).toBe(7);
+    expect(mine("format", "CURHAT")?.n).toBe(2);
+    expect([mine("baris", "2-4")?.n, mine("baris", "1")?.n]).toEqual([7, 7]);
+    expect([mine("daftar", "ya")?.n, mine("daftar", "tidak")?.n]).toEqual([5, 9]);
+    expect([mine("pembuka", "kecil")?.n, mine("pembuka", "kapital")?.n]).toEqual([7, 7]);
+    expect(mine("panjang", "pendek")?.n).toBe(14);
+    // Dimensi lama tidak berubah.
+    expect(mine("jam", "12")?.n).toBe(14);
+    expect(mine("jenisSlot", "RAMAI")?.n).toBe(14);
+    expect(mine("formulaHook", "daftar")?.n).toBe(5);
+    expect(mine("pilar", "Opini")?.n).toBe(7);
+    // Workspace lain tidak ikut.
+    expect(rows.some((r) => r.aid === "z9")).toBe(false);
+
+    const stats = buildStats(rows);
+    const lines = provenPatterns(rows, "a1", stats.get("a1"));
+    expect(lines).toContainEqual(expect.stringMatching(/^Di akun ini, tips berbentuk daftar rata-rata \d,\dx hasil biasa \(views \+ balasan, 5 postingan\)\.$/));
+    expect(lines).toContainEqual(expect.stringMatching(/^Postingan .+ lebih berhasil daripada .+ hasil biasa \(\d+ vs \d+ postingan\)\.$/));
+    expect(lines.join(" ")).not.toMatch(/curhat/);
+    expect(preferredFormats(rows, "a1")).toEqual(["TIPS_LIST"]);
   });
 });
