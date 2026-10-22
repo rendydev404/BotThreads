@@ -491,16 +491,17 @@ export function approveInvoice(invoiceId: string, adminId: string, notes: string
  * API Midtrans sebelum tagihan dilunasi. Hasil `status` adalah kode HTTP untuk Midtrans (2xx = jangan kirim ulang).
  */
 export async function handleMidtransNotification(body: unknown): Promise<{ status: number; message: string }> {
-  const cfg = await getRawIntegrations();
-  if (!cfg.stored || !cfg.midtrans.serverKey) return { status: 503, message: "Midtrans belum dikonfigurasi." };
-
   const b = (typeof body === "object" && body !== null ? body : {}) as Record<string, unknown>;
-  if (!notificationSignatureValid(cfg.midtrans.serverKey, b)) return { status: 401, message: "Signature tidak valid." };
-
   const orderId = typeof b.order_id === "string" ? b.order_id : "";
   const invoiceId = ORDER_RE.exec(orderId)?.[1];
-  // Transaksi lain di akun Midtrans yang sama (atau uji coba dari dashboard): akui supaya tidak dikirim ulang.
+  // Transaksi lain di akun Midtrans yang sama (Payment Link, uji coba dashboard, environment lain): tidak ada
+  // yang diproses, jadi akui sebelum cek signature supaya Midtrans tidak mengirim ulang dan email error.
   if (!invoiceId) return { status: 200, message: "Diabaikan." };
+
+  const cfg = await getRawIntegrations();
+  if (!cfg.stored || !cfg.midtrans.serverKey) return { status: 503, message: "Midtrans belum dikonfigurasi." };
+  if (!notificationSignatureValid(cfg.midtrans.serverKey, b)) return { status: 401, message: "Signature tidak valid." };
+
   return withKeys([invoiceKey(invoiceId)], () => notifyUnlocked(cfg, invoiceId, orderId));
 }
 

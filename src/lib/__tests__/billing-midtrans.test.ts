@@ -355,5 +355,7 @@ describe("checkout dan pelunasan", () => {
 
   it("notifikasi untuk order_id asing diakui tanpa efek", async () => {
     expect((await notify("order-lain-123")).status).toBe(200);
+    // Payment Link / environment lain: signature dari server key berbeda tetap diakui, bukan 401.
+    expect((await notify("9b80fc27-7798-41a9-b84e-5195799506f3-1792594543184", { key: "Mid-server-lain" })).status).toBe(200);
   });
 });
