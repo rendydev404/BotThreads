@@ -11,6 +11,7 @@ import { getAccountFacts } from "./account-facts";
 import { getAccountDetail } from "./chat-context";
 import { generateWithFailover, type GeminiSchema } from "./gemini";
 import { listPublishAccounts, type PublishAccount } from "./publish-accounts";
+import { adviceContext } from "./chat-router";
 import { loadIdeaContext } from "./radar-store";
 import { db } from "./supabase";
 
@@ -33,7 +34,8 @@ export type RolePromptReply =
   | { kind: "ask"; message: string }
   | { kind: "done"; message: string; profile: RolePromptProfile | null; model: string | null };
 
-const ROLE_WORDS = /(role|peran|persona|karakter|identitas|profil\s*ai|system\s*prompt|brief|tema\s+akun|gaya\s+akun)/i;
+// Cadangan kata kunci bila router AI tidak menjawab. "isi profil (gw)" / "prompt profil" juga prompt peran.
+const ROLE_WORDS = /(role|peran|persona|karakter|identitas|profil\s*ai|(?:isi|prompt)\s+(?:untuk\s+)?(?:isi\s+)?profil|system\s*prompt|brief|tema\s+akun|gaya\s+akun)/i;
 const ASK_WORDS = /(buat|bikin|buatin|bikinin|susun|saran|rekomendasi|generate|tulis|kasih|minta|perbaiki|upgrade|tingkatkan|optimalkan)/i;
 /** "prompt gambar", "postingan tentang prompt" dsb. adalah permintaan konten, bukan prompt peran. */
 const CONTENT_WORDS = /(gambar|image|foto|video|midjourney|postingan|posting|draf|draft|caption|konten)/i;
@@ -143,7 +145,16 @@ function splitProfile(text: string): { visible: string; profileBlock: string | n
   return { visible: text.replace(m[0], "").trim(), profileBlock: m[1] };
 }
 
-export async function buildRolePrompt(opts: { text: string; accountFilter: string | null; now?: Date }): Promise<RolePromptReply> {
+/** Bagian tambahan bila pengguna sekaligus meminta saran bahasan/curhat yang berpotensi ramai. */
+const ADVICE_SECTION = `Pengguna JUGA meminta saran bahasan. Tambahkan bagian "### Bahasan yang berpotensi ramai" SEBELUM "### Cara memakai": 6-8 butir bernomor, tiap butir berisi judul bahasan tebal (curhat, cerita, opini, atau tips yang cocok untuk niche akun ini), satu kalimat kenapa berpotensi ramai di Threads (rasa relate, memancing balasan, atau menumpang tren), dan contoh kalimat pembuka bergaya akun ini dalam tanda kutip. Utamakan bahan dari TREN & IDE RADAR bila ada dan sebut bila sebuah butir menumpang tren. Jangan mengarang fakta, angka, atau pengalaman pemilik yang tidak ada di data; tulis sebagai sudut yang bisa diisi pemilik akun.`;
+
+export async function buildRolePrompt(opts: {
+  text: string;
+  accountFilter: string | null;
+  /** Pengguna juga meminta saran bahasan yang berpotensi ramai (router: also ADVICE). */
+  advice?: boolean;
+  now?: Date;
+}): Promise<RolePromptReply> {
   const now = opts.now ?? new Date();
   const accounts = await listPublishAccounts();
   if (accounts.length === 0) return { kind: "ask", message: "Belum ada akun Threads yang terhubung. Hubungkan akun dulu di halaman **Akun Threads**." };
@@ -160,7 +171,7 @@ export async function buildRolePrompt(opts: { text: string; accountFilter: strin
   }
 
   const handle = handleOf(account);
-  const [detail, context, facts, lessons, config] = await Promise.all([
+  const [detail, context, facts, lessons, config, trends] = await Promise.all([
     getAccountDetail(handle, []).catch(() => ""),
     loadIdeaContext([account.id], now).catch(() => null),
     getAccountFacts().catch(() => new Map<string, string[]>()),
@@ -171,6 +182,7 @@ export async function buildRolePrompt(opts: { text: string; accountFilter: strin
       .eq("accountId", account.id)
       .maybeSingle()
       .then((r) => (r.data ?? null) as { brief: string | null; pillars: { key: string }[] | null; voiceStyle: string | null } | null),
+    opts.advice ? adviceContext([account], now).catch(() => "") : Promise.resolve(""),
   ]);
   const recents = (context?.recents.get(account.id) ?? []).slice(0, 15);
   const lessonLines = ((lessons.get(account.id) ?? []) as { lesson: string }[]).map((l) => `- ${l.lesson}`);
@@ -184,13 +196,15 @@ export async function buildRolePrompt(opts: { text: string; accountFilter: strin
     recents.length ? `POSTINGAN TERBARU AKUN (acuan gaya bahasa):\n${recents.map((t, i) => `${i + 1}. ${t.replace(/\s+/g, " ").slice(0, 400)}`).join("\n")}` : "POSTINGAN TERBARU: belum ada.",
     `FAKTA BRAND/AKUN:\n${factLines.join("\n") || "- tidak ada"}`,
     `PELAJARAN GAYA DARI PEMILIK AKUN (wajib dipatuhi):\n${lessonLines.join("\n") || "- belum ada"}`,
+    ...(opts.advice ? [trends || "TREN & IDE RADAR: belum ada untuk akun ini; susun saran dari niche dan postingan akun."] : []),
   ].join("\n\n");
 
+  const ask = `Susun prompt peran untuk ${handle}.${opts.advice ? `\n\n${ADVICE_SECTION}` : ""}`;
   const result = await generateWithFailover({
     system: SYSTEM,
-    contents: [{ role: "user", parts: [{ text: `DATA AKUN:\n${data}\n\nSusun prompt peran untuk ${handle}.` }] }],
+    contents: [{ role: "user", parts: [{ text: `DATA AKUN:\n${data}\n\n${ask}` }] }],
     temperature: 0.5,
-    maxOutputTokens: 4000,
+    maxOutputTokens: opts.advice ? 5500 : 4000,
     deadlineMs: 50_000,
   });
   if (!result) {

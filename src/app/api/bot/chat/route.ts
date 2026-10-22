@@ -4,9 +4,17 @@ import { DEFAULT_SCOPE, buildReport, reportToText, type Report, type ScopeOption
 import { getAccountDetail, getFleetContext, type FleetContext } from "@/lib/chat-context";
 import { getRequestUserId } from "@/lib/api-auth";
 import { handleDraftChat, parseLastDrafts } from "@/lib/content-chat";
-import { parseDraftIntent } from "@/lib/content-intent";
+import { parseDraftIntent, parsePublishIntent } from "@/lib/content-intent";
+import {
+  adviceContext,
+  draftIntentFromDecision,
+  routeChat,
+  scopeFromDecision,
+  singleAccountOf,
+  type RouteTurn,
+} from "@/lib/chat-router";
 import { isContentRequest, resolveContentScope, type ChatTurn, type ContentScope } from "@/lib/content-scope";
-import { listPublishAccounts } from "@/lib/publish-accounts";
+import { listPublishAccounts, type PublishAccount } from "@/lib/publish-accounts";
 import { factsText, getAccountFacts } from "@/lib/account-facts";
 import { hasPlaceholder, stripPlaceholders } from "@/lib/idea-block";
 import { throttle } from "@/lib/throttle";
@@ -237,8 +245,33 @@ export const POST = withCtx("VIEWER", async (request) => {
       });
     }
 
+    // Router maksud (AI): pahami maksud pesan + riwayat, termasuk permintaan ganda. Data dashboard dimuat
+    // sejajar supaya jeda router tidak menambah waktu jawaban umum. Gagal/lambat -> jalur kata kunci lama.
+    const turns: RouteTurn[] = Array.isArray(history)
+      ? history
+          .slice(-6)
+          .filter((h) => (h?.sender === "user" || h?.sender === "bot") && typeof h.text === "string")
+          .map((h) => ({ sender: h.sender, text: String(h.text).slice(0, 3000) }))
+      : [];
+    const bodyAccount = typeof body.account === "string" ? body.account.slice(0, 60) : null;
+    const reportGuess = detectReportDays(text);
+    const fleetP = getFleetContext().then(
+      (v) => ({ ok: true as const, v }),
+      (e: unknown) => ({ ok: false as const, e })
+    );
+    const accountsP = listPublishAccounts().catch(() => [] as PublishAccount[]);
+    const decision =
+      reportGuess !== null
+        ? null
+        : await routeChat({
+            text,
+            history: turns,
+            handles: (await accountsP).map((a) => a.username).filter((u): u is string => !!u),
+          });
+    const routedAccount = (decision && singleAccountOf(decision)) || bodyAccount;
+
     // Prompt peran akun: dokumen markdown lengkap + versi Profil AI yang bisa diterapkan sekali klik.
-    if (isRolePromptRequest(text)) {
+    if (decision ? decision.intent === "ROLE_PROMPT" : isRolePromptRequest(text)) {
       const userId = await getRequestUserId(request);
       if (!userId) {
         return NextResponse.json({ success: false, error: "Sesi berakhir. Silakan masuk kembali." }, { status: 401 });
@@ -250,7 +283,7 @@ export const POST = withCtx("VIEWER", async (request) => {
           { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
         );
       }
-      const reply = await buildRolePrompt({ text, accountFilter: typeof body.account === "string" ? body.account.slice(0, 60) : null });
+      const reply = await buildRolePrompt({ text, accountFilter: routedAccount, advice: !!decision?.also.includes("ADVICE") });
       return NextResponse.json({
         success: true,
         message: reply.message,
@@ -262,7 +295,7 @@ export const POST = withCtx("VIEWER", async (request) => {
     // Rencana aksi: pengguna meminta saran sebelumnya dikerjakan otomatis. Hanya menyusun rencana;
     // eksekusi terjadi setelah pengguna memilih waktu posting di kartu rencana.
     const advice = pickAdviceText(Array.isArray(history) ? history.slice(-6) : []);
-    if (isExecuteIntent(text, advice)) {
+    if (decision ? decision.intent === "EXECUTE_PLAN" && !!advice : isExecuteIntent(text, advice)) {
       const userId = await getRequestUserId(request);
       if (!userId) {
         return NextResponse.json({ success: false, error: "Sesi berakhir. Silakan masuk kembali." }, { status: 401 });
@@ -284,12 +317,21 @@ export const POST = withCtx("VIEWER", async (request) => {
     }
 
     // Jalur draf konten (FR-3): kartu draf siap edit. Tidak ada eksekusi otomatis; pengguna menekan tombol.
-    if (detectReportDays(text) === null) {
+    if (decision ? decision.intent === "CONTENT" || decision.intent === "PUBLISH" : reportGuess === null) {
       const lastDrafts = parseLastDrafts(body.lastDrafts);
-      const accountFilter = typeof body.account === "string" ? body.account.slice(0, 60) : null;
+      const accountFilter = bodyAccount;
 
       // Cakupan akun: semua/beberapa akun -> Multi-Agent Orchestrator (satu agen per akun); tidak jelas -> tanya.
-      const scope = await contentScopeFor(text, history, lastDrafts.length > 0, accountFilter);
+      let scope: (ContentScope & { readyCount: number }) | null;
+      if (decision) {
+        const accounts = await accountsP;
+        scope = {
+          ...scopeFromDecision({ decision, accounts, accountFilter, publish: parsePublishIntent(text), text }),
+          readyCount: accounts.filter((a) => a.ready).length,
+        };
+      } else {
+        scope = await contentScopeFor(text, history, lastDrafts.length > 0, accountFilter);
+      }
       if (scope && scope.kind !== "single") {
         const meta = { latencyMs: Date.now() - startTime, model: "orchestrator", degraded: false };
         if (scope.kind === "ask") {
@@ -308,7 +350,9 @@ export const POST = withCtx("VIEWER", async (request) => {
           meta,
         });
       }
-      const intent = parseDraftIntent(text, lastDrafts.length > 0);
+      const intent = decision
+        ? draftIntentFromDecision(decision, text, lastDrafts.length > 0)
+        : parseDraftIntent(text, lastDrafts.length > 0);
       if (intent) {
         const userId = await getRequestUserId(request);
         if (!userId) {
@@ -323,7 +367,7 @@ export const POST = withCtx("VIEWER", async (request) => {
         }
         const result = await handleDraftChat({
           text,
-          accountFilter: typeof body.account === "string" ? body.account.slice(0, 60) : null,
+          accountFilter: routedAccount,
           lastDrafts,
           intent,
         });
@@ -335,26 +379,37 @@ export const POST = withCtx("VIEWER", async (request) => {
         });
       }
     }
-    let ctx: FleetContext;
-    try {
-      ctx = await getFleetContext();
-    } catch (err) {
-      console.error("Gagal memuat konteks data:", err);
+    const fleet = await fleetP;
+    if (!fleet.ok) {
+      console.error("Gagal memuat konteks data:", fleet.e);
       return NextResponse.json(
         { success: false, error: "Data belum bisa dimuat dari database." },
         { status: 503 }
       );
     }
+    const ctx: FleetContext = fleet.v;
 
-    const reportDays = detectReportDays(text);
+    const reportDays = reportGuess;
     const lastBot = Array.isArray(history) ? [...history].reverse().find((h) => h?.sender === "bot") : null;
-    // Fakta akun (cabang, lokasi, menu, harga dari postingan) hanya dimuat untuk permintaan konten.
+    const wantsAdvice = decision?.intent === "ADVICE" || !!decision?.also.includes("ADVICE");
+    // Fakta akun (cabang, lokasi, menu, harga dari postingan) hanya dimuat untuk permintaan konten/saran.
     const wantsContent =
-      !reportDays && (isContentRequest(text) || CONTENT_HINT.test(text) || /```ide/.test(String(lastBot?.text ?? "")));
+      !reportDays &&
+      (wantsAdvice || isContentRequest(text) || CONTENT_HINT.test(text) || /```ide/.test(String(lastBot?.text ?? "")));
     const lastBotForQueue = String(lastBot?.text ?? "");
     const wantsQueue =
       QUEUE_HINT.test(text) || /Selesai: \d+ tugas|Rencana aksi|\[HASIL|\[RENCANA/i.test(lastBotForQueue);
-    const [detail, weekly, insights, facts, queue] = await Promise.all([
+    // Saran bahasan: tren niche + ide Radar untuk akun yang dimaksud (atau akun siap, maks 5).
+    const adviceAccountsP = wantsAdvice
+      ? accountsP.then((all) => {
+          const named = Array.isArray(decision?.accounts) ? new Set(decision.accounts.map((h) => h.toLowerCase())) : null;
+          const filter = bodyAccount && bodyAccount !== "all" ? bodyAccount.replace(/^@/, "").toLowerCase() : null;
+          return all.filter((a) =>
+            named ? named.has((a.username ?? "").toLowerCase()) : filter ? a.id === bodyAccount || a.username?.toLowerCase() === filter : a.ready
+          );
+        })
+      : Promise.resolve([] as PublishAccount[]);
+    const [detail, weekly, insights, facts, queue, trends] = await Promise.all([
       getAccountDetail(text, ctx.usernames).catch(() => ""),
       buildReport(7, "all").catch(() => null),
       getNetworkInsights().catch((err) => {
@@ -367,6 +422,7 @@ export const POST = withCtx("VIEWER", async (request) => {
             .catch(() => "")
         : Promise.resolve(""),
       wantsQueue ? getQueueContext().catch(() => "") : Promise.resolve(""),
+      adviceAccountsP.then((list) => adviceContext(list)).catch(() => ""),
     ]);
     const report =
       reportDays && weekly
@@ -380,8 +436,12 @@ export const POST = withCtx("VIEWER", async (request) => {
     if (detail) dataText += "\n\n" + detail;
     if (facts) dataText += "\n\n" + facts;
     if (queue) dataText += "\n\n" + queue;
+    if (trends) dataText += "\n\n" + trends;
 
     let system = applyBrand(buildSystem(dataText), await currentBrand());
+    if (wantsAdvice && !reportDays) {
+      system += `\n\nKONTEKS PERMINTAAN INI: pengguna meminta SARAN bahasan/strategi konten, bukan laporan angka. Jawab langsung dengan 5-8 saran konkret yang cocok untuk niche akun yang dimaksud: tiap saran berupa judul tebal (bahasan, curhat, cerita, opini, atau tips), satu kalimat kenapa berpotensi ramai di Threads (relate, memancing balasan, atau menumpang tren), dan contoh kalimat pembuka bergaya santai Threads dalam tanda kutip. Utamakan bahan dari TREN & IDE RADAR dan postingan terbaik di data, sebut bila sebuah saran menumpang tren. Jangan mengarang fakta atau pengalaman pemilik akun. Tutup dengan tawaran membuatkan draf dari saran yang dipilih. Format: daftar bernomor, tanpa tabel kecuali diminta.`;
+    }
     if (report) {
       system += `\n\nKONTEKS PERMINTAAN INI: pengguna meminta laporan ${report.days} hari. Kartu laporan lengkap (total, perbandingan, dan peringkat akun) SUDAH ditampilkan terpisah di atas jawaban Anda, jadi JANGAN mengulang tabel atau daftar peringkat. Tugas Anda: beri insight singkat maksimal 4 poin (pola utama, akun yang naik atau turun menonjol, satu saran tindakan konkret), lalu tawarkan satu pertanyaan lanjutan yang relevan.`;
     }
