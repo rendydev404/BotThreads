@@ -31,7 +31,9 @@ vi.mock("../supabase", async (orig) => ({
 }));
 
 import {
+  MIN_SCORE,
   articleImages,
+  choosePhotos,
   decodeBingLink,
   extractOgImage,
   forgetNewsImageCache,
@@ -39,9 +41,11 @@ import {
   isSafeTitle,
   mergeArticles,
   parseBingRss,
+  parseJudgement,
   parseWikimedia,
   pickIdeaMedia,
   wikimediaLicenseOk,
+  type JudgeableCandidate,
   type NewsArticle,
   type PickMediaInput,
 } from "../news-image";
@@ -267,6 +271,45 @@ describe("periksa dan olah gambar (media-store)", () => {
   });
 });
 
+
+describe("penilaian visual (murni)", () => {
+  const cand = (n: number): JudgeableCandidate => ({
+    item: {
+      sourceUrl: `https://img.test/${n}.jpg`,
+      credit: "media.test",
+      sourceKind: "NEWS",
+      articleUrl: null,
+      articleTitle: null,
+      imageKey: `k${n}`,
+      width: 1080,
+      height: 720,
+    },
+    thumb: "x",
+  });
+  const cands = [cand(1), cand(2), cand(3)];
+
+  it("semua foto wajib dinilai; urut skor tertinggi, skor dibatasi 0-10", () => {
+    expect(parseJudgement({ foto: [{ no: 1, skor: 9 }] }, cands)).toBeNull();
+    expect(parseJudgement({ foto: "x" }, cands)).toBeNull();
+    const out = parseJudgement(
+      { foto: [{ no: 1, skor: 4, lihat: "logo" }, { no: 2, skor: 12, lihat: "nasi goreng" }, { no: 3, skor: 8 }, { no: 9, skor: 10 }] },
+      cands
+    );
+    expect(out?.map((j) => [j.candidate.item.imageKey, j.score])).toEqual([
+      ["k2", 10],
+      ["k3", 8],
+      ["k1", 4],
+    ]);
+  });
+
+  it(`hanya skor >= ${MIN_SCORE} dipakai; single satu, carousel maks 4`, () => {
+    const judged = parseJudgement({ foto: [{ no: 1, skor: 6 }, { no: 2, skor: 9 }, { no: 3, skor: 7 }] }, cands)!;
+    expect(choosePhotos(judged, false).map((i) => i.imageKey)).toEqual(["k2"]);
+    expect(choosePhotos(judged, true).map((i) => i.imageKey)).toEqual(["k2", "k3"]);
+    expect(choosePhotos(parseJudgement({ foto: cands.map((_, i) => ({ no: i + 1, skor: 5 })) }, cands)!, false)).toEqual([]);
+  });
+});
+
 describe("pickIdeaMedia", () => {
   const INPUT: PickMediaInput = {
     workspaceId: "ws1",
@@ -277,27 +320,70 @@ describe("pickIdeaMedia", () => {
     text: "3 tempat kuliner malam di Jakarta yang wajib kamu coba minggu ini:\n1. Gultik Blok M\n2. Pecel lele Angel\n3. Nasi goreng kambing Kebon Sirih",
   };
 
-  type Plan = { pakaiGambar: boolean; format: "single" | "carousel"; kueri: string[]; wiki?: string };
+  type Plan = { pakaiGambar: boolean; format: "single" | "carousel"; visual?: string; kueri: string[]; wiki?: string };
   let plan: Plan | null;
-  let picks: number[] | null;
-  let pickPrompt = "";
+  /** Skor per foto yang dikirim, urut nomor foto; null = Hermes tidak membalas penilaian. */
+  let scores: number[] | null;
+  let judgeParts: GenerateOptions["contents"][number]["parts"] = [];
   let fetched: string[] = [];
   let routes: Record<string, () => Response>;
 
   const html = (img: string) => () => new Response(head(`<meta property="og:image" content="${img}">`), { headers: { "content-type": "text/html" } });
   const jpeg = (buf: () => Buffer) => () => new Response(new Uint8Array(buf()), { headers: { "content-type": "image/jpeg" } });
+  const textOf = (p: unknown) => (p as { text?: string }).text ?? "";
+  const imagesSent = () => judgeParts.filter((p) => "inlineData" in p).length;
+  const wikiRoute = () => {
+    routes["https://commons.wikimedia.org/w/api.php"] = () =>
+      new Response(
+        JSON.stringify({
+          query: {
+            pages: [
+              {
+                title: "File:Jakarta street food.jpg",
+                index: 1,
+                imageinfo: [
+                  {
+                    url: "https://upload.wikimedia.org/a/street.jpg",
+                    descriptionurl: "https://commons.wikimedia.org/wiki/File:Jakarta_street_food.jpg",
+                    thumburl: "https://upload.wikimedia.org/thumb/street.jpg",
+                    width: 3000,
+                    height: 2000,
+                    mime: "image/jpeg",
+                    extmetadata: { LicenseShortName: { value: "CC BY-SA 4.0" } },
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+        { headers: { "content-type": "application/json" } }
+      );
+    routes["https://upload.wikimedia.org/thumb/street.jpg"] = jpeg(() => bigJpeg);
+  };
 
   beforeEach(() => {
     forgetNewsImageCache();
-    plan = { pakaiGambar: true, format: "single", kueri: ["kuliner malam jakarta"], wiki: "Jakarta street food" };
-    picks = [1];
-    pickPrompt = "";
+    plan = {
+      pakaiGambar: true,
+      format: "single",
+      visual: "suasana warung kuliner malam di Jakarta",
+      kueri: ["kuliner malam jakarta"],
+      wiki: "Jakarta street food",
+    };
+    scores = [9, 8, 8, 8];
+    judgeParts = [];
     fetched = [];
     mocks.hermes.mockReset().mockImplementation(async (o: GenerateOptions) => {
       expect(o.providers).toBe("hermes");
-      const isPick = !!o.responseSchema?.properties?.pilih;
-      if (isPick) pickPrompt = o.contents[0].parts[0].text;
-      const json = isPick ? (picks ? { pilih: picks } : null) : plan;
+      const isJudge = !!o.responseSchema?.properties?.foto;
+      let json: unknown;
+      if (isJudge) {
+        judgeParts = o.contents[0].parts;
+        const n = judgeParts.filter((p) => "inlineData" in p).length;
+        json = scores ? { foto: scores.slice(0, n).map((skor, i) => ({ no: i + 1, skor, lihat: "foto" })) } : null;
+      } else {
+        json = plan;
+      }
       if (json === null || (o.validate && !o.validate(json))) return null;
       return { text: JSON.stringify(json), model: "hermes-combo", json };
     });
@@ -344,110 +430,94 @@ describe("pickIdeaMedia", () => {
   });
 
   it("force: tetap mencari walau Hermes bilang tidak perlu", async () => {
-    plan = { pakaiGambar: false, format: "single", kueri: ["kuliner malam jakarta"] };
+    plan = { pakaiGambar: false, format: "single", visual: "warung kuliner malam", kueri: ["kuliner malam jakarta"] };
     const media = await pickIdeaMedia({ ...INPUT, force: true });
     expect(media?.type).toBe("IMAGE");
-    expect(mocks.hermes.mock.calls[0][0].contents[0].parts[0].text).toContain("pakaiGambar wajib true");
+    expect(textOf(mocks.hermes.mock.calls[0][0].contents[0].parts[0])).toContain("pakaiGambar wajib true");
   });
 
-  it("Hermes tidak tersedia: null", async () => {
+  it("rencana tanpa gambaran foto ideal tidak sah", async () => {
+    plan = { pakaiGambar: true, format: "single", visual: "", kueri: ["kuliner malam jakarta"] };
+    expect(await pickIdeaMedia(INPUT)).toBeNull();
+  });
+
+  it("Hermes tidak tersedia untuk keputusan atau penilaian: null", async () => {
     plan = null;
     expect(await pickIdeaMedia(INPUT)).toBeNull();
-    picks = null;
-    plan = { pakaiGambar: true, format: "single", kueri: ["kuliner malam jakarta"] };
+    plan = { pakaiGambar: true, format: "single", visual: "warung kuliner malam", kueri: ["kuliner malam jakarta"] };
+    scores = null;
     expect(await pickIdeaMedia(INPUT)).toBeNull();
-    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.remember).not.toHaveBeenCalled();
   });
 
-  it("single: berita keras tidak ditawarkan, gambar diperiksa (tanpa diunggah), tautan sumber disimpan, dan dicatat", async () => {
+  it("single: Hermes MELIHAT thumbnail tiap kandidat sah; foto skor tertinggi dipakai tanpa diunggah", async () => {
+    scores = [7, 9];
     const media = await pickIdeaMedia(INPUT);
-    expect(mocks.hermes.mock.calls[0][0].contents[0].parts[0].text).toContain("Tema akun: Kuliner nusantara");
-    expect(pickPrompt).not.toContain("Polisi");
+    expect(textOf(mocks.hermes.mock.calls[0][0].contents[0].parts[0])).toContain("Tema akun: Kuliner nusantara");
+    // Berita keras tidak dibuka; gambar 320px (nasi goreng) gugur sebelum dinilai.
     expect(fetched).not.toContain("https://www.detik.com/news/2");
-    const key = imageKeyOf("https://asset.kompas.com/gultik.jpg");
+    expect(imagesSent()).toBe(2);
+    expect(textOf(judgeParts[0])).toContain("FOTO IDEAL: suasana warung kuliner malam di Jakarta");
+    const thumb = judgeParts.find((p) => "inlineData" in p) as { inlineData: { mimeType: string; data: string } };
+    expect(thumb.inlineData.mimeType).toBe("image/jpeg");
+    expect((await sharp(Buffer.from(thumb.inlineData.data, "base64")).metadata()).width).toBeLessThanOrEqual(384);
+    const key = imageKeyOf("https://cdn.detik.net/pecel.jpg");
     expect(media).toEqual({
       type: "IMAGE",
       items: [
         {
-          sourceUrl: "https://asset.kompas.com/gultik.jpg",
-          credit: "kompas.com",
+          sourceUrl: "https://cdn.detik.net/pecel.jpg",
+          credit: "food.detik.com",
           sourceKind: "NEWS",
-          articleUrl: "https://www.kompas.com/food/read/1",
-          articleTitle: "Gultik Blok M tetap jadi primadona kuliner malam",
+          articleUrl: "https://food.detik.com/3",
+          articleTitle: "Pecel lele Angel, warung legendaris yang buka sampai subuh",
           imageKey: key,
           width: 1080,
           height: 675,
         },
       ],
     });
-    // Gambar diunduh untuk diperiksa, tetapi tidak disimpan di mana pun.
-    expect(fetched).toContain("https://asset.kompas.com/gultik.jpg");
     expect(mocks.upload).not.toHaveBeenCalled();
     expect(mocks.remember).toHaveBeenCalledWith("acc1", [key], expect.any(Date));
   });
 
-  it("gambar yang dikecualikan atau dipakai 30 hari terakhir tidak ditawarkan", async () => {
+  it(`tidak ada foto dengan skor >= ${MIN_SCORE}: tanpa gambar (bukan dipaksakan)`, async () => {
+    scores = [6, 3];
+    expect(await pickIdeaMedia(INPUT)).toBeNull();
+    expect(mocks.remember).not.toHaveBeenCalled();
+  });
+
+  it("gambar yang dikecualikan atau dipakai 30 hari terakhir tidak dinilai", async () => {
     mocks.used.mockResolvedValue(new Set([imageKeyOf("https://cdn.detik.net/pecel.jpg")]));
     const media = await pickIdeaMedia({ ...INPUT, exclude: [imageKeyOf("https://asset.kompas.com/gultik.jpg")] });
-    const offered = pickPrompt.split("DAFTAR FOTO")[1];
-    expect(offered).not.toContain("Gultik");
-    expect(offered).not.toContain("Pecel");
-    expect(offered).toContain("Nasi goreng kambing");
     const since = mocks.used.mock.calls[0][2] as Date;
     expect(Date.now() - since.getTime()).toBeGreaterThan(29 * 24 * HOUR);
-    // Satu-satunya kandidat terlalu kecil: jatuh ke Wikimedia (tidak ada rute) -> null.
+    expect(fetched).not.toContain("https://asset.kompas.com/gultik.jpg");
+    expect(fetched).not.toContain("https://cdn.detik.net/pecel.jpg");
+    // Sisa satu kandidat terlalu kecil dan Wikimedia kosong -> tidak ada yang dinilai.
     expect(media).toBeNull();
+    expect(mocks.hermes).toHaveBeenCalledTimes(1);
   });
 
-  it("carousel: gambar yang gagal diperiksa membuat carousel turun menjadi single", async () => {
-    plan = { pakaiGambar: true, format: "carousel", kueri: ["kuliner malam jakarta"] };
-    picks = [1, 3];
-    const media = await pickIdeaMedia(INPUT);
-    // Kandidat [3] = nasi goreng (gambar 320px, ditolak). Sisa satu gambar -> IMAGE.
-    expect(media?.type).toBe("IMAGE");
-    expect(media?.items).toHaveLength(1);
-    expect(media?.items[0].sourceUrl).toBe("https://asset.kompas.com/gultik.jpg");
+  it("carousel: foto berskor cukup jadi slide; satu saja yang lolos -> single", async () => {
+    plan = { ...plan!, format: "carousel" };
+    scores = [8, 9];
+    const two = await pickIdeaMedia(INPUT);
+    expect(two?.type).toBe("CAROUSEL");
+    expect(two?.items.map((i) => i.credit)).toEqual(["food.detik.com", "kompas.com"]);
+    mocks.used.mockResolvedValue(new Set());
+    forgetNewsImageCache();
+    scores = [8, 5];
+    const one = await pickIdeaMedia(INPUT);
+    expect(one?.type).toBe("IMAGE");
+    expect(one?.items[0].sourceUrl).toBe("https://asset.kompas.com/gultik.jpg");
   });
 
-  it("carousel dengan dua gambar sah", async () => {
-    plan = { pakaiGambar: true, format: "carousel", kueri: ["kuliner malam jakarta"] };
-    picks = [1, 2];
+  it("Wikimedia ikut dinilai bersama foto berita dan bisa menang", async () => {
+    wikiRoute();
+    scores = [5, 6, 9];
     const media = await pickIdeaMedia(INPUT);
-    expect(media?.type).toBe("CAROUSEL");
-    expect(media?.items.map((i) => i.credit)).toEqual(["kompas.com", "food.detik.com"]);
-    expect(media?.items.map((i) => i.sourceUrl)).toEqual(["https://asset.kompas.com/gultik.jpg", "https://cdn.detik.net/pecel.jpg"]);
-    expect(mocks.upload).not.toHaveBeenCalled();
-  });
-
-  it("tanpa foto berita yang cocok: cadangan Wikimedia berlisensi bebas", async () => {
-    picks = [];
-    routes["https://commons.wikimedia.org/w/api.php"] = () =>
-      new Response(
-        JSON.stringify({
-          query: {
-            pages: [
-              {
-                title: "File:Jakarta street food.jpg",
-                index: 1,
-                imageinfo: [
-                  {
-                    url: "https://upload.wikimedia.org/a/street.jpg",
-                    descriptionurl: "https://commons.wikimedia.org/wiki/File:Jakarta_street_food.jpg",
-                    thumburl: "https://upload.wikimedia.org/thumb/street.jpg",
-                    width: 3000,
-                    height: 2000,
-                    mime: "image/jpeg",
-                    extmetadata: { LicenseShortName: { value: "CC BY-SA 4.0" } },
-                  },
-                ],
-              },
-            ],
-          },
-        }),
-        { headers: { "content-type": "application/json" } }
-      );
-    routes["https://upload.wikimedia.org/thumb/street.jpg"] = jpeg(() => bigJpeg);
-    const media = await pickIdeaMedia(INPUT);
+    expect(imagesSent()).toBe(3);
     expect(media?.items[0]).toMatchObject({
       credit: "Wikimedia Commons",
       sourceKind: "WIKIMEDIA",

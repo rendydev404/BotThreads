@@ -38,9 +38,12 @@ const BREAKER_OPEN_MS = 60 * 1000;
 const MIN_ATTEMPT_MS = 1500;
 const hermesBreaker = { failures: 0, openUntil: 0 };
 
+/** Teks, atau gambar base64 (mis. JPEG kecil untuk dinilai model yang bisa melihat). */
+export type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
 export interface GeminiContent {
   role: "user" | "model";
-  parts: Array<{ text: string }>;
+  parts: GeminiPart[];
 }
 
 export interface GeminiResult {
@@ -276,7 +279,14 @@ async function viaHermes(opts: GenerateOptions, startedAt: number): Promise<Gemi
     { role: "system", content: system },
     ...opts.contents.map((c) => ({
       role: c.role === "model" ? "assistant" : "user",
-      content: c.parts.map((p) => p.text).join("\n"),
+      // Pesan bergambar memakai format konten berbagian OpenAI (image_url data URL); selain itu teks biasa.
+      content: c.parts.some((p) => "inlineData" in p)
+        ? c.parts.map((p) =>
+            "inlineData" in p
+              ? { type: "image_url", image_url: { url: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` } }
+              : { type: "text", text: p.text }
+          )
+        : c.parts.map((p) => ("text" in p ? p.text : "")).join("\n"),
     })),
   ];
   let jsonMode = !!opts.responseSchema;

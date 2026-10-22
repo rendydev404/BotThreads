@@ -207,7 +207,7 @@ describe("lanjutan obrolan", () => {
   const skipGap = () => db.exec(`UPDATE "ThreadsComment" SET "repliedAt" = "repliedAt" - interval '1 minute' WHERE "repliedAt" IS NOT NULL`);
   const lastPrompt = () => {
     const calls = vi.mocked(generateWithFailover).mock.calls;
-    return calls[calls.length - 1][0].contents[0].parts[0].text as string;
+    return (calls[calls.length - 1][0].contents[0].parts[0] as { text: string }).text;
   };
 
   it("orang yang membalas balasan AI dibalas lagi, dengan riwayat obrolan di prompt", async () => {

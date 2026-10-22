@@ -126,6 +126,25 @@ export async function toJpeg(input: Buffer): Promise<Jpeg | null> {
   }
 }
 
+/**
+ * Thumbnail JPEG kecil (base64) untuk dinilai AI yang bisa melihat; hanya di memori, tidak disimpan.
+ * Null bila gambar rusak.
+ */
+export async function toThumbnail(input: Buffer, width: number): Promise<string | null> {
+  try {
+    const sharp = (await import("sharp")).default;
+    const out = await sharp(input, { limitInputPixels: 60_000_000 })
+      .rotate()
+      .resize({ width, height: width, fit: "inside", withoutEnlargement: true })
+      .flatten({ background: "#ffffff" })
+      .jpeg({ quality: 70 })
+      .toBuffer();
+    return out.toString("base64");
+  } catch {
+    return null;
+  }
+}
+
 /** Unduh + olah satu gambar sumber untuk diunggah sementara; null bila tidak bisa diunduh/diolah. */
 export async function loadSourceJpeg(url: string, signal?: AbortSignal, timeoutMs = IMAGE_TIMEOUT_MS): Promise<Jpeg | null> {
   const buf = await downloadSourceImage(url, signal, timeoutMs);
