@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -60,6 +60,7 @@ import { FormError, TextAreaField, TextField } from "@/components/settings/field
 import { errorText, formatDateWib, formatInt } from "@/components/settings/format";
 import { BTN_OUTLINE, BTN_PRIMARY, EmptyState, Pill, RefreshButton } from "@/components/settings/states";
 import { useRemote } from "@/components/settings/use-remote";
+import { useRefreshOnFocus } from "@/components/settings/use-refresh-on-focus";
 import {
   AdminLoadError,
   FilterChips,
@@ -509,7 +510,6 @@ export function BuzzerTab() {
 
   // State tab Riwayat
   const [campaignStatusFilter, setCampaignStatusFilter] = useState<BuzzerCampaignStatus | "ALL">("ALL");
-  const [campaignRev, setCampaignRev] = useState(0);
   const [inspectCampaign, setInspectCampaign] = useState<BuzzerCampaignDTO | null>(null);
   const [queueBusy, setQueueBusy] = useState(false);
 
@@ -519,17 +519,25 @@ export function BuzzerTab() {
   const [aiBulkBusy, setAiBulkBusy] = useState(false);
   const [confirmAiBulk, setConfirmAiBulk] = useState(false);
 
-  // Muat daftar postingan saat akun target dipilih
+  // Muat daftar postingan saat akun target dipilih. Kunci hanya bergantung pada akun: muat ulang memakai
+  // `reload` (data lama tetap tampil, daftar tidak dibangun ulang, posisi scroll terjaga). Muat ulang karena
+  // pengerahan cukup dari database (live=false); hanya tombol "Muat Ulang Live" memanggil Threads API.
   const targetAccountId = selectedTarget?.accountId ?? "";
+  // Akun yang boleh dimuat ulang tanpa Threads API (database saja); akun lain/baru dipilih selalu live.
+  const dbOnlyFor = useRef<string | null>(null);
   const targetPosts = useRemote<BuzzerPostsResponse>(
-    targetAccountId ? `admin-buzzer-posts:${targetAccountId}:${campaignRev}` : null,
-    (signal) => guard(fetchAdminBuzzerPosts(targetAccountId, true, signal)),
+    targetAccountId ? `admin-buzzer-posts:${targetAccountId}` : null,
+    (signal) => guard(fetchAdminBuzzerPosts(targetAccountId, dbOnlyFor.current !== targetAccountId, signal)),
     "Gagal memuat postingan akun target."
   );
+  const reloadPostsLive = () => {
+    dbOnlyFor.current = null;
+    targetPosts.reload();
+  };
 
-  // Muat riwayat kampanye saat tab RIWAYAT dibuka atau setelah deploy
+  // Riwayat kampanye: kunci hanya filter + revisi admin; setelah aksi cukup `reload` tanpa mengosongkan daftar.
   const campaignsRemote = useRemote<BuzzerCampaignListResponse>(
-    `admin-buzzer-campaigns:${campaignStatusFilter}:${campaignRev}:${rev.buzzer}`,
+    `admin-buzzer-campaigns:${campaignStatusFilter}:${rev.buzzer}`,
     (signal) =>
       guard(
         fetchAdminBuzzerCampaigns(
@@ -546,29 +554,16 @@ export function BuzzerTab() {
 
   const queuedTasksCount = overview.data?.stats.queuedTasks ?? 0;
 
-  // Auto-tick antrean secara otomatis setiap 10 detik selama masih ada tugas terjadwal
-  useEffect(() => {
-    if (queuedTasksCount <= 0) return;
-    let cancelled = false;
-    const timer = setInterval(async () => {
-      if (cancelled) return;
-      try {
-        if (canManage) {
-          await runAdminBuzzerQueue(false);
-        }
-        if (!cancelled) {
-          overview.reload();
-          setCampaignRev((v) => v + 1);
-        }
-      } catch {
-        // Abaikan galat sementara saat auto-tick latar belakang
-      }
-    }, 10_000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [queuedTasksCount, canManage, overview.reload]);
+  // Antrean dijalankan SERVER tiap menit (tick penerbit), bukan oleh browser, jadi tidak ada polling di sini.
+  // Status terbaru dimuat sekali saat pengguna kembali ke tab (paling sering tiap 30 detik) selama masih ada
+  // antrean, atau kapan saja lewat tombol muat ulang / setelah aksi pengguna.
+  const reloadQueueViews = () => {
+    dbOnlyFor.current = targetAccountId;
+    overview.reload();
+    campaignsRemote.reload();
+    if (targetAccountId) targetPosts.reload();
+  };
+  useRefreshOnFocus(reloadQueueViews, queuedTasksCount > 0);
 
   const filteredTargets = useMemo(() => {
     const list = overview.data?.targets ?? [];
@@ -720,8 +715,7 @@ export function BuzzerTab() {
         text: `Berhasil mengerahkan ${formatInt(res.inserted)} tugas buzzer ke postingan @${activeTargetUsername} (${formatInt(res.executedNow)} langsung tayang, sisanya berjalan sesuai jeda natural).`,
       });
       setDrafts([]);
-      setCampaignRev((v) => v + 1);
-      overview.reload();
+      reloadQueueViews();
       setSection("RIWAYAT");
     } catch (e) {
       setActionError(errorText(e, "Gagal mengerahkan buzzer."));
@@ -763,8 +757,7 @@ export function BuzzerTab() {
             ? `Antrean diproses: ${formatInt(res.succeeded)} interaksi berhasil tayang di Threads.`
             : "Tidak ada antrean yang tertunda saat ini.",
       });
-      setCampaignRev((v) => v + 1);
-      overview.reload();
+      reloadQueueViews();
     } catch (e) {
       setNotice({ tone: "danger", text: errorText(e, "Gagal memproses antrean buzzer.") });
     } finally {
@@ -828,7 +821,7 @@ export function BuzzerTab() {
             {
               label: "Antrean Terjadwal",
               value: formatInt(stats.queuedTasks),
-              hint: stats.queuedTasks > 0 ? "Berjalan otomatis tiap jeda (auto-refresh)" : "Menunggu jeda natural antar-buzzer",
+              hint: stats.queuedTasks > 0 ? "Dijalankan server tiap menit; status dimuat ulang saat Anda kembali ke tab" : "Menunggu jeda natural antar-buzzer",
               tone: stats.queuedTasks > 0 ? "warning" : "neutral",
             },
           ]}
@@ -964,7 +957,7 @@ export function BuzzerTab() {
                     {selectedTarget && (
                       <button
                         type="button"
-                        onClick={targetPosts.reload}
+                        onClick={reloadPostsLive}
                         disabled={targetPosts.loading || targetPosts.refreshing}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline cursor-pointer"
                       >
@@ -1556,8 +1549,7 @@ export function BuzzerTab() {
           onClose={() => setInspectCampaign(null)}
           onChanged={() => {
             setInspectCampaign(null);
-            setCampaignRev((v) => v + 1);
-            overview.reload();
+            reloadQueueViews();
           }}
         />
       )}
