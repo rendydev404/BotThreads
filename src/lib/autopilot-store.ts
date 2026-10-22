@@ -11,6 +11,7 @@ import {
   type AutopilotPillar,
   type AutopilotSettings,
   type AutopilotSlotDTO,
+  type MediaMode,
   type SlotDraftDTO,
   type SlotKind,
   type SlotStatus,
@@ -41,6 +42,9 @@ export function missingSchemaFile(err: unknown): string {
   if (/dash_mu_signup/.test(msg)) return "sql/009_signup.sql";
   if (/dash_mu_|DashboardMembership|DashboardMemberAccount|DashboardInvite|DashboardPasswordReset/.test(msg)) return "sql/008_multiuser.sql";
   if (/dash_(?:learn|notif)_|ContentOutcome|DashboardNotification/.test(msg)) return "sql/007_autopilot_learning.sql";
+  if (/dash_(?:pub_)?media_tmp/.test(msg)) return "sql/040_media_tmp.sql";
+  if (/dash_media_policy/.test(msg)) return "sql/039_media_policy.sql";
+  if (/dash_idea_media_set/.test(msg)) return "sql/038_idea_media.sql";
   if (/dash_idea_retire_stale/.test(msg)) return "sql/028_idea_retire_stale.sql";
   if (/dash_radar_niche/.test(msg)) return "sql/027_radar_niche_trends.sql";
   if (/dash_ap_claim_account|dash_style_lesson_add|AccountStyleLesson|AccountOnboarding/.test(msg)) return "sql/031_account_ai_brain.sql";
@@ -87,6 +91,9 @@ interface RawConfig {
   promoRatio: number;
   voiceStyle: string | null;
   brief: string | null;
+  /** Kolom sql/039; tidak ada bila berkas itu belum dijalankan (dipakai nilai bawaan). */
+  mediaMode?: MediaMode | null;
+  mediaMaxPersen?: number | null;
   pausedReason: string | null;
   pausedAt: string | null;
   updatedAt: string | null;
@@ -136,6 +143,8 @@ const toConfig = (r: RawConfig): ConfigRow => ({
   promoRatio: r.promoRatio,
   voiceStyle: (r.voiceStyle as VoiceStyle | null) ?? null,
   brief: r.brief,
+  mediaMode: r.mediaMode === "MATI" || r.mediaMode === "OTOMATIS" ? r.mediaMode : DEFAULT_SETTINGS.mediaMode,
+  mediaMaxPersen: typeof r.mediaMaxPersen === "number" ? r.mediaMaxPersen : DEFAULT_SETTINGS.mediaMaxPersen,
   pausedReason: r.pausedReason,
   pausedAt: iso(r.pausedAt),
   updatedAt: iso(r.updatedAt),

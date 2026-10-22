@@ -10,6 +10,8 @@ import { formatWibFull } from "@/lib/scheduling";
 import { parseTopicTag } from "@/lib/threads-text";
 import { AccountAvatar } from "@/components/content/post-status-chip";
 import { PostTextField, checkPostText, type PostTextState } from "@/components/content/post-text-field";
+import { MediaCredit, PostMediaView } from "@/components/radar/threads-preview";
+import { fitsWithCredit } from "@/lib/post-media";
 import { ConfirmModal } from "./confirm-modal";
 import { Banner, ListSkeleton, LoadMoreButton, SlotKindChip, accountHandle, durationText } from "./shared";
 
@@ -122,6 +124,19 @@ const ReviewCard = memo(function ReviewCard({
       {draft && (
         <div className="space-y-2">
           {edited && <p className="text-xs font-medium text-accent">Teks sudah Anda ubah; versi ini yang akan diposting.</p>}
+          {draft.media && draft.media.items.length > 0 && (
+            <div className="space-y-1.5">
+              <PostMediaView media={draft.media} compact />
+              {fitsWithCredit(value.text, draft.media) ? (
+                <MediaCredit media={draft.media} className="text-xs" />
+              ) : (
+                <p className="text-xs font-medium text-warning">
+                  Teks + keterangan sumber gambar melebihi batas Threads, jadi postingan ini terbit tanpa gambar. Pendekkan teks
+                  untuk menyertakan gambarnya.
+                </p>
+              )}
+            </div>
+          )}
           {draft.rationale && <p className="text-xs text-muted leading-relaxed">Alasan AI: {draft.rationale}</p>}
           {draft.affiliate && (
             <div className="rounded-xl border border-warning/40 bg-warning-soft/40 p-3 space-y-1.5">

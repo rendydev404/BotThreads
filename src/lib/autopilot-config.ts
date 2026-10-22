@@ -14,6 +14,8 @@ import {
   ACTIVE_LAST_HOUR,
   BRIEF_MAX_CHARS,
   EXPLORE_RATE_MAX,
+  MEDIA_PERSEN_MAX,
+  MEDIA_PERSEN_MIN,
   MIN_GAP_MAX,
   MIN_GAP_MIN,
   POSTS_PER_DAY_MAX,
@@ -23,6 +25,7 @@ import {
   type AutopilotMode,
   type AutopilotPillar,
   type AutopilotSettings,
+  type MediaMode,
   type SlotStrategy,
   type VoiceStyle,
 } from "./autopilot-types";
@@ -86,6 +89,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
 const MODES: AutopilotMode[] = ["MATI", "TINJAU", "OTOMATIS"];
+const MEDIA_MODES: MediaMode[] = ["MATI", "OTOMATIS"];
 const STRATEGIES: SlotStrategy[] = ["JAM_RAMAI", "JAM_TETAP"];
 const MAX_PILLARS = 8;
 
@@ -189,6 +193,16 @@ export function parseSettingsPatch(body: unknown, base: AutopilotSettings): Pars
         : "";
     if (brief.length > BRIEF_MAX_CHARS) return fail(`Tema akun maksimal ${BRIEF_MAX_CHARS} karakter.`);
     next.brief = brief || null;
+  }
+  if (body.mediaMode !== undefined) {
+    if (!MEDIA_MODES.includes(body.mediaMode as MediaMode)) return fail("Mode postingan bergambar tidak valid.");
+    next.mediaMode = body.mediaMode as MediaMode;
+  }
+  if (body.mediaMaxPersen !== undefined) {
+    if (!intIn(body.mediaMaxPersen, MEDIA_PERSEN_MIN, MEDIA_PERSEN_MAX)) {
+      return fail(`Porsi postingan bergambar harus bilangan bulat ${MEDIA_PERSEN_MIN}-${MEDIA_PERSEN_MAX}%.`);
+    }
+    next.mediaMaxPersen = body.mediaMaxPersen;
   }
 
   if (next.activeDays.length === 0) return fail("Pilih minimal satu hari aktif.");

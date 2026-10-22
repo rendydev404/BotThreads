@@ -18,6 +18,7 @@ import { MAX_TOTAL_ATTEMPTS, MAX_WRITE_ATTEMPTS, REVIEW_CUTOFF_MS, SLOT_LEASE_MS
 import { CRITIC_UNAVAILABLE, criticize } from "./autopilot-critic";
 import { runGate } from "./autopilot-gate";
 import { pickIdea, type TopicUse } from "./autopilot-ideas";
+import { fitsWithCredit, parsePostMedia, type PostMedia } from "./post-media";
 import { hash32 } from "./autopilot-plan";
 import { EMPTY_KNOWLEDGE, type AccountKnowledge } from "./autopilot-research";
 import {
@@ -245,16 +246,26 @@ export function trendLines(idea: Pick<IdeaCandidate, "signalIds"> | null, signal
     .map((s) => `${SIGNAL_SOURCE_LABEL[s.source]}: ${s.title}${s.summary ? ` - ${s.summary.slice(0, 260)}` : ""}`);
 }
 
+/**
+ * Gambar ide ikut ke draf (baik teks preview maupun teks tulisan AI): gambar menempel pada ide, bukan pada
+ * teks. Hanya bila teks + baris kredit masih muat dalam batas Threads; bila tidak, draf diposting tanpa gambar.
+ */
+export function mediaForDraft(media: unknown, text: string): PostMedia | null {
+  const m = parsePostMedia(media);
+  return m && fitsWithCredit(text, m) ? m : null;
+}
+
 type EnqueueResult = { ok: true; postId: string; at: string } | { ok: false; error: string; fatal: boolean };
 
 /** Masukkan draf slot ke antrean posting pada jam slot. Aman diulang (kunci idempotensi per slot). */
 export async function enqueueSlot(
   slot: { id: string; accountId: string; slotAt: Date },
-  draft: Pick<SlotDraftDTO, "text" | "topicTag" | "model" | "edited">,
+  draft: Pick<SlotDraftDTO, "text" | "topicTag" | "model" | "edited" | "media">,
   userId: string
 ): Promise<EnqueueResult> {
   const now = new Date();
   const lead = slot.slotAt.getTime() - now.getTime();
+  const media = mediaForDraft(draft.media, draft.text);
   const res = await createPosts(
     {
       userId,
@@ -270,6 +281,7 @@ export async function enqueueSlot(
           publishAt: lead < NOW_LEAD_MS ? "now" : slot.slotAt.toISOString(),
           aiModel: draft.model.slice(0, 80),
           aiEdited: draft.edited === true,
+          ...(media ? { media } : {}),
         },
       ],
     },
@@ -413,6 +425,7 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
         checks.push(verdict?.check ?? CRITIC_UNAVAILABLE);
         criticScore = verdict?.score ?? null;
       }
+      const media = mediaForDraft(plan.idea?.preview?.media, out.draft.text);
       draft = {
         text: out.draft.text,
         topicTag: out.draft.topicTag,
@@ -425,6 +438,7 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
         ...(plan.promo ? { promo: true } : {}),
         ...(plan.pillar ? { pillar: plan.pillar } : {}),
         ...(aff ? { affiliate: { productId: aff.product.id, nama: aff.product.nama, link: aff.product.link, replyText: aff.replyText } } : {}),
+        ...(media ? { media } : {}),
       };
       break;
     }
@@ -576,8 +590,12 @@ export async function approveSlot(
 
   const text = (input.text ?? slot.draft.text).replace(/\r\n/g, "\n").trim();
   const edited = normalizeForCompare(text) !== normalizeForCompare(slot.draft.text) || slot.draft.edited === true;
+  // Gambar draf tetap ikut, kecuali teks hasil suntingan + kredit tidak lagi muat (draf tersimpan = yang terbit).
+  const { media: draftMedia, ...base } = slot.draft;
+  const media = mediaForDraft(draftMedia, text);
   const draft: SlotDraftDTO = {
-    ...slot.draft,
+    ...base,
+    ...(media ? { media } : {}),
     text,
     topicTag: input.topicTag !== undefined ? input.topicTag : slot.draft.topicTag,
     chars: charLength(text),

@@ -87,6 +87,11 @@ export interface GenerateOptions {
    * model menerimanya bersama alat), melainkan sebagai instruksi format lalu di-parse seperti biasa.
    */
   googleSearch?: boolean;
+  /**
+   * "hermes" = hanya router Hermes, tanpa cadangan Gemini (null bila Hermes gagal atau belum diatur).
+   * Untuk fitur yang wajib memakai Hermes, mis. pencari gambar berita. Bawaan: Hermes lalu Gemini.
+   */
+  providers?: "hermes";
 }
 
 const listEnv = (name: string): string[] | null => {
@@ -435,9 +440,13 @@ export function groundedDomains(data: unknown): string[] {
   return [...out];
 }
 
-/** Hasil pertama yang layak dari Hermes lalu Gemini; null bila semua penyedia gagal. */
+/**
+ * Hasil pertama yang layak dari Hermes lalu Gemini; null bila semua penyedia gagal.
+ * `providers: "hermes"` membatasi ke Hermes saja (pencarian Google tidak tersedia di jalur ini).
+ */
 export async function generateWithFailover(opts: GenerateOptions): Promise<GeminiResult | null> {
   const startedAt = Date.now();
+  if (opts.providers === "hermes") return opts.googleSearch ? null : viaHermes(opts, startedAt);
   // Pencarian Google hanya tersedia di Gemini langsung.
   if (opts.googleSearch) return viaGemini(opts, startedAt);
   return (await viaHermes(opts, startedAt)) ?? (await viaGemini(opts, startedAt));

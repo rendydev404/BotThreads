@@ -3,17 +3,27 @@
  * DASHBOARD_AI) di database BotThreads. Dipanggil penjadwal tiap menit lewat /api/internal/publisher/tick.
  *
  * Alurnya sama dengan worker auto-suka (threads-publisher.service.ts), dua tahap:
- * 1. Dispatch jatuh tempo -> buat media container di Threads, simpan id-nya.
+ * 1. Dispatch jatuh tempo -> buat media container di Threads (TEXT, IMAGE, atau CAROUSEL: item dulu lalu
+ *    induknya; sql/036), simpan id-nya. Postingan bergambar hanya menyimpan tautan gambar asal: gambar diunduh,
+ *    diolah (JPEG 1080), dicatat path-nya di posting, lalu diunggah SEMENTARA ke bucket media di
+ *    "tmp/<postId>/<n>.jpg" (sql/040) dan URL publiknya dipakai container. Gambar sumber yang hilang dibuang:
+ *    carousel menyusut, dan tanpa gambar sama sekali postingan terbit sebagai teks tanpa baris kredit.
  * 2. Container FINISHED -> threads_publish -> TERBIT. Postingan teks biasanya langsung FINISHED, jadi
- *    tahap 2 dicoba di putaran yang sama.
+ *    tahap 2 dicoba di putaran yang sama; gambar sering baru siap di putaran berikutnya.
  * Bila proses mati setelah publish tetapi sebelum database diperbarui, status container menjadi PUBLISHED
  * dan putaran berikutnya menandainya TERBIT: tidak ada postingan ganda.
  * 3. Balasan pertama berisi link untuk postingan affiliate autopilot yang sudah terbit (sql/019).
  *
- * Klaim, transisi status, dan penutupan posting dikerjakan fungsi SQL (sql/022_threads_publisher.sql).
+ * Berkas sementara dihapus begitu hasil akhirnya TERBIT atau GAGAL (database ikut mengosongkan kolomnya);
+ * yang tertinggal (proses mati, storage galat) disapu media-cleanup.ts.
+ *
+ * Klaim, transisi status, dan penutupan posting dikerjakan fungsi SQL (sql/022_threads_publisher.sql, sql/040).
  */
 import { isPublishEnabled } from "./content-config";
 import { runBuzzerQueue } from "./buzzer-service";
+import { runMediaCleanup } from "./media-cleanup";
+import { deleteMediaFiles, loadSourceJpeg, uploadMediaImage } from "./media-store";
+import { MEDIA_TMP_PREFIX } from "./post-media";
 import { rpc, sqlTs, toDate } from "./supabase";
 import { firstValidTopic, charLength, THREADS_MAX_TEXT } from "./threads-text";
 import { runReplies } from "./threads-replies";
@@ -40,6 +50,10 @@ const AFFILIATE_RETRY_MS = 5 * 60 * 1000;
 const BRANCH_TAG = /{nama_(?:cabang|outlet)}/g;
 /** Batas waktu putaran sampai balas komentar berhenti mengambil pekerjaan baru. */
 const REPLIES_BUDGET_MS = 45_000;
+/** Dispatch bergambar baru mulai menyiapkan gambar bila putaran belum berjalan selama ini (batas route 60 detik). */
+const MEDIA_START_BUDGET_MS = 30_000;
+/** Dispatch yang menyiapkan gambar bersamaan (maks 4 gambar per dispatch: unduh + sharp + unggah; hemat memori). */
+const MEDIA_CONCURRENCY = 2;
 
 /* ------------------------------------------------------------------ Threads API */
 
@@ -75,6 +89,20 @@ type ContainerStatus = "FINISHED" | "PUBLISHED" | "IN_PROGRESS" | "ERROR" | "EXP
 export const threads = {
   async createText(userId: string, token: string, text: string, extra: Record<string, string> = {}): Promise<string> {
     const body = new URLSearchParams({ access_token: token, media_type: "TEXT", text, ...extra });
+    return (await graph<{ id: string }>(`${API}/${userId}/threads`, { method: "POST", body })).id;
+  },
+  /** Container satu gambar; Threads mengunduh `imageUrl` (harus publik, https). */
+  async createImage(userId: string, token: string, imageUrl: string, text: string, extra: Record<string, string> = {}): Promise<string> {
+    const body = new URLSearchParams({ access_token: token, media_type: "IMAGE", image_url: imageUrl, ...(text ? { text } : {}), ...extra });
+    return (await graph<{ id: string }>(`${API}/${userId}/threads`, { method: "POST", body })).id;
+  },
+  /** Item carousel (tanpa teks); id-nya dipakai sebagai `children` container carousel. */
+  async createCarouselItem(userId: string, token: string, imageUrl: string): Promise<string> {
+    const body = new URLSearchParams({ access_token: token, media_type: "IMAGE", image_url: imageUrl, is_carousel_item: "true" });
+    return (await graph<{ id: string }>(`${API}/${userId}/threads`, { method: "POST", body })).id;
+  },
+  async createCarousel(userId: string, token: string, childIds: string[], text: string, extra: Record<string, string> = {}): Promise<string> {
+    const body = new URLSearchParams({ access_token: token, media_type: "CAROUSEL", children: childIds.join(","), ...(text ? { text } : {}), ...extra });
     return (await graph<{ id: string }>(`${API}/${userId}/threads`, { method: "POST", body })).id;
   },
   status(containerId: string, token: string) {
@@ -124,6 +152,10 @@ interface ClaimedDispatch {
   caption: string | null;
   hashtags: string[];
   mediaType: string | null;
+  /** Tautan gambar asal (sql/036, PostMediaItem.sourceUrl); kosong untuk postingan teks. */
+  mediaUrls: string[];
+  /** Path berkas sementara yang tercatat di posting (sql/040); kosong bila belum ada. */
+  mediaPaths?: string[];
   outletNama: string | null;
   account: AccountRow | null;
 }
@@ -133,7 +165,9 @@ type Outcome =
   | { kind: "CONTAINER"; containerId: string }
   | { kind: "TERBIT"; mediaId: string | null; url: string | null; containerId?: string }
   | { kind: "GAGAL"; error: string; containerId?: string }
-  | { kind: "ULANG"; error?: string; containerId?: string };
+  | { kind: "ULANG"; error?: string; containerId?: string }
+  /** Belum dikerjakan (sisa waktu putaran kurang): kunci dilepas tanpa menambah percobaan (sql/040). */
+  | { kind: "TUNDA"; containerId?: string };
 
 const result = (id: string, o: Outcome, now: Date): Promise<string> => {
   const { kind, ...patch } = o;
@@ -189,6 +223,90 @@ async function onError(d: ClaimedDispatch, err: unknown, limit: number, now: Dat
   return d.attempts + 1 >= limit ? { kind: "GAGAL", error: message } : { kind: "ULANG", error: message };
 }
 
+/** Batas jumlah item carousel dari Threads API (produk sendiri membatasi lebih ketat, lihat post-media.ts). */
+const CAROUSEL_API_MIN = 2;
+const CAROUSEL_API_MAX = 20;
+
+/** Pesan galat bila jenis/jumlah/URL media tidak bisa diterbitkan; null bila sah. */
+export function mediaError(mediaType: string, urls: string[]): string | null {
+  if (mediaType === "TEXT") return null;
+  if (mediaType !== "IMAGE" && mediaType !== "CAROUSEL") return `Jenis media ${mediaType} tidak didukung penerbit dashboard.`;
+  if (mediaType === "IMAGE" && urls.length !== 1) return `Postingan gambar butuh tepat 1 gambar (ada ${urls.length}).`;
+  if (mediaType === "CAROUSEL" && (urls.length < CAROUSEL_API_MIN || urls.length > CAROUSEL_API_MAX)) {
+    return `Carousel butuh ${CAROUSEL_API_MIN}-${CAROUSEL_API_MAX} gambar (ada ${urls.length}).`;
+  }
+  if (urls.some((u) => !/^https:\/\/\S+$/.test(u))) return "URL gambar harus https.";
+  return null;
+}
+
+/** Teks tanpa baris kredit foto ("📷 ...") di akhir, untuk postingan bergambar yang terpaksa terbit sebagai teks. */
+export function withoutCredit(text: string): string {
+  const lines = text.trim().split("\n");
+  if (!lines.at(-1)?.trim().startsWith("📷 ")) return text.trim();
+  return lines.slice(0, -1).join("\n").trim();
+}
+
+/** Path berkas sementara gambar ke-n (urutan di mediaUrls, stabil antar percobaan) milik satu posting. */
+export const tmpMediaPath = (postId: string, n: number): string => `${MEDIA_TMP_PREFIX}/${postId}/${n}.jpg`;
+
+let mediaActive = 0;
+const mediaWaiting: (() => void)[] = [];
+
+/** Batasi dispatch yang menyiapkan gambar bersamaan; giliran diserahkan langsung ke yang menunggu. */
+async function withMediaSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (mediaActive < MEDIA_CONCURRENCY) mediaActive++;
+  else await new Promise<void>((resolve) => mediaWaiting.push(resolve));
+  try {
+    return await fn();
+  } finally {
+    const next = mediaWaiting.shift();
+    if (next) next();
+    else mediaActive--;
+  }
+}
+
+interface StagedMedia {
+  type: "TEXT" | "IMAGE" | "CAROUSEL";
+  /** URL publik berkas sementara, urut sesuai gambar asal. */
+  imageUrls: string[];
+}
+
+/**
+ * Siapkan gambar postingan: unduh + olah semua sumber sejajar, catat path sementaranya di posting SEBELUM
+ * diunggah (`tmp` ikut diisi supaya pemanggil bisa menghapusnya), lalu unggah. Sumber yang gagal dibuang;
+ * galat database/storage dilempar (dicoba ulang seperti galat sementara lain).
+ */
+async function stageMedia(d: ClaimedDispatch, mediaType: "IMAGE" | "CAROUSEL", sources: string[], tmp: string[]): Promise<StagedMedia> {
+  const started = Date.now();
+  const jpegs = await Promise.all(sources.map((url) => loadSourceJpeg(url)));
+  const ok = jpegs.flatMap((j, n) => (j ? [{ n, data: j.data }] : []));
+  const type: StagedMedia["type"] =
+    ok.length === 0 ? "TEXT" : mediaType === "CAROUSEL" && ok.length >= CAROUSEL_API_MIN ? "CAROUSEL" : "IMAGE";
+  if (ok.length < sources.length) {
+    console.warn(
+      `[publisher] posting ${d.postId}: ${sources.length - ok.length}/${sources.length} gambar sumber tidak bisa diunduh/diolah, terbit sebagai ${type}.`
+    );
+  }
+  if (!ok.length) return { type, imageUrls: [] };
+
+  const paths = ok.map((o) => tmpMediaPath(d.postId, o.n));
+  const recorded = await rpc<boolean | null>("dash_pub_media_tmp", { p_post: d.postId, p_paths: paths });
+  if (!recorded) throw new Error("Posting tidak lagi menunggu terbit.");
+  tmp.push(...paths);
+  const imageUrls = await Promise.all(ok.map((o, i) => uploadMediaImage(paths[i], o.data)));
+  console.info(`[publisher] posting ${d.postId}: ${ok.length} gambar disiapkan dalam ${Date.now() - started} ms`);
+  return { type, imageUrls };
+}
+
+/** Hapus berkas sementara posting (hanya path "tmp/..."); galat hanya dicatat, sisanya disapu media-cleanup. */
+async function dropTmpFiles(postId: string, paths: string[]): Promise<void> {
+  const list = [...new Set(paths.filter((p) => typeof p === "string" && p.startsWith(`${MEDIA_TMP_PREFIX}/`)))];
+  if (!list.length) return;
+  await deleteMediaFiles(list).catch((err) =>
+    console.warn(`[publisher] berkas sementara posting ${postId} belum terhapus:`, err instanceof Error ? err.message : err)
+  );
+}
+
 /** Terbitkan container yang sudah dibuat; null = masih diproses Threads (sudah dicatat ULANG). */
 async function publishContainer(d: ClaimedDispatch, userId: string, token: string, containerId: string): Promise<Outcome> {
   const { status, error_message } = await threads.status(containerId, token);
@@ -204,9 +322,14 @@ async function publishContainer(d: ClaimedDispatch, userId: string, token: strin
   return { kind: "ULANG" };
 }
 
-export async function processDispatch(d: ClaimedDispatch, now: Date): Promise<Outcome["kind"]> {
+/** `mediaDeadlineMs`: setelah waktu ini dispatch bergambar yang belum punya container ditunda (TUNDA). */
+export async function processDispatch(d: ClaimedDispatch, now: Date, mediaDeadlineMs = Infinity): Promise<Outcome["kind"]> {
+  /** Path sementara yang dicatat pada langkah ini (selain yang sudah tercatat sebelum klaim). */
+  const tmp: string[] = [];
   const finish = async (o: Outcome) => {
-    await result(d.id, o, now);
+    const r = await result(d.id, o, now);
+    // Hasil akhir: database sudah mengosongkan kolom gambar, berkasnya dihapus sekarang.
+    if (r === "OK" && (o.kind === "TERBIT" || o.kind === "GAGAL")) await dropTmpFiles(d.postId, [...(d.mediaPaths ?? []), ...tmp]);
     return o.kind;
   };
   if (!d.account) return finish({ kind: "GAGAL", error: "Akun Threads belum terhubung ke postingan ini." });
@@ -232,23 +355,60 @@ export async function processDispatch(d: ClaimedDispatch, now: Date): Promise<Ou
   }
 
   // Tahap 1: buat container.
-  if ((d.mediaType ?? "TEXT") !== "TEXT") return finish({ kind: "GAGAL", error: "Penerbit dashboard hanya mendukung postingan teks." });
-  const text = postText(d.caption, d.outletNama);
-  if (!text) return finish({ kind: "GAGAL", error: "Teks postingan kosong." });
+  const mediaType = d.mediaType ?? "TEXT";
+  const urls = d.mediaUrls ?? [];
+  const invalid = mediaError(mediaType, urls);
+  if (invalid) return finish({ kind: "GAGAL", error: invalid });
+  let text = postText(d.caption, d.outletNama);
+  // Gambar boleh tanpa teks; postingan teks tidak.
+  if (!text && mediaType === "TEXT") return finish({ kind: "GAGAL", error: "Teks postingan kosong." });
   if (charLength(text) > THREADS_MAX_TEXT) {
     return finish({ kind: "GAGAL", error: `Teks ${charLength(text)} karakter. Threads maksimal ${THREADS_MAX_TEXT} karakter.` });
   }
   const topic = firstValidTopic(d.hashtags);
+  const extra: Record<string, string> = topic ? { topic_tag: topic } : {};
+
+  // Gambar: unduh dari sumber dan unggah sementara (URL publik untuk Threads).
+  let kind = mediaType;
+  let imageUrls: string[] = [];
+  if (mediaType === "IMAGE" || mediaType === "CAROUSEL") {
+    let staged: StagedMedia | null;
+    try {
+      staged = await withMediaSlot(() => (Date.now() > mediaDeadlineMs ? Promise.resolve(null) : stageMedia(d, mediaType, urls, tmp)));
+    } catch (err) {
+      return finish(await onError(d, err, MAX_RETRY, now));
+    }
+    if (!staged) return finish({ kind: "TUNDA" });
+    kind = staged.type;
+    imageUrls = staged.imageUrls;
+    if (kind === "TEXT") {
+      // Foto sumber sudah tidak ada: terbit sebagai teks, tanpa kredit foto yang tidak lagi relevan.
+      text = withoutCredit(text);
+      if (!text) return finish({ kind: "GAGAL", error: "Gambar sumber tidak bisa diunduh dan postingan tidak punya teks." });
+    }
+  }
 
   let containerId: string;
   try {
-    containerId = await threads.createText(userId, token, text, topic ? { topic_tag: topic } : {});
+    if (kind === "IMAGE") {
+      containerId = await threads.createImage(userId, token, imageUrls[0], text, extra);
+    } else if (kind === "CAROUSEL") {
+      // Item dibuat berurutan lalu container induknya; hanya id induk yang disimpan. Bila gagal di tengah,
+      // putaran berikutnya membuat semuanya ulang: item yatim tidak pernah terbit dan kedaluwarsa sendiri
+      // di Threads setelah 24 jam.
+      const children: string[] = [];
+      for (const url of imageUrls) children.push(await threads.createCarouselItem(userId, token, url));
+      containerId = await threads.createCarousel(userId, token, children, text, extra);
+    } else {
+      containerId = await threads.createText(userId, token, text, extra);
+    }
   } catch (err) {
     return finish(await onError(d, err, MAX_RETRY, now));
   }
 
-  // Teks biasanya langsung FINISHED: terbitkan selagi dispatch masih dikunci. Bila belum siap atau ada
-  // galat, container disimpan dan tahap 2 menyelesaikannya di putaran berikutnya (PUBLISHED = sudah tayang).
+  // Teks biasanya langsung FINISHED: terbitkan selagi dispatch masih dikunci. Gambar sering masih
+  // IN_PROGRESS. Bila belum siap atau ada galat, container disimpan dan tahap 2 menyelesaikannya di
+  // putaran berikutnya (PUBLISHED = sudah tayang).
   try {
     const o = await publishContainer(d, userId, token, containerId);
     return finish(o.kind === "ULANG" ? { kind: "CONTAINER", containerId } : { ...o, containerId });
@@ -358,7 +518,7 @@ export async function runPublisher(opts: { now?: Date } = {}): Promise<Publisher
   await pool([...byAccount.values()], CONCURRENCY, async (list) => {
     for (const d of list) {
       try {
-        const kind = await processDispatch(d, now);
+        const kind = await processDispatch(d, now, started + MEDIA_START_BUDGET_MS);
         counts[kind] = (counts[kind] ?? 0) + 1;
       } catch (err) {
         // Galat database: kunci dibiarkan, diambil ulang setelah STALE_LOCK_MS.
@@ -373,6 +533,8 @@ export async function runPublisher(opts: { now?: Date } = {}): Promise<Publisher
   await runReplies(now, started + REPLIES_BUDGET_MS, counts);
   // Antrean pengerahan buzzer lintas-niche (sql/029).
   await runBuzzerQueue({ now, deadlineMs: started + REPLIES_BUDGET_MS, counts });
+  // Sapu berkas gambar sementara yang tertinggal (sql/040).
+  await runMediaCleanup(now, counts, started + REPLIES_BUDGET_MS);
   const ms = Date.now() - started;
   if (Object.keys(counts).length > 1 || jobs.length) console.info(`[publisher] ${ms} ms ${JSON.stringify(counts)}`);
   return { ok: true, ms, counts };

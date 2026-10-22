@@ -12,7 +12,9 @@ import {
   Video,
   FileText,
   Image as ImageIcon,
+  ImageOff,
   Layers,
+  Play,
   Eye,
   Heart,
   MessageCircle,
@@ -46,6 +48,85 @@ interface AccountOption {
   username: string;
   displayName: string;
   count: number;
+}
+
+/** Gambar postingan dari Threads (lihat /api/posts/media); URL CDN Threads, bukan penyimpanan kita. */
+interface ThreadsMediaInfo {
+  type: string;
+  images: { url: string; isVideo: boolean }[];
+}
+
+/** Cache gambar per mediaId di memori tab: sedikit di bawah TTL server (30 menit) karena URL CDN kedaluwarsa. */
+const MEDIA_STALE_MS = 25 * 60_000;
+/** Postingan yang gambarnya tidak tersedia tidak ditanyakan ulang terus-menerus. */
+const MEDIA_MISS_MS = 5 * 60_000;
+const MEDIA_BATCH = 25;
+const mediaCache = new Map<string, { at: number; value: ThreadsMediaInfo | null }>();
+
+const hasVisual = (p: PostItem) => p.formatKey === "IMAGE" || p.formatKey === "CAROUSEL" || p.formatKey === "VIDEO";
+
+function cachedMedia(id: string, now = Date.now()): { value: ThreadsMediaInfo | null } | undefined {
+  const hit = mediaCache.get(id);
+  if (!hit) return undefined;
+  return now - hit.at < (hit.value ? MEDIA_STALE_MS : MEDIA_MISS_MS) ? hit : undefined;
+}
+
+/** Thumbnail kecil (tunggal) atau deretan thumbnail dengan penanda "1/3" (carousel), dimuat malas. */
+function PostThumbs({ info, permalink }: { info: ThreadsMediaInfo; permalink?: string }) {
+  const [failed, setFailed] = useState<Set<number>>(() => new Set());
+  const shown = info.images.slice(0, 4);
+  const extra = info.images.length - shown.length;
+  const strip = (
+    <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {shown.map((img, i) => (
+        <div key={i} className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border border-line bg-subtle">
+          {failed.has(i) ? (
+            <div className="w-full h-full flex items-center justify-center text-faint" title="Gambar tidak bisa dimuat">
+              <ImageOff className="w-4 h-4" aria-hidden />
+              <span className="sr-only">Gambar tidak bisa dimuat</span>
+            </div>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- URL CDN Threads berumur pendek; tanpa proxy
+            <img
+              src={img.url}
+              alt={info.images.length > 1 ? `Gambar ${i + 1} dari ${info.images.length}` : "Gambar postingan"}
+              width={64}
+              height={64}
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onError={() => setFailed((s) => new Set(s).add(i))}
+              className="w-full h-full object-cover"
+            />
+          )}
+          {img.isVideo && !failed.has(i) && (
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <span className="w-6 h-6 rounded-full bg-black/55 flex items-center justify-center">
+                <Play className="w-3 h-3 text-white fill-white" aria-hidden />
+              </span>
+            </span>
+          )}
+          {i === 0 && info.images.length > 1 && (
+            <span className="pointer-events-none absolute top-1 right-1 rounded-full bg-black/60 px-1.5 text-[10px] font-semibold text-white tabular-nums">
+              1/{info.images.length}
+            </span>
+          )}
+        </div>
+      ))}
+      {extra > 0 && (
+        <div className="w-16 h-16 shrink-0 rounded-lg border border-line bg-subtle flex items-center justify-center text-xs font-semibold text-muted">
+          +{extra}
+        </div>
+      )}
+    </div>
+  );
+  return permalink ? (
+    <a href={permalink} target="_blank" rel="noreferrer" className="block w-fit max-w-full" aria-label="Buka postingan di Threads">
+      {strip}
+    </a>
+  ) : (
+    strip
+  );
 }
 
 export default function PostsPage() {
@@ -120,6 +201,52 @@ export default function PostsPage() {
   useEffect(() => {
     fetchPosts();
   }, [activeTab, selectedAccount, selectedFormat, debouncedSearch, currentPage, limitPerPage]);
+
+  // Gambar dari Threads hanya untuk postingan bergambar di halaman yang sedang tampil: satu permintaan
+  // gabungan per halaman (maks. 25 id), yang sudah ada di cache tidak ditanyakan lagi.
+  const [mediaVersion, setMediaVersion] = useState(0);
+  const [mediaPending, setMediaPending] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (loading) return;
+    const now = Date.now();
+    const missing = posts.filter((p) => hasVisual(p) && !cachedMedia(p.mediaId, now)).map((p) => p.mediaId);
+    if (missing.length === 0) return;
+    const ctrl = new AbortController();
+    const batches: string[][] = [];
+    for (let i = 0; i < missing.length; i += MEDIA_BATCH) batches.push(missing.slice(i, i + MEDIA_BATCH));
+    // Ditunda satu tick: penanda "memuat" dipasang di luar badan efek (aturan set-state-in-effect).
+    const start = setTimeout(() => setMediaPending(new Set(missing)), 0);
+    void Promise.all(
+      batches.map(async (ids) => {
+        const res = await fetch(`/api/posts/media?ids=${ids.map(encodeURIComponent).join(",")}`, { signal: ctrl.signal });
+        const data = (await res.json().catch(() => null)) as { success?: boolean; media?: Record<string, ThreadsMediaInfo> } | null;
+        if (!res.ok || !data?.success) return;
+        const at = Date.now();
+        for (const id of ids) mediaCache.set(id, { at, value: data.media?.[id] ?? null });
+      })
+    )
+      .catch(() => undefined)
+      .finally(() => {
+        clearTimeout(start);
+        if (ctrl.signal.aborted) return;
+        setMediaPending(new Set());
+        setMediaVersion((v) => v + 1);
+      });
+    return () => {
+      clearTimeout(start);
+      ctrl.abort();
+    };
+  }, [posts, loading]);
+  // Dibaca ulang dari cache tiap kali satu permintaan gambar selesai (mediaVersion naik).
+  const mediaByPost = useMemo(() => {
+    const out = new Map<string, ThreadsMediaInfo>();
+    for (const p of posts) {
+      const info = hasVisual(p) ? cachedMedia(p.mediaId)?.value : null;
+      if (info) out.set(p.mediaId, info);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mediaVersion menandai isi cache modul berubah
+  }, [posts, mediaVersion]);
 
   const openDeleteModal = (post: PostItem) => {
     setSelectedPostToDelete(post);
@@ -449,6 +576,21 @@ export default function PostsPage() {
                         <p className="text-xs text-fg font-medium leading-relaxed line-clamp-3">
                           {post.text}
                         </p>
+
+                        {/* Gambar dari Threads (bukan dari penyimpanan kita) */}
+                        {hasVisual(post) &&
+                          (() => {
+                            const info = mediaByPost.get(post.mediaId);
+                            if (info) return <PostThumbs key={post.mediaId} info={info} permalink={post.permalink} />;
+                            if (mediaPending.has(post.mediaId)) {
+                              return (
+                                <div className="flex gap-1.5" aria-hidden>
+                                  <div className="w-16 h-16 rounded-lg bg-subtle animate-pulse" />
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
 
                         {/* Permalink direct link */}
                         {post.permalink && (

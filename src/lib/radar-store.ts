@@ -4,6 +4,7 @@
  */
 import { rpc, utc } from "@/lib/supabase";
 import { MissingAutopilotSchemaError, isMissingAutopilotSchema, missingSchemaFile } from "./autopilot-store";
+import { CAROUSEL_MAX, parsePostMedia, type PostMedia } from "./post-media";
 import type { SignalDraft } from "./radar-sources";
 import type {
   IdeaScoreDetail,
@@ -239,6 +240,32 @@ export interface IdeaPreview {
   model: string;
   /** ISO UTC */
   at: string;
+  /** Gambar postingan dari ide ini (sql/038); null/absen = tanpa gambar. Ikut dipakai autopilot. */
+  media?: PostMedia | null;
+}
+
+/**
+ * Media untuk tampilan dari JSON database. Media lengkap divalidasi `parsePostMedia`; posting yang hanya
+ * menyimpan URL gambar (ScheduledPost.mediaUrls, sql/038 -> `{url}`) atau media format lama (`url`/`path`
+ * sebelum `sourceUrl`) tetap tampil tanpa kredit. URL yang sudah mati ditangani placeholder di tampilan.
+ */
+export function displayMedia(raw: unknown): PostMedia | null {
+  const full = parsePostMedia(raw);
+  if (full) return full;
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { type?: unknown; items?: unknown };
+  if ((r.type !== "IMAGE" && r.type !== "CAROUSEL") || !Array.isArray(r.items)) return null;
+  const items = r.items
+    .map((it) => {
+      if (!it || typeof it !== "object") return null;
+      const o = it as { sourceUrl?: unknown; url?: unknown };
+      return typeof o.sourceUrl === "string" ? o.sourceUrl : o.url;
+    })
+    .filter((u): u is string => typeof u === "string" && /^https:\/\//.test(u))
+    .slice(0, CAROUSEL_MAX)
+    .map((sourceUrl) => ({ sourceUrl, credit: "", sourceKind: "NEWS" as const, articleUrl: null, articleTitle: null, imageKey: sourceUrl, width: 0, height: 0 }));
+  if (items.length === 0) return null;
+  return { type: items.length > 1 ? "CAROUSEL" : "IMAGE", items };
 }
 
 /** Ide BARU terbaik untuk banyak akun sekaligus (disematkan dulu, lalu skor). */
@@ -268,6 +295,8 @@ export interface IdeaRow {
   previewText?: string | null;
   previewKind?: "POSTING" | "PREVIEW" | null;
   postAt?: string | null;
+  /** Gambar posting (ide terpakai) atau gambar preview; null bila tanpa gambar (sql/038). */
+  previewMedia?: PostMedia | null;
 }
 
 export async function listIdeas(q: {
@@ -292,6 +321,7 @@ export async function listIdeas(q: {
     previewText: r.previewText ?? null,
     previewKind: r.previewKind ?? null,
     postAt: r.postAt ? iso(r.postAt) : null,
+    previewMedia: displayMedia(r.previewMedia),
   }));
 }
 
@@ -301,6 +331,8 @@ export const retireIdeasBefore = (accountId: string, before: Date, now: Date) =>
 
 export interface IdeaPreviewSource {
   id: string;
+  /** Ada sejak sql/038. */
+  workspaceId?: string | null;
   accountId: string;
   topik: string;
   sudut: string | null;
@@ -315,6 +347,19 @@ export const ideaPreviewSource = (id: string, workspaceId: string | null, accoun
 /** Simpan preview ide yang masih siap dipakai. */
 export const saveIdeaPreview = (id: string, preview: IdeaPreview, now: Date) =>
   call<boolean>("dash_idea_preview_set", { p_id: id, p_preview: preview, p_now: now });
+
+/**
+ * Ganti (media) atau hapus (null) gambar preview ide BARU yang sudah punya preview (sql/038).
+ * `old` = media sebelumnya (untuk dihapus dari storage); ok false bila ide sudah tidak bisa diubah.
+ */
+export async function setIdeaMedia(
+  id: string,
+  media: PostMedia | null,
+  now: Date
+): Promise<{ ok: false } | { ok: true; old: PostMedia | null }> {
+  const res = await call<{ ok: boolean; old?: unknown }>("dash_idea_media_set", { p_id: id, p_media: media, p_now: now });
+  return res.ok ? { ok: true, old: parsePostMedia(res.old) } : { ok: false };
+}
 
 /** Ubah ide secara bersyarat (status asal harus ada di `from`, dan ide berada dalam lingkup pengguna). */
 export const updateIdea = (

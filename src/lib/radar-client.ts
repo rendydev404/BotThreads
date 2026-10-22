@@ -3,6 +3,7 @@
  * komponen "use client". Galat dilempar sebagai `ContentApiError` dengan pesan Indonesia.
  */
 import { call } from "./content-client";
+import type { PostMedia } from "./post-media";
 import type {
   IdeaAction,
   IdeaListResponse,
@@ -37,6 +38,10 @@ export const saveMoment = (m: { id?: string; nama: string; mulai: string; selesa
 export const deleteMoment = (id: string) =>
   call<{ success: true }>(`/api/radar/moments/${encodeURIComponent(id)}`, { method: "DELETE" });
 
+/** Baris bank ide beserta gambar preview/posting (sql/038). */
+export type IdeaListItem = IdeaListResponse["items"][number] & { previewMedia?: PostMedia | null };
+export type IdeaListWithMedia = Omit<IdeaListResponse, "items"> & { items: IdeaListItem[] };
+
 export function listIdeas(
   p: { view?: "ready" | "used" | "dropped"; accountId?: string | null; cursor?: string | null } = {},
   signal?: AbortSignal
@@ -44,7 +49,7 @@ export function listIdeas(
   const q = new URLSearchParams({ view: p.view ?? "ready" });
   if (p.accountId) q.set("accountId", p.accountId);
   if (p.cursor) q.set("cursor", p.cursor);
-  return call<IdeaListResponse>(`/api/ideas?${q}`, { signal });
+  return call<IdeaListWithMedia>(`/api/ideas?${q}`, { signal });
 }
 
 /** pin = pakai di slot berikutnya, unpin = lepas, reject = jangan dipakai. */
@@ -69,7 +74,17 @@ export const deleteKnowledge = (id: string) =>
 
 /** Preview postingan dari ide: tersimpan dikembalikan langsung, `regenerate` meminta AI menulis ulang. */
 export const fetchIdeaPreview = (id: string, regenerate = false, signal?: AbortSignal) =>
-  call<{ success: true; preview: { text: string; topicTag: string | null; model: string; at: string } }>(
-    `/api/ideas/${encodeURIComponent(id)}/preview`,
-    { method: "POST", body: JSON.stringify({ regenerate }), signal }
-  );
+  call<{
+    success: true;
+    preview: { text: string; topicTag: string | null; model: string; at: string; media?: PostMedia | null };
+  }>(`/api/ideas/${encodeURIComponent(id)}/preview`, { method: "POST", body: JSON.stringify({ regenerate }), signal });
+
+/** "ganti" = cari gambar lain (atau tambah bila belum ada), "hapus" = posting dari ide ini tanpa gambar. */
+export type IdeaMediaAction = "ganti" | "hapus";
+
+export const changeIdeaMedia = (id: string, action: IdeaMediaAction, signal?: AbortSignal) =>
+  call<{ success: true; media: PostMedia | null }>(`/api/ideas/${encodeURIComponent(id)}/media`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
+    signal,
+  });

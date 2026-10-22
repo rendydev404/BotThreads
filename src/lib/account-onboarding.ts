@@ -160,6 +160,8 @@ const settingsOf = (c: ConfigRow): AutopilotSettings => ({
   promoRatio: c.promoRatio,
   voiceStyle: c.voiceStyle,
   brief: c.brief,
+  mediaMode: c.mediaMode,
+  mediaMaxPersen: c.mediaMaxPersen,
 });
 
 /* ------------------------------------------------------------------ langkah 5: tulis draf pertama hari ini */

@@ -4,12 +4,11 @@ import React, { memo, useCallback, useLayoutEffect, useMemo, useState } from "re
 import Link from "next/link";
 import { AlertCircle, Ban, CheckCircle2, Clock, Lightbulb, Loader2, Pin, PinOff, Sparkles, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { actOnIdea, listIdeas } from "@/lib/radar-client";
+import { actOnIdea, listIdeas, type IdeaListItem, type IdeaListWithMedia } from "@/lib/radar-client";
 import {
   IDEA_STATUS_LABEL,
   hookLabel,
   type IdeaAction,
-  type IdeaListResponse,
   type IdeaScoreDetail,
   type IdeaStatus,
 } from "@/lib/radar-types";
@@ -44,7 +43,7 @@ import {
   without,
 } from "./shared";
 
-type Idea = IdeaListResponse["items"][number];
+type Idea = IdeaListItem;
 type View = "ready" | "used" | "dropped";
 /** Hasil tindakan: berhasil, ide ternyata sudah tidak tersedia (409), atau gagal. */
 type ActResult = "ok" | "gone" | "error";
@@ -234,6 +233,7 @@ const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error,
           name={idea.account.displayName}
           avatarUrl={avatarUrl}
           initial={idea.previewText ?? null}
+          initialMedia={idea.previewMedia ?? null}
           kind={idea.previewKind ?? null}
           postAt={idea.postAt ?? null}
           canGenerate={canEdit && idea.status === "BARU"}
@@ -263,7 +263,7 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
   const { accounts } = usePublishAccounts();
 
   const accountId = account === ALL_ACCOUNTS ? null : account;
-  const list = usePaged<Idea, IdeaListResponse>(
+  const list = usePaged<Idea, IdeaListWithMedia>(
     `ideas:${view}:${account}`,
     (cursor, signal) => listIdeas({ view, accountId, cursor }, signal),
     (i) => i.id,

@@ -27,7 +27,8 @@ import {
   maxPostsPerDay,
   minGapMinutes,
 } from "./content-config";
-import type { CreateItemInput } from "./content-validation";
+import type { CreateItemInput as BaseCreateItemInput } from "./content-validation";
+import { fitsWithCredit, parsePostMedia, withCredit, type PostMedia } from "./post-media";
 import {
   STATUS_LABEL,
   type CreatedPostDTO,
@@ -46,6 +47,8 @@ import {
   type ExistingSlot,
 } from "./scheduling";
 import {
+  THREADS_MAX_TEXT,
+  charLength,
   firstValidTopic,
   hasBranchTag,
   normalizeForCompare,
@@ -55,6 +58,33 @@ import {
 } from "./threads-text";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Item posting. `media` (opsional) menjadikannya postingan bergambar (sql/036): teks yang disimpan diberi
+ * baris kredit sumber di akhir (withCredit), dan tautan gambar asalnya masuk ScheduledPost."mediaUrls".
+ */
+export type CreateItemInput = BaseCreateItemInput & { media?: PostMedia | null };
+
+const isMediaType = (t: string | null | undefined) => t === "IMAGE" || t === "CAROUSEL";
+
+/** Baris kredit ("📷 ...") di akhir caption postingan bergambar; kosong bila tidak ada. */
+function captionCredit(caption: string): string {
+  const last = caption.trim().split("\n").at(-1)?.trim() ?? "";
+  return last.startsWith("📷 ") ? last : "";
+}
+
+/** Teks baru postingan bergambar tetap diakhiri baris kredit lamanya (format sama dengan withCredit). */
+function keepCredit(text: string, oldCaption: string): string {
+  const line = captionCredit(oldCaption);
+  const body = text.trim();
+  return !line || body.endsWith(line) ? body : `${body}\n\n${line}`;
+}
+
+/** Caption tanpa baris kredit (untuk memori gaya AI: AI tidak boleh belajar menulis kredit sendiri). */
+function stripCredit(caption: string): string {
+  const line = captionCredit(caption);
+  return line ? caption.trim().slice(0, -line.length).trim() : caption;
+}
 
 /* ------------------------------------------------------------------ hasil & galat */
 
@@ -347,9 +377,10 @@ interface Prepared {
   account: PublishAccount;
   at: Date;
   immediate: boolean;
-  /** Teks yang disimpan di ScheduledPost.caption (boleh memuat {nama_cabang}). */
+  /** Teks yang disimpan di ScheduledPost.caption (boleh memuat {nama_cabang}; dengan kredit bila bergambar). */
   caption: string;
   topicTag: string | null;
+  media: PostMedia | null;
   /** Waktu semula sebelum digeser otomatis karena bentrok. */
   movedFrom?: Date;
 }
@@ -388,6 +419,24 @@ async function doCreate(input: CreateInput, now: Date): Promise<CreateResult> {
       reject(check.error);
       continue;
     }
+    let media: PostMedia | null = null;
+    if (item.media != null) {
+      media = parsePostMedia(item.media);
+      if (!media) {
+        reject("data gambar postingan tidak valid.");
+        continue;
+      }
+    }
+    const body = item.text.replace(/\r\n/g, "\n").trim();
+    const caption = media ? withCredit(body, media) : body;
+    if (media) {
+      // Batas Threads berlaku untuk teks + baris kredit, setelah {nama_cabang} diganti.
+      const full = validateThreadsText(caption, account.outletNama ?? "", check.topicTag);
+      if (!fitsWithCredit(body, media) || !full.ok) {
+        reject(`Teks dan kredit foto ${charLength(caption)} karakter. Threads maksimal ${THREADS_MAX_TEXT} karakter.`);
+        continue;
+      }
+    }
     const when = parsePublishAt(item.publishAt, now);
     if (!when.ok) {
       reject(when.error);
@@ -398,8 +447,9 @@ async function doCreate(input: CreateInput, now: Date): Promise<CreateResult> {
       account,
       at: when.at,
       immediate: when.immediate,
-      caption: item.text.replace(/\r\n/g, "\n").trim(),
+      caption,
       topicTag: check.topicTag,
+      media,
     });
   }
   if (errors.length && !partial) return failure(400, errors[0], errors);
@@ -471,6 +521,15 @@ async function commitPrepared(
       action: p.immediate ? "CREATE_NOW" : "CREATE_SCHEDULED",
       aiModel: p.item.aiModel ?? null,
       aiEdited: p.item.aiModel ? p.item.aiEdited : null,
+      // Hanya postingan bergambar yang mengirim kolom media; postingan teks tetap persis seperti sebelumnya.
+      ...(p.media
+        ? {
+            mediaType: p.media.type,
+            // Hanya tautan gambar asal; berkas sementara dibuat penerbit saat posting (sql/040).
+            mediaUrls: p.media.items.map((m) => m.sourceUrl),
+            mediaPaths: [],
+          }
+        : {}),
       detail: {
         idempotencyKey: input.idempotencyKey,
         batchId,
@@ -571,6 +630,8 @@ export interface PostRecord {
   caption: string;
   hashtags: string[];
   tayangPada: Date;
+  /** TEXT/IMAGE/CAROUSEL (sql/036; undefined sebelum dipasang). */
+  mediaType?: string | null;
   dispatch: {
     status: string;
     lockedAt: Date | null;
@@ -646,7 +707,9 @@ export async function editPost(input: EditInput, now = new Date()): Promise<Edit
   }
 
   const nama = post.dispatch.outletNama ?? "";
-  const newCaption = input.text !== undefined ? input.text.replace(/\r\n/g, "\n").trim() : post.caption;
+  let newCaption = input.text !== undefined ? input.text.replace(/\r\n/g, "\n").trim() : post.caption;
+  // Postingan bergambar: gambar tidak ikut diubah, dan baris kredit sumbernya dipasang lagi bila terhapus.
+  if (input.text !== undefined && isMediaType(post.mediaType)) newCaption = keepCredit(newCaption, post.caption);
   const currentTopic = firstValidTopic(post.hashtags);
   const newTopic = input.topicTag !== undefined ? input.topicTag : currentTopic;
   const check = validateThreadsText(newCaption, nama, newTopic);
@@ -736,7 +799,12 @@ async function commitEdit(
   return {
     ok: true,
     post: item ?? null,
-    learn: textChanged && accountId ? { accountId, before: post.caption, after: check.text } : null,
+    learn:
+      textChanged && accountId
+        ? isMediaType(post.mediaType)
+          ? { accountId, before: stripCredit(post.caption), after: stripCredit(check.text) }
+          : { accountId, before: post.caption, after: check.text }
+        : null,
   };
 }
 

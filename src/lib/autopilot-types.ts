@@ -4,6 +4,7 @@
  */
 import type { PublishReason } from "./content-types";
 import type { SignalSource } from "./radar-types";
+import type { PostMedia } from "./post-media";
 
 export type AutopilotMode = "MATI" | "TINJAU" | "OTOMATIS";
 export type SlotStrategy = "JAM_RAMAI" | "JAM_TETAP";
@@ -56,6 +57,15 @@ export const ACTIVE_LAST_HOUR = 22;
 /** Peran & tema akun (Profil AI): cukup untuk prompt peran lengkap (350-700 kata) dari Studio AI. */
 export const BRIEF_MAX_CHARS = 5000;
 
+/** Postingan bergambar: MATI = selalu teks saja; OTOMATIS = AI memilih gambar selama porsinya di bawah batas. */
+export type MediaMode = "MATI" | "OTOMATIS";
+export const MEDIA_MODE_LABEL: Record<MediaMode, string> = { MATI: "Mati", OTOMATIS: "Otomatis" };
+/** Batas porsi postingan bergambar (persen, dicerminkan di CHECK "mediaMaxPersen"). */
+export const MEDIA_PERSEN_MIN = 0;
+export const MEDIA_PERSEN_MAX = 100;
+/** Pilihan porsi di UI. */
+export const MEDIA_PERSEN_CHOICES = [10, 20, 30, 50];
+
 export interface AutopilotPillar {
   key: string;
   bobot: number;
@@ -84,6 +94,10 @@ export interface AutopilotSettings {
   promoRatio: number;
   voiceStyle: VoiceStyle | null;
   brief: string | null;
+  /** Postingan bergambar (foto berita / Wikimedia) untuk akun ini. */
+  mediaMode: MediaMode;
+  /** Porsi maksimal postingan bergambar (0-100%) dari posting dashboard 7 hari terakhir + yang akan datang. */
+  mediaMaxPersen: number;
 }
 
 export const DEFAULT_SETTINGS: AutopilotSettings = {
@@ -98,6 +112,8 @@ export const DEFAULT_SETTINGS: AutopilotSettings = {
   promoRatio: 0,
   voiceStyle: null,
   brief: null,
+  mediaMode: "OTOMATIS",
+  mediaMaxPersen: 30,
 };
 
 export interface AutopilotConfigDTO extends AutopilotSettings {
@@ -153,6 +169,8 @@ export interface SlotDraftDTO {
   pillar?: string;
   /** Slot affiliate: produk katalog dan balasan pertama berisi link (dikirim worker setelah terbit). */
   affiliate?: { productId: string; nama: string; link: string; replyText: string };
+  /** Gambar postingan (single/carousel) dari ide; kredit sumber ditambahkan saat masuk antrean. */
+  media?: PostMedia | null;
 }
 
 /** Ringkasan hasil kerja AI untuk satu slot (GET /api/autopilot/slots/[id]). */

@@ -28,6 +28,7 @@ import {
   type SlotStatus,
 } from "./autopilot-types";
 import { hourRowsForAccounts } from "./best-hours";
+import { clearMediaPolicyCache } from "./media-policy";
 import { isPublishEnabled, maxPostsPerDay } from "./content-config";
 import { checkAutopilotAgainstPlan, planLimits } from "./plan";
 import { listPublishAccounts, reasonText, type PublishAccount } from "./publish-accounts";
@@ -191,6 +192,8 @@ export async function saveSettings(
           promoRatio: current.promoRatio,
           voiceStyle: current.voiceStyle,
           brief: current.brief,
+          mediaMode: current.mediaMode,
+          mediaMaxPersen: current.mediaMaxPersen,
         }
       : DEFAULT_SETTINGS;
     const parsed = parseSettingsPatch(patch, base);
@@ -226,6 +229,8 @@ export async function saveSettings(
   }
 
   const saved = await upsertConfigs(items, ctx.userId, now);
+  // Pengaturan gambar berlaku segera di proses ini (bukan menunggu cache 60 detik).
+  for (const i of items) clearMediaPolicyCache(i.accountId);
   return { ok: true, saved, skipped, research };
 }
 

@@ -9,6 +9,8 @@ import {
   ACTIVE_FIRST_HOUR,
   ACTIVE_LAST_HOUR,
   BRIEF_MAX_CHARS,
+  MEDIA_MODE_LABEL,
+  MEDIA_PERSEN_CHOICES,
   MODE_LABEL,
   POSTS_PER_DAY_MAX,
   POSTS_PER_DAY_MIN,
@@ -19,6 +21,7 @@ import {
   type AutopilotMode,
   type AutopilotPillar,
   type AutopilotSettings,
+  type MediaMode,
   type PlanPreviewResponse,
   type SlotStrategy,
   type VoiceStyle,
@@ -38,6 +41,7 @@ const FIXED_MAX = 6;
 const GAP_CHOICES = [120, 150, 180, 240];
 const EXPLORE_CHOICES = [0, 0.1, 0.15, 0.2, 0.3];
 const MODES: AutopilotMode[] = ["MATI", "TINJAU", "OTOMATIS"];
+const MEDIA_MODES: MediaMode[] = ["OTOMATIS", "MATI"];
 const HOURS = Array.from({ length: ACTIVE_LAST_HOUR - ACTIVE_FIRST_HOUR + 1 }, (_, i) => ACTIVE_FIRST_HOUR + i);
 
 const MODE_INFO: Record<AutopilotMode, string> = {
@@ -84,6 +88,8 @@ interface FormState {
   voiceStyle: VoiceStyle | null;
   brief: string;
   pillars: PillarRow[];
+  mediaMode: MediaMode;
+  mediaMaxPersen: number;
 }
 
 const sortNumbers = (list: number[]): number[] => [...new Set(list)].sort((a, b) => a - b);
@@ -110,6 +116,8 @@ const toForm = (c: AutopilotConfigDTO): FormState => ({
   voiceStyle: c.voiceStyle,
   brief: c.brief ?? "",
   pillars: c.pillars.map((p, i) => ({ id: i, key: p.key, bobot: String(p.bobot) })),
+  mediaMode: c.mediaMode,
+  mediaMaxPersen: c.mediaMaxPersen,
 });
 
 /** Baris pilar yang namanya kosong diabaikan (dianggap belum diisi). */
@@ -167,6 +175,8 @@ function buildPatch(initial: AutopilotConfigDTO, form: FormState): Partial<Autop
   const pillars = toPillars(form.pillars);
   const before = initial.pillars.map((p) => ({ key: p.key, bobot: p.bobot }));
   if (JSON.stringify(pillars) !== JSON.stringify(before)) patch.pillars = pillars;
+  if (form.mediaMode !== initial.mediaMode) patch.mediaMode = form.mediaMode;
+  if (form.mediaMode === "OTOMATIS" && form.mediaMaxPersen !== initial.mediaMaxPersen) patch.mediaMaxPersen = form.mediaMaxPersen;
   return patch;
 }
 
@@ -355,6 +365,8 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
     (m) => ({ value: m, label: `${m} menit`, hint: gapHint(m) })
   );
   const exploreOptions = EXPLORE_CHOICES.map((rate) => ({ value: rate, label: `${Math.round(rate * 100)}%` }));
+  const mediaModeOptions = MEDIA_MODES.map((m) => ({ value: m, label: MEDIA_MODE_LABEL[m] }));
+  const mediaPersenOptions = sortNumbers([...MEDIA_PERSEN_CHOICES, initial.mediaMaxPersen]).map((p) => ({ value: p, label: `${p}%` }));
   const pillarTotal = form.pillars.reduce((sum, p) => (cleanKey(p.key) ? sum + (Number(p.bobot) || 0) : sum), 0);
   const blocked = !!planIssue || !!pillarIssue || !!serverIssue;
   const paused = pausedText(initial.pausedReason);
@@ -636,6 +648,36 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
               </div>
             )}
           </section>
+
+          <Field
+            label="Postingan bergambar"
+            hint={
+              form.mediaMode === "OTOMATIS"
+                ? `AI menambahkan foto berita atau Wikimedia Commons (dengan kredit sumber) bila cocok dengan topiknya, paling banyak ${form.mediaMaxPersen}% dari posting akun ini dalam 7 hari.`
+                : "Semua posting akun ini berupa teks saja."
+            }
+          >
+            {() => (
+              <div className="flex flex-wrap items-center gap-3">
+                <Segmented
+                  ariaLabel="Mode postingan bergambar"
+                  options={mediaModeOptions}
+                  value={form.mediaMode}
+                  onChange={(mediaMode) => update({ mediaMode })}
+                  className="w-full sm:w-56"
+                />
+                {form.mediaMode === "OTOMATIS" && (
+                  <Segmented
+                    ariaLabel="Porsi maksimal postingan bergambar"
+                    options={mediaPersenOptions}
+                    value={form.mediaMaxPersen}
+                    onChange={(mediaMaxPersen) => update({ mediaMaxPersen })}
+                    className="w-full sm:flex-1"
+                  />
+                )}
+              </div>
+            )}
+          </Field>
 
           <Field label="Gaya sapaan">
             {() => (
