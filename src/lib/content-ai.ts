@@ -504,13 +504,14 @@ SUARA AKUN
 - Contoh di dalam <<< >>> ditampilkan apa adanya beserta jeda barisnya. Bila contohnya dipecah jadi baris-baris pendek, tulis dengan baris baru sungguhan (\\n) yang sama ritmenya.
 - Jangan menyalin kalimat atau frasa contoh (enam kata berurutan yang sama otomatis ditolak). Ambil polanya, tulis isi yang baru.
 - Topik diambil dari hal yang biasa dibahas akun di contohnya. Bila ada <brief>, itu topik utamanya dan tetap dibawakan dengan suara akun.
+- blok TEMA AKUN dari pemilik akun adalah aturan tertinggi. Larangan topik bawaan (politik, pejabat, hukum, kriminal, bencana, kecelakaan, kabar duka, SARA, judi, pinjol) hanya berlaku bila TEMA AKUN tidak membahasnya; bila TEMA AKUN meminta atau mengizinkan topik itu (mis. kritik kebijakan atau teknologi pemerintah), ikuti TEMA AKUN. Bila TEMA AKUN melarang sesuatu, larangan itu mutlak.
 
 KREATIVITAS
 - Tiap kandidat memakai SUDUT KREATIF yang berbeda, sesuai urutan daftar yang diberikan.
 - Kalimat pertama adalah hook yang konkret (detail kecil, momen nyata, benda sehari-hari), bukan kalimat umum yang bisa ditulis siapa saja.
 - ANTI GARING: tiap kandidat wajib punya satu hal yang bikin orang berhenti scroll: detail spesifik yang tak terduga, ketegangan (dua pilihan, pendapat yang bisa dibantah), humor receh khas warganet, atau belokan di akhir. Bila kalimatnya bisa diposting akun mana pun tanpa diubah, tulis ulang.
 - Sarkas halus, satir, dan self-roast boleh dan sering paling ramai, asal natural seperti celetukan warganet: menertawakan keadaan atau diri sendiri, bukan merendahkan orang atau kelompok, dan tidak sinis ke pembaca. Bila ARAH IDE bernada sarkas, pertahankan nadanya.
-- Bila ada TREN YANG DITUMPANGI, sambungkan secara natural seperti orang yang sedang ikut membahasnya, bukan mengulang berita.
+- Bila ada TREN YANG DITUMPANGI (termasuk tren viral di luar niche akun), sebut trennya dengan jelas (nama, istilah, atau kejadiannya) supaya orang langsung ngeh ini lagi rame, lalu tarik ke niche akun lewat sudut pandang, analogi, atau reaksi khas akun. Tulis seperti orang yang lagi ikut ngobrolin trennya di timeline, bukan mengulang berita dan bukan tempelan.
 - Jangan menulis kalimat normatif dan aman ("semoga harimu menyenangkan", "tetap semangat ya", "jangan lupa bersyukur", "kalian tim mana nih?"). Penutup pertanyaan (bila dipakai) harus spesifik dan gampang dijawab dalam satu kata atau satu cerita singkat; tidak semua kandidat perlu ditutup pertanyaan.
 - Variasikan bentuk: jangan semua kandidat dibuka dengan pertanyaan atau "pernah nggak sih". Pakai pernyataan berani, cerita, dialog, atau daftar pendek sesuai SUDUT KREATIF.
 - Dilarang klise ("di era", "siapa sangka", "tak hanya itu", "yuk", "jangan lupa", "tahukah kamu", "halo sobat", "hai guys") dan kata iklan ("dijamin", "terbaik", "buruan", "wajib coba"). ${formatRule(lists)}
@@ -542,7 +543,7 @@ ATURAN TULISAN
 - Dilarang placeholder dalam kurung siku apa pun ([isi ...], [nama ...], [lokasi], [harga], [link]). Teks harus siap posting tanpa diedit. Detail lokasi, menu, harga, atau jam buka hanya boleh diambil dari FAKTA AKUN DARI DATABASE atau contoh postingan akun; bila tidak ada, tulis kalimat yang tidak membutuhkan detail itu (mis. cukup sebut nama cabang).
 - Maksimal ${DRAFT_MAX_CHARS} karakter per draf. Maksimal 1 topik (tanpa tanda #, 1-50 karakter, tanpa titik).
 - Setiap draf harus punya sudut pandang dan pembuka yang berbeda, serta berbeda dari postingan terakhir akun.
-- Emoji: ikuti kebiasaan contoh gaya akun (0-2); bila contoh tidak memakai emoji, jangan pakai.
+- Emoji menyesuaikan suasana tiap draf (0-2): sebagian draf pakai emoji yang pas, sebagian tanpa emoji, jangan seragam. Akun yang hampir tidak pernah memakai emoji tetap boleh sesekali satu emoji bila suasananya pas.
 - Bila postingan menjanjikan isi (prompt AI, template, rumus, langkah, daftar tools), isinya WAJIB ditulis lengkap di teks itu juga. Untuk prompt AI: tulis prompt utuh yang siap disalin (peran, tugas, konteks konkret, format hasil), ringkas supaya total teks tetap muat batas karakter. Dilarang placeholder seperti [isi prompt], [isi detail prompt], atau "..." sebagai pengganti isi.
 
 ${humanVoice({ plainLists: lists })}

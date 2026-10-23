@@ -28,6 +28,15 @@ export const DEFAULT_BANNED_TERMS = [
   "judi", "slot gacor", "togel", "pinjol",
 ];
 
+/**
+ * Kata terlarang bawaan untuk satu akun: tema akun dari pemilik adalah aturan tertinggi, jadi kata bawaan yang
+ * disebut sendiri oleh tema (mis. tema membahas "pemilu") tidak lagi diblokir untuk akun itu.
+ */
+export function defaultBannedFor(brief: string | null | undefined): string[] {
+  if (!brief?.trim()) return DEFAULT_BANNED_TERMS;
+  return DEFAULT_BANNED_TERMS.filter((t) => bannedHits(brief, [t]).length === 0);
+}
+
 const PROMO_WORD =
   /(?<![\p{L}\p{N}])(promo|diskon|cashback|voucher|vocer|gratis|free ongkir|potongan harga|harga coret|buy\s*1|beli\s*1|beli\s+satu\s+gratis|grand\s+opening|flash\s+sale|giveaway)(?![\p{L}\p{N}])/giu;
 
@@ -136,6 +145,8 @@ export interface GateInput {
   peers: string[];
   /** Kata terlarang tambahan milik workspace. */
   bannedTerms?: string[];
+  /** Tema akun: kata terlarang bawaan yang disebut tema tidak diblokir (tema adalah aturan tertinggi). */
+  brief?: string | null;
   /** Slot affiliate: nama produk yang harus disebut. */
   affiliate?: { nama: string };
   /** Teks contoh gaya yang ada di prompt: draf tidak boleh menyalin frasanya (anti-jiplak). */
@@ -180,7 +191,7 @@ export function runGate(input: GateInput): GateResult {
     ...(claims.length ? { detail: `Tidak ada di fakta akun: ${claims.join(", ")}.` } : {}),
   });
 
-  const banned = bannedHits(text, [...DEFAULT_BANNED_TERMS, ...(input.bannedTerms ?? [])]);
+  const banned = bannedHits(text, [...defaultBannedFor(input.brief), ...(input.bannedTerms ?? [])]);
   checks.push({
     key: "terlarang",
     label: "Bebas topik sensitif",

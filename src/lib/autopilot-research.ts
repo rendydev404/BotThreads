@@ -189,7 +189,14 @@ export function planNiche(state: AutopilotState, accounts: Map<string, PublishAc
   const critical = (c: ConfigRow) => (radar.ideaCounts.get(c.accountId) ?? 0) < c.postsPerDay;
   // Pemilik akun sudah menulis tema atau pilar: nichenya jelas, risetnya paling bermanfaat.
   const themed = (c: ConfigRow) => !!c.brief || c.pillars.length > 0;
-  const due = activeConfigs(state, accounts)
+  // Radar memakai profil niche akun walau Autopilot mati. Akun tanpa profil eksplisit tetap perlu
+  // Autopilot aktif agar postingan terakhirnya menjadi dasar inferensi niche.
+  const due = [...state.configs.values()]
+    .filter((c) => {
+      const hasProfile = !!c.brief || c.pillars.length > 0;
+      const researchEnabled = hasProfile || (c.mode !== "MATI" && !c.pausedReason);
+      return researchEnabled && (state.workspaceActive.get(c.workspaceId) ?? true) && !!accounts.get(c.accountId)?.ready;
+    })
     .filter((c) => now.getTime() - last(c) >= NICHE_REFRESH_MS && now.getTime() >= (nicheNextTry.get(c.accountId) ?? 0))
     // Akun yang idenya hampir habis dulu, lalu yang bertema, lalu yang paling lama tidak diriset.
     .sort((a, b) => Number(critical(b)) - Number(critical(a)) || Number(themed(b)) - Number(themed(a)) || last(a) - last(b));
@@ -259,7 +266,7 @@ export async function researchNiches(niche: NicheState, now: Date, deadline: num
           return;
         }
         const drafts: SignalDraft[] = job.targets.flatMap((c) =>
-          nicheTopicsToSignals(research, { accountId: c.accountId, workspaceId: c.workspaceId }, now, [
+          nicheTopicsToSignals(research, { accountId: c.accountId, workspaceId: c.workspaceId, brief: c.brief }, now, [
             ...extraBanned,
             ...(kb.get(c.accountId)?.banned ?? []),
           ])
@@ -296,7 +303,7 @@ export async function researchNicheFor(config: ConfigRow, recents: string[], now
     loadKnowledge([config], now).catch(() => new Map<string, AccountKnowledge>()),
   ]);
   if (!research) return { status: "failed", signals: 0, topics: [] };
-  const drafts = nicheTopicsToSignals(research, { accountId: config.accountId, workspaceId: config.workspaceId }, now, [
+  const drafts = nicheTopicsToSignals(research, { accountId: config.accountId, workspaceId: config.workspaceId, brief: config.brief }, now, [
     ...extraBannedTerms(),
     ...(kb.get(config.accountId)?.banned ?? []),
   ]);

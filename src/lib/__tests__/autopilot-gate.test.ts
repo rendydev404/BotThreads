@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bannedHits, moneyValues, runGate, unsupportedClaims } from "../autopilot-gate";
+import { bannedHits, defaultBannedFor, moneyValues, runGate, unsupportedClaims } from "../autopilot-gate";
 
 const OK_TEXT = "sore begini enaknya ngemil apa sih? aku lagi kepikiran yang gurih-gurih, kalian tim manis atau tim asin?";
 
@@ -96,5 +96,15 @@ describe("runGate", () => {
   it("menolak placeholder dan teks kepanjangan", () => {
     expect(runGate({ text: "mampir ke [isi alamat cabang] ya, ditunggu sore ini juga", sources: [], peers: [] }).ok).toBe(false);
     expect(runGate({ text: "a".repeat(501), sources: [], peers: [] }).ok).toBe(false);
+  });
+});
+
+describe("tema akun mengalahkan kata terlarang bawaan", () => {
+  it("kata bawaan yang disebut tema tidak diblokir; tanpa tema tetap diblokir", () => {
+    expect(defaultBannedFor(null)).toContain("pemilu");
+    expect(defaultBannedFor("akun opini politik, bahas pemilu dan pilkada")).not.toContain("pemilu");
+    const text = "pemilu tahun depan bakal rame banget di timeline, siap-siap aja";
+    expect(runGate({ text, sources: [], peers: [] }).ok).toBe(false);
+    expect(runGate({ text, sources: [], peers: [], brief: "akun opini politik, bahas pemilu" }).ok).toBe(true);
   });
 });

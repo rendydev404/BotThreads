@@ -25,7 +25,7 @@ vi.mock("@/lib/gemini", async (original) => ({
     const prompt = opts.contents[0].parts[0].text;
     const handle = /AKUN: @(\S+)/.exec(prompt)?.[1] ?? "x";
     h.llmCalls++;
-    if (opts.system.startsWith("Anda peneliti tren untuk SATU niche")) {
+    if (opts.system.startsWith("Anda peneliti berita dan tren untuk SATU niche")) {
       h.nichePrompts.push(prompt);
       const ai = prompt.includes("teknologi AI");
       const topics = ai

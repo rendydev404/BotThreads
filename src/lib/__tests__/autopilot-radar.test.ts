@@ -4,6 +4,7 @@ import {
   MAX_ACCOUNTS_PER_TOPIC,
   buildIdeaPrompt,
   minTrendIdeas,
+  minViralIdeas,
   pickIdea,
   scoreIdea,
   screenIdeas,
@@ -14,7 +15,7 @@ import {
   topicSimilarity,
 } from "../autopilot-ideas";
 import { groupKnowledge } from "../autopilot-research";
-import { pickPillar, pickPromo, planSlotBrief, promptBlocks, trendLines } from "../autopilot-writer";
+import { emojiBlock, emojiChance, pickPillar, pickPromo, planSlotBrief, promptBlocks, trendLines } from "../autopilot-writer";
 import type { ClaimedSlot, ConfigRow } from "../autopilot-store";
 import { DEFAULT_SETTINGS } from "../autopilot-types";
 import {
@@ -199,7 +200,7 @@ describe("penyaringan ide", () => {
     expect(trend.score).toBeGreaterThan(free.score);
   });
 
-  it("tren umum yang jembatannya lemah dibuang; tren niche cukup kecocokan biasa", () => {
+  it("tren viral umum tidak lagi butuh kecocokan ekstra: ditarik ke niche dengan kecocokan biasa", () => {
     const signals = [
       signal({ id: "bola", source: "GTRENDS", title: "brighton vs crystal palace" }),
       signal({ id: "niche", source: "NICHE", accountId: "a1", workspaceId: "ws1", title: "rilis model AI baru minggu ini" }),
@@ -211,9 +212,10 @@ describe("penyaringan ide", () => {
         raw("AI tebak skor brighton vs crystal palace tapi meleset jauh", { sinyal: [1], kecocokan: 3 }),
         raw("rilis model AI baru bikin developer junior makin bingung", { sinyal: [2], kecocokan: 3 }),
         raw("pakai AI buat analisis pertandingan sebelum nobar bareng tim", { sinyal: [1], kecocokan: 4 }),
+        raw("hasil pertandingan semalam dibahas lewat drama transfer pemain", { sinyal: [1], kecocokan: 2 }),
       ],
     });
-    expect(ideas.map((i) => i.signalIds)).toEqual([["niche"], ["bola"]]);
+    expect(ideas.map((i) => i.signalIds)).toEqual([["bola"], ["niche"], ["bola"]]);
   });
 
   it("prompt ide memuat sinyal bernomor dan membersihkan kurung sudut dari data luar", () => {
@@ -256,7 +258,7 @@ describe("penyaringan ide", () => {
     expect(prompt).toContain("CONTOH POSTINGAN AKUN (acuan niche dan gaya bahasa; jangan ulangi topiknya):\n- gue baru nyoba agen coding");
     // Tren niche bernomor paling awal, tren umum menyusul di kelompoknya sendiri.
     expect(prompt).toContain("TREN NAIK DI NICHE AKUN (prioritas utama, pasti relevan):\n[1] rilis model baru | baru diumumkan kemarin");
-    expect(prompt).toContain("TREN UMUM (pakai hanya bila ada jembatan alami ke niche akun):\n[4] (tren pencarian) brighton vs crystal palace");
+    expect(prompt).toContain("TREN VIRAL UMUM (lagi ramai di Threads/internet; wajib ditarik ke niche akun walau topiknya di luar niche):\n[4] (tren pencarian) brighton vs crystal palace");
     // Contoh postingan tidak diulang di daftar hindari.
     expect(prompt).toContain("JANGAN ULANGI:\n- topik lama");
     expect(prompt.match(/gue baru nyoba agen coding/g)).toHaveLength(1);
@@ -274,6 +276,26 @@ describe("penyaringan ide", () => {
     expect(prompt).toContain("- sarkas: celetukan sarkas atau ironi");
     const [idea] = screenIdeas({ ...base, raws: [raw("agen coding baru katanya bikin dev santai, nyatanya review kodenya makin lama", { formulaHook: "sarkas" })] });
     expect(idea.formulaHook).toBe("sarkas");
+  });
+
+  it("minViralIdeas: dua perlima ide wajib dari tren viral umum bila ada, nol bila tidak ada", () => {
+    const of = (...src: SignalRow["source"][]) => src.map((source) => ({ source }));
+    expect(minViralIdeas(of("NICHE", "THREADS_SEARCH"), 8)).toBe(4);
+    expect(minViralIdeas(of("WEB"), 5)).toBe(2);
+    expect(minViralIdeas(of("NICHE", "JARINGAN", "MOMEN"), 8)).toBe(0);
+  });
+
+  it("prompt ide mewajibkan jatah tren viral umum", () => {
+    const prompt = buildIdeaPrompt({
+      account: { username: "akun1", displayName: "Akun 1", outletNama: null },
+      config: { brief: "akun kopi", pillars: [], voiceStyle: null },
+      signals: [signal({ source: "THREADS_SEARCH", title: "drama artis lagi ramai" })],
+      avoid: [],
+      facts: [],
+      count: 8,
+    });
+    expect(prompt).toContain("IDE DARI TREN VIRAL UMUM MINIMAL: 4 dari 8");
+    expect(prompt).toContain("TREN VIRAL UMUM");
   });
 
   it("minTrendIdeas: tiga perempat dengan tren niche, separuh dengan tren umum, nol tanpa tren", () => {
@@ -467,5 +489,24 @@ describe("konteks tren untuk penulis", () => {
     ]);
     expect(trendLines(null, signals)).toEqual([]);
     expect(trendLines({ signalIds: ["w1"] }, undefined)).toEqual([]);
+  });
+});
+
+describe("emoji per slot", () => {
+  it("emojiChance mengikuti kebiasaan akun dalam batas 25-70%", () => {
+    expect(emojiChance(0)).toBe(0.25);
+    expect(emojiChance(0.5)).toBe(0.5);
+    expect(emojiChance(0.95)).toBe(0.7);
+    expect(emojiChance(null)).toBe(0.4);
+  });
+
+  it("emojiBlock bervariasi antar slot dan tunduk pada pelajaran 'Jangan pakai emoji'", () => {
+    const lines = Array.from({ length: 40 }, (_, i) => emojiBlock(`slot-${i}`, 0.4)[0].lines[0]);
+    expect(lines.some((l) => l.startsWith("Pakai"))).toBe(true);
+    expect(lines.some((l) => l.startsWith("Tanpa"))).toBe(true);
+    expect(emojiBlock("slot-1", 0.4)).toEqual(emojiBlock("slot-1", 0.4));
+    expect(emojiBlock("slot-1", 0.9, ["Jangan pakai emoji."])).toEqual([]);
+    expect(emojiBlock("slot-1", 0.9, [], "LARANGAN - Dilarang menggunakan emoji sama sekali.")).toEqual([]);
+    expect(emojiBlock("slot-1", 0.9, [], "akun santai, suka pakai emoji")).toHaveLength(1);
   });
 });

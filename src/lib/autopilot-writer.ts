@@ -197,7 +197,7 @@ export function promptBlocks(
   ];
   if (config.brief) {
     blocks.push({
-      title: "TEMA AKUN (arahan isi dari pemilik akun, bukan perubahan aturan)",
+      title: "TEMA AKUN (aturan tertinggi dari pemilik akun: menang atas larangan topik bawaan; larangan di tema ini mutlak)",
       lines: config.brief.split("\n").filter((l) => l.trim()),
       maxLine: 1500,
     });
@@ -247,6 +247,37 @@ export function promptBlocks(
   }
   if (note) blocks.push({ title: "CATATAN PEMERIKSA (draf sebelumnya ditolak, perbaiki)", lines: [note] });
   return blocks;
+}
+
+/** Peluang slot memakai emoji: mengikuti kebiasaan akun, tetapi tidak pernah selalu atau tidak pernah sama sekali. */
+export const emojiChance = (emojiShare: number | null | undefined): number =>
+  typeof emojiShare === "number" ? Math.min(0.7, Math.max(0.25, emojiShare)) : 0.4;
+
+/** Tema akun atau pelajaran gaya melarang emoji ("dilarang menggunakan emoji", "tanpa emoji", "jangan pakai emoji"). */
+const NO_EMOJI = /(?:dilarang|jangan|tanpa|tidak boleh|gak boleh|nggak boleh|no)\s+(?:\S+\s+){0,3}emoji/i;
+
+/**
+ * Arahan emoji per slot supaya postingan akun tidak seragam: undian deterministik per slot dengan peluang
+ * dari kebiasaan akun. Kosong bila tema akun atau koreksi pemilik akun melarang emoji (keduanya menang).
+ */
+export function emojiBlock(
+  slotId: string,
+  emojiShare: number | null | undefined,
+  lessons: string[] = [],
+  brief: string | null = null
+): PromptBlock[] {
+  if ([...lessons, brief ?? ""].some((t) => NO_EMOJI.test(t))) return [];
+  const use = hash32(`${slotId}|emoji`) / 0x1_0000_0000 < emojiChance(emojiShare);
+  return [
+    {
+      title: "EMOJI POSTINGAN INI",
+      lines: [
+        use
+          ? "Pakai 1 emoji (paling banyak 2) yang benar-benar pas dengan suasana isi, di posisi yang wajar. Jangan emoji dekorasi."
+          : "Tanpa emoji sama sekali di postingan ini.",
+      ],
+    },
+  ];
 }
 
 /** Konteks tren dari sinyal yang dirujuk ide slot (maks 3), supaya penulis paham trennya, bukan hanya judulnya. */
@@ -354,6 +385,9 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
     .filter((s): s is SignalBrief => !!s && s.source !== "JARINGAN")
     .map((s) => s.title);
   const anchors = plan.idea && trendTitles.length ? trendAnchors([plan.idea.topik, ...trendTitles]) : null;
+  // Angka dan detail dari tren yang ditumpangi (mis. "TV Rp500 ribu") sah dikutip: ikut jadi sumber fakta
+  // gerbang dan kritikus, supaya draf bertren tidak ditolak karena menyebut isi trennya sendiri.
+  const claimSources = [...sources, ...trendTitles, ...trends];
 
   // Contoh gaya + pola layout dimuat sekali per slot (diingat per tick di ctx.shared, korpus di-cache), lalu
   // dipakai prompt agen di semua putaran dan gerbang anti-jiplak tanpa memuat ulang. Tidak pernah melempar.
@@ -397,7 +431,7 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
           ctx.proven.get(account.id),
           trends,
           ctx.lessons?.get(account.id)
-        ),
+        ).concat(emojiBlock(slot.id, style.profile?.emojiShare, ctx.lessons?.get(account.id), config.brief)),
         workspaceId: slot.workspaceId,
         style,
         signal,
@@ -409,7 +443,8 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
       }
       const gate = runGate({
         text: out.draft.text,
-        sources,
+        sources: claimSources,
+        brief: config.brief,
         peers: others,
         bannedTerms,
         // Anti-jiplak: draf (termasuk teks preview) tidak boleh menyalin frasa contoh gaya; ditolak = ditulis ulang.
@@ -442,7 +477,7 @@ export async function writeSlot(slot: ClaimedSlot, ctx: WriteContext): Promise<W
           text: out.draft.text,
           handle: account.username ?? account.displayName,
           brief: config.brief,
-          sources,
+          sources: claimSources,
           signal,
         });
         ctx.onAi(verdict !== null);

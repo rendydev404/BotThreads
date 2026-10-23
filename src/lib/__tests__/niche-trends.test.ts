@@ -262,7 +262,7 @@ describe("cadangan Google News", () => {
     );
     const research = await researchNiche(nicheProfile(config({ brief: "teknologi AI untuk developer" }), [])!, NOW, 60_000);
     expect(llm.calls.map((c) => [c.system.slice(0, 30), !!c.googleSearch])).toEqual([
-      ["Anda peneliti tren untuk SATU ", true],
+      ["Anda peneliti berita dan tren ", true],
       ["Anda menyusun kata kunci penca", false],
       ["Anda analis tren untuk SATU ni", false],
     ]);
@@ -272,5 +272,21 @@ describe("cadangan Google News", () => {
     expect(llm.calls[2].prompt.match(/vibe coding dibobol/gi)).toHaveLength(1);
     const [signal] = nicheTopicsToSignals(research!, { accountId: "a1", workspaceId: "ws1" }, NOW);
     expect(signal).toMatchObject({ title: "Vibe coding dibobol", url: "https://news.google.com/rss/articles/abc?oc=5", raw: { niche: "AI untuk developer" } });
+  });
+});
+
+describe("tema akun adalah aturan tertinggi untuk tren niche", () => {
+  it("akun bertema tidak disaring daftar berita keras, larangan akun tetap berlaku", () => {
+    const research = {
+      niche: "AI",
+      topics: [
+        topic({ judul: "Menteri bahas regulasi AI", ringkasan: "Pejabat membahas aturan AI di rapat hari ini." }),
+        topic({ judul: "Kompetitor X rilis fitur", ringkasan: "Kompetitor X merilis fitur baru minggu ini." }),
+      ],
+      domains: [],
+    };
+    const themed = nicheTopicsToSignals(research, { accountId: "a1", workspaceId: "ws1", brief: "kritik teknologi pemerintah" }, NOW, ["kompetitor x"]);
+    expect(themed.map((s) => s.title)).toEqual(["Menteri bahas regulasi AI"]);
+    expect(nicheTopicsToSignals(research, { accountId: "a1", workspaceId: "ws1" }, NOW)).toHaveLength(1);
   });
 });

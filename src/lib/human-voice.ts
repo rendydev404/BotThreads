@@ -28,7 +28,7 @@ Tulis seperti orang Indonesia asli yang lagi ngetik santai di HP, bukan seperti 
 - Hindari kata yang terdengar mesin: "ironisnya", "menariknya", "faktanya", "intinya", "pada akhirnya", "di era", "tak hanya ... tetapi juga", "tentu saja", "sangat", "krusial", "esensial", "perlu diingat", "mari kita".
 ${o.plainLists ? FORMAT_LISTS : FORMAT_STRICT}
 - Jangan memakai struktur yang sama berulang (mis. setuju + penjelasan + pertanyaan). Teks yang terlalu rapi dan seimbang justru terasa AI.
-- Emoji jarang: paling banyak satu, dan sering tanpa emoji. "wkwk"/"haha" boleh sesekali, bukan di setiap teks.`;
+- Emoji menyesuaikan suasana, seperti orang beneran: kadang pakai satu atau dua yang pas (mis. 😭 buat ngenes, 🤣 buat lucu, 🙏 buat sungkan), kadang tanpa emoji sama sekali. Jangan seragam di setiap teks, jangan menempel emoji di tiap kalimat, dan jangan emoji dekorasi (✨🚀💯) di akhir tanpa alasan. "wkwk"/"haha" boleh sesekali, bukan di setiap teks.`;
 }
 
 /** Aturan bawaan (tanpa daftar): dipakai balasan komentar dan semua teks yang tidak punya alasan memakai daftar. */
