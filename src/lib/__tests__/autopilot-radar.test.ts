@@ -508,5 +508,8 @@ describe("emoji per slot", () => {
     expect(emojiBlock("slot-1", 0.9, ["Jangan pakai emoji."])).toEqual([]);
     expect(emojiBlock("slot-1", 0.9, [], "LARANGAN - Dilarang menggunakan emoji sama sekali.")).toEqual([]);
     expect(emojiBlock("slot-1", 0.9, [], "akun santai, suka pakai emoji")).toHaveLength(1);
+    // Tema meminta emoji: selalu ada arahan wajib emoji (tanpa undian) dan menang atas pelajaran otomatis.
+    const want = Array.from({ length: 20 }, (_, i) => emojiBlock(`slot-${i}`, 0, ["Jangan pakai emoji."], "Kritis. dan harus pake emoji kalo topik nya santai"));
+    expect(want.every((b) => b.length === 1 && b[0].lines[0].includes("harus pake emoji"))).toBe(true);
   });
 });

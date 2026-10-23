@@ -7,7 +7,7 @@
  * Bila kritikus tidak membalas (penyedia AI terganggu), draf TIDAK ditahan: gerbang deterministik sudah
  * lolos, dan ketiadaan penilaian dicatat di draf supaya terlihat di riwayat.
  */
-import type { GateCheckDTO } from "./autopilot-types";
+import { BRIEF_MAX_CHARS, type GateCheckDTO } from "./autopilot-types";
 import { generateWithFailover, type GeminiSchema } from "./gemini";
 import { AI_TELLS } from "./human-voice";
 import { clipChars } from "./threads-text";
@@ -98,7 +98,7 @@ export interface CriticInput {
 export async function criticize(input: CriticInput): Promise<CriticVerdict | null> {
   const lines = [
     `AKUN: @${input.handle}`,
-    `TEMA: ${input.brief ? clean(input.brief, 1500) : "tidak diisi (akun santai khas Threads Indonesia)"}`,
+    `TEMA: ${input.brief ? clean(input.brief, BRIEF_MAX_CHARS) : "tidak diisi (akun santai khas Threads Indonesia)"}`,
     input.sources.length ? `FAKTA:\n${input.sources.slice(0, 10).map((s) => `- ${clean(s, 200)}`).join("\n")}` : "FAKTA: tidak ada.",
     `DRAF:\n${clean(input.text, 600)}`,
   ];

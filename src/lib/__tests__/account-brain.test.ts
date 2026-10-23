@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_BRAIN, brainBlocks } from "../account-brain";
+import { EMPTY_BRAIN, brainBlocks, briefLines, themeEmojiRule } from "../account-brain";
 import { deriveLessons, lessonKey } from "../account-memory";
 import { humanScore, slopTells } from "../human-voice";
 import { mentionsTrend, trendAnchors } from "../trend-anchor";
@@ -81,6 +81,26 @@ describe("brainBlocks (Profil AI global)", () => {
 
   it("tanpa otak akun: tidak ada blok", () => {
     expect(brainBlocks(undefined)).toEqual([]);
+  });
+
+  it("tema panjang satu baris tidak terpotong: aturan emoji di akhir tetap sampai", () => {
+    const long = `${"Kalimat tema yang panjang sekali soal developer. ".repeat(90)}dan harus pake emoji kalo topik nya santai dan sarkas atau kritik`;
+    const lines = briefLines(long);
+    expect(lines.every((l) => [...l].length <= 1500)).toBe(true);
+    expect(lines.join(" ")).toBe(long);
+    const blocks = brainBlocks({ ...brain, role: long });
+    expect(blocks.find((b) => b.title.startsWith("PERAN"))!.lines.join(" ")).toContain("harus pake emoji");
+    const emoji = blocks.find((b) => b.title.startsWith("EMOJI"));
+    expect(emoji?.lines[0]).toContain("harus pake emoji kalo topik nya santai");
+    // Tema meminta emoji: pelajaran otomatis "Jangan pakai emoji." tidak ikut (bertentangan).
+    expect(blocks.find((b) => b.title.startsWith("PELAJARAN GAYA"))).toBeUndefined();
+  });
+
+  it("themeEmojiRule membedakan larangan, permintaan, dan tema yang diam", () => {
+    expect(themeEmojiRule("Santai. Dilarang menggunakan emoji sama sekali.")?.mode).toBe("ban");
+    expect(themeEmojiRule("Santai. Wajib pakai emoji yang pas.")?.mode).toBe("want");
+    expect(themeEmojiRule("Akun teknologi yang kritis.")).toBeNull();
+    expect(themeEmojiRule(null)).toBeNull();
   });
 });
 

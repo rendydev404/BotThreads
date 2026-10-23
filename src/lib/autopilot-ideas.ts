@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 import { bannedHits, defaultBannedFor } from "./autopilot-gate";
 import type { ConfigRow } from "./autopilot-store";
 import { generateWithFailover, type GeminiSchema } from "./gemini";
-import { VOICE_STYLES } from "./autopilot-types";
+import { BRIEF_MAX_CHARS, VOICE_STYLES } from "./autopilot-types";
 import type { PublishAccount } from "./publish-accounts";
 import type { IdeaCandidate, IdeaWrite, SignalRow } from "./radar-store";
 import { HOOK_FORMULAS, type IdeaScoreDetail, type SignalSource } from "./radar-types";
@@ -263,7 +263,7 @@ export function buildIdeaPrompt(p: IdeaPromptInput): string {
   }
   const minViral = minViralIdeas(p.signals, p.count);
   if (minViral > 0) lines.push(`IDE DARI TREN VIRAL UMUM MINIMAL: ${minViral} dari ${p.count} (tarik ke niche akun walau topiknya di luar niche)`);
-  lines.push(`\nTEMA AKUN: ${p.config.brief ? clean(p.config.brief, 2500) : "tidak diisi. Simpulkan niche dan audiens dari CONTOH POSTINGAN AKUN."}`);
+  lines.push(`\nTEMA AKUN: ${p.config.brief ? clean(p.config.brief, BRIEF_MAX_CHARS) : "tidak diisi. Simpulkan niche dan audiens dari CONTOH POSTINGAN AKUN."}`);
   if (p.config.pillars.length) {
     const total = p.config.pillars.reduce((s, x) => s + x.bobot, 0) || 1;
     lines.push(`\nPILAR (sebar ide mengikuti porsi): ${p.config.pillars.map((x) => `${clean(x.key, 40)} ${Math.round((x.bobot / total) * 100)}%`).join(", ")}`);

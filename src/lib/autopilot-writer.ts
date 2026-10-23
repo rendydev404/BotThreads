@@ -8,7 +8,7 @@
  * validasi teks Threads, kuota harian, teks duplikat 7 hari, dan idempotensi. Kunci idempotensi
  * `autopilot:<slotId>` membuat satu slot tidak mungkin menghasilkan dua posting.
  */
-import { EMPTY_BRAIN, brainBlocks } from "./account-brain";
+import { BRIEF_LINE_MAX, EMPTY_BRAIN, NO_EMOJI, brainBlocks, briefLines, themeEmojiRule, wantEmojiBlock } from "./account-brain";
 import { learnFromEdit } from "./account-memory";
 import { afterResponse } from "./after-safe";
 import { anchorHint, mentionsTrend, trendAnchors } from "./trend-anchor";
@@ -198,13 +198,15 @@ export function promptBlocks(
   if (config.brief) {
     blocks.push({
       title: "TEMA AKUN (aturan tertinggi dari pemilik akun: menang atas larangan topik bawaan; larangan di tema ini mutlak)",
-      lines: config.brief.split("\n").filter((l) => l.trim()),
-      maxLine: 1500,
+      lines: briefLines(config.brief),
+      maxLine: BRIEF_LINE_MAX,
     });
   }
   if (config.voiceStyle) blocks.push({ title: "GAYA SAPAAN (wajib)", lines: [VOICE_STYLES[config.voiceStyle].hint] });
   // Sama dengan Studio AI dan edit dengan AI (account-brain.ts), supaya akun terdengar sama di semua fitur.
-  blocks.push(...brainBlocks(lessons.length ? { ...EMPTY_BRAIN, lessons } : undefined));
+  // Aturan emoji di Tema menang atas pelajaran emoji hasil koreksi otomatis (arahannya ada di emojiBlock).
+  const keptLessons = themeEmojiRule(config.brief) ? lessons.filter((l) => !/emoji/i.test(l)) : lessons;
+  blocks.push(...brainBlocks(keptLessons.length ? { ...EMPTY_BRAIN, lessons: keptLessons } : undefined));
   if (plan.idea) {
     const hook = HOOK_FORMULAS.find((f) => f.key === plan.idea?.formulaHook);
     blocks.push({
@@ -253,12 +255,10 @@ export function promptBlocks(
 export const emojiChance = (emojiShare: number | null | undefined): number =>
   typeof emojiShare === "number" ? Math.min(0.7, Math.max(0.25, emojiShare)) : 0.4;
 
-/** Tema akun atau pelajaran gaya melarang emoji ("dilarang menggunakan emoji", "tanpa emoji", "jangan pakai emoji"). */
-const NO_EMOJI = /(?:dilarang|jangan|tanpa|tidak boleh|gak boleh|nggak boleh|no)\s+(?:\S+\s+){0,3}emoji/i;
-
 /**
  * Arahan emoji per slot supaya postingan akun tidak seragam: undian deterministik per slot dengan peluang
- * dari kebiasaan akun. Kosong bila tema akun atau koreksi pemilik akun melarang emoji (keduanya menang).
+ * dari kebiasaan akun. Aturan emoji di Tema akun menang (melarang = tanpa blok; meminta = wajib emoji
+ * sesuai syaratnya, tanpa undian). Bila Tema diam, koreksi pemilik akun yang melarang emoji juga menang.
  */
 export function emojiBlock(
   slotId: string,
@@ -266,7 +266,10 @@ export function emojiBlock(
   lessons: string[] = [],
   brief: string | null = null
 ): PromptBlock[] {
-  if ([...lessons, brief ?? ""].some((t) => NO_EMOJI.test(t))) return [];
+  const theme = themeEmojiRule(brief);
+  if (theme?.mode === "ban") return [];
+  if (theme?.mode === "want") return [wantEmojiBlock(theme.rule)];
+  if (lessons.some((t) => NO_EMOJI.test(t))) return [];
   const use = hash32(`${slotId}|emoji`) / 0x1_0000_0000 < emojiChance(emojiShare);
   return [
     {
