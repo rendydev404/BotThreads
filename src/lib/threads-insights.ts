@@ -66,6 +66,32 @@ export function needsMediaRefresh(postedAt: Date, metricsUpdatedAt: Date | null,
   return age <= 3 * DAY ? since >= 20 * HOUR : since >= 7 * DAY;
 }
 
+export interface KnownPostStat {
+  mediaId: string;
+  metricsUpdatedAt: Date | null;
+  text: string | null;
+  permalink: string | null;
+  mediaType: string | null;
+}
+
+/**
+ * Baris statistik yang dibuat worker lain sering belum berisi teks, permalink, atau jenis media asli.
+ * Karena `listOwnPosts` sudah memuat ketiganya dari API Threads, baris ini wajib dilengkapi walau
+ * `metricsUpdatedAt` belum lewat 20 jam.
+ */
+export function needsMetaFill(
+  p: { text?: string; permalink?: string; media_type?: string },
+  known: KnownPostStat | undefined
+): boolean {
+  if (!known) return true;
+  const wantText = (p.text || "").slice(0, TEXT_MAX).trim();
+  if (wantText && !(known.text ?? "").trim()) return true;
+  if (p.permalink && !known.permalink) return true;
+  const wantType = p.media_type || "TEXT_POST";
+  if (known.mediaType !== wantType) return true;
+  return false;
+}
+
 /** Akun sudah waktunya diambil hari ini? Yang belum pernah diambil langsung jalan. */
 export function isSyncDue(insightsSyncedAt: Date | null, now: Date): boolean {
   if (!insightsSyncedAt) return true;
@@ -236,32 +262,52 @@ async function syncPosts(account: SyncAccount, token: string, now: Date): Promis
   let calls = 1;
   if (!posts.length) return calls;
 
-  const known = new Map<string, Date | null>();
+  const known = new Map<string, KnownPostStat>();
   for (let i = 0; i < posts.length; i += ID_CHUNK) {
-    const rows = await must<{ mediaId: string; metricsUpdatedAt: string | null }[]>(
+    const rows = await must<
+      {
+        mediaId: string;
+        metricsUpdatedAt: string | null;
+        text: string | null;
+        permalink: string | null;
+        mediaType: string | null;
+      }[]
+    >(
       db()
         .from("ThreadsPostStat")
-        .select("mediaId, metricsUpdatedAt")
+        .select("mediaId, metricsUpdatedAt, text, permalink, mediaType")
         .in("mediaId", posts.slice(i, i + ID_CHUNK).map((p) => p.id!))
     );
-    for (const r of rows) known.set(r.mediaId, r.metricsUpdatedAt ? toDate(r.metricsUpdatedAt) : null);
-  }
-  const due = posts.filter((p) => needsMediaRefresh(new Date(p.timestamp!), known.get(p.id!) ?? null, now));
-  if (!due.length) return calls;
-
-  const metrics = await mapLimit(due, MEDIA_CONCURRENCY, async (p): Promise<MediaMetrics | null> => {
-    try {
-      return await mediaInsights(p.id!, token);
-    } catch (err) {
-      // Satu postingan gagal (mis. baru dihapus) tidak menggagalkan akun; galat izin tetap naik.
-      if (err instanceof ThreadsApiError && (err.isAuthError || isRateLimit(err) || err.code === 10)) throw err;
-      return null;
+    for (const r of rows) {
+      known.set(r.mediaId, {
+        mediaId: r.mediaId,
+        metricsUpdatedAt: r.metricsUpdatedAt ? toDate(r.metricsUpdatedAt) : null,
+        text: r.text,
+        permalink: r.permalink,
+        mediaType: r.mediaType,
+      });
     }
-  });
+  }
+  const due = posts.filter((p) => needsMediaRefresh(new Date(p.timestamp!), known.get(p.id!)?.metricsUpdatedAt ?? null, now));
+  const dueIds = new Set(due.map((p) => p.id!));
+  const metaOnly = posts.filter((p) => !dueIds.has(p.id!) && needsMetaFill(p, known.get(p.id!)));
+  if (!due.length && !metaOnly.length) return calls;
+
+  const metrics = due.length
+    ? await mapLimit(due, MEDIA_CONCURRENCY, async (p): Promise<MediaMetrics | null> => {
+        try {
+          return await mediaInsights(p.id!, token);
+        } catch (err) {
+          // Satu postingan gagal (mis. baru dihapus) tidak menggagalkan akun; galat izin tetap naik.
+          if (err instanceof ThreadsApiError && (err.isAuthError || isRateLimit(err) || err.code === 10)) throw err;
+          return null;
+        }
+      })
+    : [];
   calls += due.length;
 
-  // Hanya postingan yang baru diambil metriknya yang ditulis. Bentuk baris harus seragam per upsert,
-  // jadi yang metriknya gagal diambil dikirim terpisah (tanpa kolom metrik, angka lamanya tetap).
+  // Hanya postingan yang baru diambil metriknya yang ditulis beserta kolom metrik. Bentuk baris harus
+  // seragam per upsert, jadi yang metriknya gagal diambil atau hanya melengkapi metadata dikirim terpisah.
   const base = (p: OwnPost) => ({
     threadsAccountId: account.id,
     mediaId: p.id!,
@@ -273,7 +319,7 @@ async function syncPosts(account: SyncAccount, token: string, now: Date): Promis
     updatedAt: sqlTs(now),
   });
   const withMetrics = due.flatMap((p, i) => (metrics[i] ? [{ ...base(p), ...metrics[i]!, metricsUpdatedAt: sqlTs(now) }] : []));
-  const without = due.flatMap((p, i) => (metrics[i] ? [] : [base(p)]));
+  const without = [...due.flatMap((p, i) => (metrics[i] ? [] : [base(p)])), ...metaOnly.map(base)];
   for (const rows of [withMetrics, without]) {
     if (rows.length) await must(db().from("ThreadsPostStat").upsert(rows, { onConflict: "mediaId" }));
   }

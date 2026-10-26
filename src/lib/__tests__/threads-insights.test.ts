@@ -5,6 +5,7 @@ import {
   insightMetric,
   isSyncDue,
   needsMediaRefresh,
+  needsMetaFill,
   wibDateKey,
   wibMidnight,
 } from "../threads-insights";
@@ -56,6 +57,28 @@ describe("needsMediaRefresh", () => {
     const posted = new Date(now.getTime() - 10 * DAY);
     expect(needsMediaRefresh(posted, new Date(now.getTime() - 3 * DAY), now)).toBe(false);
     expect(needsMediaRefresh(posted, new Date(now.getTime() - 8 * DAY), now)).toBe(true);
+  });
+
+  it("baris kerangka tanpa teks/permalink/jenis media asli tetap dilengkapi", () => {
+    const recent = new Date(now.getTime() - 5 * 60_000);
+    expect(
+      needsMetaFill(
+        { text: "Isi asli dari Threads", permalink: "https://www.threads.com/@akun/post/1", media_type: "VIDEO" },
+        { mediaId: "m1", metricsUpdatedAt: recent, text: "", permalink: null, mediaType: "TEXT_POST" }
+      )
+    ).toBe(true);
+    expect(
+      needsMetaFill(
+        { text: "Isi asli dari Threads", permalink: "https://www.threads.com/@akun/post/1", media_type: "VIDEO" },
+        {
+          mediaId: "m1",
+          metricsUpdatedAt: recent,
+          text: "Isi asli dari Threads",
+          permalink: "https://www.threads.com/@akun/post/1",
+          mediaType: "VIDEO",
+        }
+      )
+    ).toBe(false);
   });
 });
 

@@ -24,7 +24,7 @@ import { runBuzzerQueue } from "./buzzer-service";
 import { runMediaCleanup } from "./media-cleanup";
 import { deleteMediaFiles, loadSourceJpeg, uploadMediaImage } from "./media-store";
 import { MEDIA_TMP_PREFIX } from "./post-media";
-import { rpc, sqlTs, toDate } from "./supabase";
+import { db, rpc, sqlTs, toDate } from "./supabase";
 import { firstValidTopic, charLength, THREADS_MAX_TEXT } from "./threads-text";
 import { runReplies } from "./threads-replies";
 import { decryptThreadsToken, encryptThreadsToken } from "./threads-token";
@@ -322,12 +322,41 @@ async function publishContainer(d: ClaimedDispatch, userId: string, token: strin
   return { kind: "ULANG" };
 }
 
+function statMediaType(raw: string | null): string {
+  const m = (raw ?? "").toUpperCase();
+  if (m === "VIDEO") return "VIDEO";
+  if (m === "CAROUSEL" || m === "CAROUSEL_ALBUM") return "CAROUSEL_ALBUM";
+  if (m === "IMAGE" || m === "PHOTO") return "IMAGE";
+  return "TEXT_POST";
+}
+
 /** `mediaDeadlineMs`: setelah waktu ini dispatch bergambar yang belum punya container ditunda (TUNDA). */
 export async function processDispatch(d: ClaimedDispatch, now: Date, mediaDeadlineMs = Infinity): Promise<Outcome["kind"]> {
   /** Path sementara yang dicatat pada langkah ini (selain yang sudah tercatat sebelum klaim). */
   const tmp: string[] = [];
   const finish = async (o: Outcome) => {
     const r = await result(d.id, o, now);
+    // Catat langsung ke ThreadsPostStat supaya halaman /posts tidak menampilkan "(Tidak ada caption teks)"
+    // bila worker sinkronisasi metrik menyentuh baris ini sebelum pengumpul insight harian berjalan.
+    if (r === "OK" && o.kind === "TERBIT" && o.mediaId && d.account) {
+      await Promise.resolve(
+        db()
+          .from("ThreadsPostStat")
+          .upsert(
+            {
+              threadsAccountId: d.account.id,
+              mediaId: o.mediaId,
+              mediaType: statMediaType(d.mediaType),
+              text: postText(d.caption, d.outletNama).slice(0, THREADS_MAX_TEXT),
+              permalink: o.url,
+              isQuote: false,
+              postedAt: sqlTs(now),
+              updatedAt: sqlTs(now),
+            },
+            { onConflict: "mediaId" }
+          )
+      ).catch(() => undefined);
+    }
     // Hasil akhir: database sudah mengosongkan kolom gambar, berkasnya dihapus sekarang.
     if (r === "OK" && (o.kind === "TERBIT" || o.kind === "GAGAL")) await dropTmpFiles(d.postId, [...(d.mediaPaths ?? []), ...tmp]);
     return o.kind;

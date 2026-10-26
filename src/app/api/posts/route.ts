@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server";
-import { accountScope, agg, db, excludedIdList, likeEscape, must, onlyVisible, toDate } from "@/lib/supabase";
+import { accountScope, agg, db, excludedIdList, likeEscape, must, nowTs, onlyVisible, toDate } from "@/lib/supabase";
 import { audit } from "@/lib/team-store";
 import { isExcludedUsername } from "@/lib/account-visibility";
+import { postText } from "@/lib/threads-publisher";
 import { cleanPostText } from "@/lib/utils";
 import { withCtx } from "@/lib/request-ctx";
+
+function mapDispatchMediaType(raw: string | null | undefined, fallback: string): string {
+  const m = (raw ?? "").toUpperCase();
+  if (m === "VIDEO") return "VIDEO";
+  if (m === "CAROUSEL" || m === "CAROUSEL_ALBUM") return "CAROUSEL_ALBUM";
+  if (m === "IMAGE" || m === "PHOTO") return "IMAGE";
+  if (m === "TEXT" || m === "TEXT_POST") return "TEXT_POST";
+  return fallback;
+}
 
 export const GET = withCtx("VIEWER", async (request) => {
   // Dibaca di luar try/catch: sinyal "route dinamis" dari Next tidak boleh tertelan
@@ -99,6 +109,52 @@ export const GET = withCtx("VIEWER", async (request) => {
       postedAt: toDate(p.postedAt),
       threadsAccount: p.ThreadsAccount,
     }));
+
+    // Lengkapi baris ThreadsPostStat yang dibuat worker sinkronisasi metrik tanpa teks/permalink/jenis media
+    // dari PostDispatch + ScheduledPost dalam satu query batch, lalu tambal ke database di latar belakang.
+    const incompleteIds = postsRaw
+      .filter((p) => p.mediaId && (!(p.text ?? "").trim() || !p.permalink))
+      .map((p) => p.mediaId);
+    if (incompleteIds.length > 0) {
+      type DispatchFallback = {
+        platformPostId: string | null;
+        releaseUrl: string | null;
+        Outlet: { nama: string } | null;
+        ScheduledPost: { caption: string | null; mediaType: string | null } | null;
+      };
+      const dispatches = await must<DispatchFallback[]>(
+        db()
+          .from("PostDispatch")
+          .select("platformPostId, releaseUrl, Outlet(nama), ScheduledPost(caption, mediaType)")
+          .in("platformPostId", incompleteIds)
+      ).catch((): DispatchFallback[] => []);
+      const byMediaId = new Map(
+        dispatches.filter((d) => d.platformPostId).map((d) => [d.platformPostId!, d])
+      );
+      const now = nowTs();
+      for (const p of postsRaw) {
+        const d = byMediaId.get(p.mediaId);
+        if (!d) continue;
+        const fallbackText = postText(d.ScheduledPost?.caption ?? null, d.Outlet?.nama ?? null).slice(0, 500);
+        const nextText = (p.text ?? "").trim() ? p.text : fallbackText;
+        const nextPermalink = p.permalink || d.releaseUrl || null;
+        const nextMediaType =
+          p.mediaType === "TEXT_POST" && d.ScheduledPost?.mediaType
+            ? mapDispatchMediaType(d.ScheduledPost.mediaType, p.mediaType)
+            : p.mediaType;
+        if (nextText !== p.text || nextPermalink !== p.permalink || nextMediaType !== p.mediaType) {
+          p.text = nextText;
+          p.permalink = nextPermalink;
+          p.mediaType = nextMediaType;
+          void Promise.resolve(
+            db()
+              .from("ThreadsPostStat")
+              .update({ text: nextText, permalink: nextPermalink, mediaType: nextMediaType, updatedAt: now })
+              .eq("id", p.id)
+          ).catch(() => undefined);
+        }
+      }
+    }
 
     const countOf = new Map(postCounts.map((c) => [c.threadsAccountId, c.posts]));
     const accountList = allAccounts
