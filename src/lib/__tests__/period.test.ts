@@ -21,12 +21,21 @@ describe("resolvePeriod", () => {
     expect(isoDate(resolvePeriod("today").to)).toBe("2026-10-20");
   });
 
-  it("preset lain tetap berakhir kemarin dan tidak live", () => {
+  it("Kemarin berakhir kemarin dan tidak live", () => {
     vi.useFakeTimers({ now });
-    for (const key of ["yesterday", "7d", "30d"]) {
-      const p = resolvePeriod(key);
-      expect(isoDate(p.to)).toBe("2026-10-18");
-      expect(p.live).toBe(false);
+    const p = resolvePeriod("yesterday");
+    expect(isoDate(p.to)).toBe("2026-10-18");
+    expect(p.live).toBe(false);
+  });
+
+  it("7/14/30 hari mencakup hari ini dan live, pembanding tepat sebelumnya", () => {
+    vi.useFakeTimers({ now });
+    const p = resolvePeriod("7d");
+    expect([isoDate(p.from), isoDate(p.to), p.days, p.live]).toEqual(["2026-10-13", "2026-10-19", 7, true]);
+    expect([isoDate(p.prevFrom), isoDate(p.prevTo)]).toEqual(["2026-10-06", "2026-10-12"]);
+    for (const key of ["14d", "30d"]) {
+      expect(isoDate(resolvePeriod(key).to)).toBe("2026-10-19");
+      expect(resolvePeriod(key).live).toBe(true);
     }
   });
 

@@ -21,6 +21,7 @@ const fmtIso = (iso: string, t: TFunction) => {
 const fmtTime = (iso: string, locale: string) =>
   new Date(iso).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 const LIVE_REFRESH_MS = 60_000;
+const LIVE_PENDING_RETRY_MS = 2_500;
 
 export default function DashboardPage() {
   const { t, locale } = useLang();
@@ -65,6 +66,14 @@ export default function DashboardPage() {
     fetchOverviewData(selectedAccount, period);
     return () => abortRef.current?.abort();
   }, [selectedAccount, period, fetchOverviewData]);
+
+  // Angka hari ini dari Threads belum masuk (server tidak menunggu lebih dari 1,5 dtk): minta ulang sebentar
+  // lagi, saat itu pengambilannya sudah selesai di server dan tersimpan di cache.
+  useEffect(() => {
+    if (!data?.period?.livePending) return;
+    const id = window.setTimeout(() => fetchOverviewData(selectedAccount, period), LIVE_PENDING_RETRY_MS);
+    return () => window.clearTimeout(id);
+  }, [data, selectedAccount, period, fetchOverviewData]);
 
   // Periode yang mencakup hari ini: segarkan diam-diam tiap menit selama tab terlihat
   // (server menyimpan angka Threads 60 detik, jadi tidak menambah panggilan API)

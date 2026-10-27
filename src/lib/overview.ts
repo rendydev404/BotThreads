@@ -5,6 +5,28 @@ import { fetchLiveToday, livePostMetrics, withPostFloor, type LivePost, type Liv
 
 const DAY = 86_400_000;
 const WIB_MS = 7 * 3_600_000;
+/**
+ * Batas tunggu angka hari ini dari Threads. Lewat dari ini dasbor tampil dengan data database dulu
+ * (`period.livePending`), pengambilan tetap jalan dan mengisi cache untuk permintaan berikutnya.
+ */
+const LIVE_WAIT_MS = 1_500;
+
+/** Hasil janji, atau null bila belum selesai dalam `ms` (janjinya tetap berjalan). */
+function within<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(null);
+      }
+    );
+  });
+}
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -77,6 +99,20 @@ export async function buildOverview(opts: OverviewParams) {
         );
 
     const ids = targetAccount ? [targetAccount.id] : undefined;
+    const scopeIds = new Set(ids ?? accounts.map((a) => a.id));
+    // Angka hari ini dari Threads: seluruh akun (peringkat cabang juga butuh angka hari ini), lalu metrik
+    // postingan hari ini milik akun yang sedang dilihat. Ditunggu paling lama LIVE_WAIT_MS.
+    const liveBundle = live
+      ? within(
+          (async () => {
+            const data = await fetchLiveToday(accounts.map((a) => a.id), todayStart);
+            const posts = [...data.accounts.values()].filter((a) => scopeIds.has(a.accountId)).flatMap((a) => a.posts);
+            const metrics = posts.length ? await livePostMetrics(posts) : new Map<string, LivePostMetrics>();
+            return { data, posts, metrics };
+          })(),
+          LIVE_WAIT_MS
+        )
+      : Promise.resolve(null);
     const curPostRange = inRange(from, to);
     const prevPostRange = inRange(prevFrom, prevTo);
     // Postingan hari ini dihitung dari data langsung; database hanya sampai sebelum 00.00 WIB hari ini
@@ -112,7 +148,7 @@ export async function buildOverview(opts: OverviewParams) {
       lbPostRows,
       folCurRows,
       folPrevRows,
-      liveData,
+      liveFetched,
     ] = await Promise.all([
       // Per hari pada rentang grafik: total periode sekaligus data grafik
       agg.dailyByDate({ from: chartFrom, to: dbTo, ids }),
@@ -150,16 +186,16 @@ export async function buildOverview(opts: OverviewParams) {
       // Followers cabang akhir periode saat ini dan pembanding
       agg.latestFollowers({ to }),
       agg.latestFollowers({ to: prevTo }),
-      // Seluruh akun (bukan hanya yang dipilih): peringkat cabang juga butuh angka hari ini
-      live ? fetchLiveToday(accounts.map((a) => a.id), todayStart) : Promise.resolve(null),
+      liveBundle,
     ]);
 
     // ---- Angka hari ini dari Threads, dibatasi ke akun yang sedang dilihat
+    const liveData = liveFetched?.data ?? null;
+    const livePending = live && !liveFetched;
     const liveRaw = liveData ? [...liveData.accounts.values()] : [];
-    const scopeIds = new Set(ids ?? accounts.map((a) => a.id));
-    const livePosts: LivePost[] = liveRaw.filter((a) => scopeIds.has(a.accountId)).flatMap((a) => a.posts);
-    // Metrik postingan hari ini (di-cache 60 dtk): untuk postingan terpopuler dan batas bawah interaksi hari ini.
-    const postMetrics = livePosts.length ? await livePostMetrics(livePosts) : new Map<string, LivePostMetrics>();
+    const livePosts: LivePost[] = liveFetched?.posts ?? [];
+    // Metrik postingan hari ini (di-cache 60 dtk): total views, postingan terpopuler, batas bawah interaksi.
+    const postMetrics = liveFetched?.metrics ?? new Map<string, LivePostMetrics>();
     const liveAll = liveRaw.map((a) => withPostFloor(a, postMetrics));
     const liveScoped = liveAll.filter((a) => scopeIds.has(a.accountId));
 
@@ -417,6 +453,8 @@ export async function buildOverview(opts: OverviewParams) {
         // Waktu angka hari ini diambil dari Threads; akun yang gagal diambil tidak ikut dihitung
         updatedAt: liveData?.fetchedAt.toISOString() ?? null,
         liveFailed: liveData ? liveData.failed : 0,
+        // Angka hari ini belum masuk (Threads lambat): klien meminta ulang sebentar lagi
+        livePending,
       },
       currentAccount,
       stats: {

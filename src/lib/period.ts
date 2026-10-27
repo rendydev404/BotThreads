@@ -1,8 +1,8 @@
 /**
  * Filter periode dasbor: Hari ini, Kemarin, 7/14/30 hari, dan rentang kustom.
- * Preset selain "Hari ini" berakhir "kemarin" (WIB), sama seperti laporan bot Telegram.
- * Data hari ini belum ada di database (worker hanya menyimpan s.d. kemarin), jadi periode
- * yang mencakup hari ini diambil langsung dari API Threads (lihat threads-live.ts).
+ * Preset 7/14/30 hari mencakup hari ini (sama seperti Insights di aplikasi Threads); hanya "Kemarin"
+ * yang berakhir kemarin. Data hari ini belum ada di database (worker hanya menyimpan s.d. kemarin),
+ * jadi periode yang mencakup hari ini diambil langsung dari API Threads (lihat threads-live.ts).
  */
 
 export type PeriodKey = "today" | "yesterday" | "7d" | "14d" | "30d" | "custom";
@@ -83,7 +83,7 @@ export function resolvePeriod(
   } else {
     const p = preset ?? PERIOD_OPTIONS.find((x) => x.key === DEFAULT_PERIOD)!;
     k = p.key;
-    to = p.key === "today" ? today : yesterday;
+    to = p.key === "yesterday" ? yesterday : today;
     from = new Date(to.getTime() - (p.days - 1) * DAY);
     label = p.key === "today" ? "Hari ini" : p.key === "yesterday" ? "Kemarin" : `${p.days} hari terakhir`;
   }

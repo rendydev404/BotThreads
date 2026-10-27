@@ -17,10 +17,13 @@ const GRAPH = "https://graph.threads.net/v1.0";
 const FETCH_TIMEOUT_MS = 8_000;
 const INSIGHTS_SCOPE = "threads_manage_insights";
 export const LIVE_TTL_MS = 60_000;
-// Batas laju Threads berlaku per token (per akun), jadi akun berbeda aman diambil paralel
-const CONCURRENCY = 16;
-/** Batas postingan hari ini yang diambil metriknya untuk "Postingan terpopuler" (1 panggilan/postingan). */
-const MAX_TOP_CANDIDATES = 40;
+/** Data hari ini yang lebih tua dari TTL tapi di bawah batas ini langsung dipakai, lalu disegarkan di latar. */
+export const LIVE_STALE_MAX_MS = 10 * 60_000;
+// Batas laju Threads berlaku per token (per akun), jadi akun berbeda aman diambil paralel.
+// 64 = ±60 akun dalam satu putaran; dasbor default (7 hari) ikut menunggu angka hari ini.
+const CONCURRENCY = 64;
+/** Batas postingan hari ini yang diambil metriknya (1 panggilan/postingan): total views & postingan terpopuler. */
+const MAX_LIVE_POSTS = 300;
 const TEXT_MAX = 500;
 const ID_CHUNK = 100;
 
@@ -159,17 +162,28 @@ async function fetchAccount(row: TokenRow, dayStart: Date, now: Date): Promise<L
   }
 }
 
-/* Cache per akun: { hari, waktu ambil, janji hasil }. Galat ikut di-cache supaya tidak diulang tiap permintaan. */
-const accountCache = new Map<string, { day: number; at: number; value: Promise<LiveAccount | null> }>();
+/*
+ * Cache per akun: { hari, waktu ambil, janji hasil, sedang disegarkan }. Galat ikut di-cache supaya tidak diulang
+ * tiap permintaan.
+ */
+const accountCache = new Map<
+  string,
+  { day: number; at: number; value: Promise<LiveAccount | null>; refreshing?: boolean }
+>();
 
-/** Angka hari ini (sejak `dayStart`, tengah malam WIB dalam UTC) untuk akun-akun `ids`. */
+/**
+ * Angka hari ini (sejak `dayStart`, tengah malam WIB dalam UTC) untuk akun-akun `ids`. Entri yang lewat TTL tapi
+ * di bawah LIVE_STALE_MAX_MS langsung dikembalikan dan disegarkan di latar, jadi hanya pembukaan pertama yang menunggu.
+ */
 export async function fetchLiveToday(ids: string[], dayStart: Date, now = new Date()): Promise<LiveToday> {
   const day = dayStart.getTime();
-  const fresh = (id: string) => {
+  const age = (id: string) => {
     const c = accountCache.get(id);
-    return c && c.day === day && now.getTime() - c.at < LIVE_TTL_MS ? c : null;
+    return c && c.day === day ? now.getTime() - c.at : Infinity;
   };
-  const stale = ids.filter((id) => !fresh(id));
+  const stale = ids.filter((id) => age(id) >= LIVE_TTL_MS && !accountCache.get(id)?.refreshing);
+  // Masih layak tampil: tetap disajikan, hasil penyegaran menggantikannya setelah selesai.
+  const background = new Set(stale.filter((id) => age(id) < LIVE_STALE_MAX_MS));
 
   if (stale.length) {
     // Satu janji untuk seluruh batch; tiap akun mendapat potongannya sendiri.
@@ -187,14 +201,24 @@ export async function fetchLiveToday(ids: string[], dayStart: Date, now = new Da
       return new Map(results.filter((r): r is LiveAccount => r !== null).map((r) => [r.accountId, r]));
     })();
     for (const id of stale) {
-      accountCache.set(id, {
-        day,
-        at: now.getTime(),
-        value: batch.then((m) => m.get(id) ?? null),
-      });
+      const value = batch.then((m) => m.get(id) ?? null);
+      const entry = { day, at: now.getTime(), value };
+      if (background.has(id)) {
+        accountCache.get(id)!.refreshing = true;
+        void value.then(() => accountCache.set(id, entry), () => undefined);
+      } else {
+        accountCache.set(id, entry);
+      }
     }
-    // Galat database: lepas dari cache supaya permintaan berikutnya mencoba lagi.
-    batch.catch(() => stale.forEach((id) => accountCache.delete(id)));
+    // Galat database: lepas dari cache supaya permintaan berikutnya mencoba lagi (yang lama tetap disajikan).
+    batch.catch(() =>
+      stale.forEach((id) => {
+        const c = accountCache.get(id);
+        if (!c) return;
+        if (background.has(id)) c.refreshing = false;
+        else accountCache.delete(id);
+      })
+    );
   }
 
   const results = await Promise.all(ids.map((id) => accountCache.get(id)!.value));
@@ -229,37 +253,55 @@ export function withPostFloor(account: LiveAccount, metrics: Map<string, LivePos
   };
 }
 
-/* Metrik postingan hari ini, untuk "Postingan terpopuler" dan batas bawah interaksi hari ini. */
+/* Metrik postingan hari ini: total views, "Postingan terpopuler", dan batas bawah interaksi hari ini. */
 const postCache = new Map<string, { at: number; value: Promise<LivePostMetrics | null> }>();
 
 /** Metrik postingan hari ini; panggil setelah `fetchLiveToday` (token akunnya dipakai ulang). */
 export async function livePostMetrics(posts: LivePost[], now = new Date()): Promise<Map<string, LivePostMetrics>> {
   // Postingan paling awal diutamakan: waktunya paling lama untuk mengumpulkan penayangan.
-  const picked = [...posts].sort((a, b) => a.postedAt.getTime() - b.postedAt.getTime()).slice(0, MAX_TOP_CANDIDATES);
+  const picked = [...posts].sort((a, b) => a.postedAt.getTime() - b.postedAt.getTime()).slice(0, MAX_LIVE_POSTS);
   const values = await mapLimit(picked, CONCURRENCY, (p): Promise<LivePostMetrics | null> => {
     const c = postCache.get(p.id);
     if (c && now.getTime() - c.at < LIVE_TTL_MS) return c.value;
-    const token = liveTokens.get(p.accountId);
-    if (!token) return Promise.resolve(null);
-    const value = graph<{ data?: Insight[] }>(`${p.id}/insights`, {
-      metric: "views,likes,replies,reposts",
-      access_token: token,
-    })
-      .then((res) => ({
-        views: metric(res.data, "views"),
-        likes: metric(res.data, "likes"),
-        replies: metric(res.data, "replies"),
-        reposts: metric(res.data, "reposts"),
-      }))
-      .catch(() => null);
-    postCache.set(p.id, { at: now.getTime(), value });
-    return value;
+    // Lewat TTL tapi masih segar: sajikan yang lama, segarkan di latar (hasil baru dipakai permintaan berikutnya).
+    if (c && now.getTime() - c.at < LIVE_STALE_MAX_MS) {
+      void fetchPostMetrics(p, now);
+      return c.value;
+    }
+    return fetchPostMetrics(p, now);
   });
 
   // Buang entri kedaluwarsa supaya cache tidak tumbuh terus.
-  for (const [id, c] of postCache) if (now.getTime() - c.at >= LIVE_TTL_MS * 5) postCache.delete(id);
+  for (const [id, c] of postCache) if (now.getTime() - c.at >= LIVE_STALE_MAX_MS) postCache.delete(id);
 
   const out = new Map<string, LivePostMetrics>();
   picked.forEach((p, i) => values[i] && out.set(p.id, values[i]!));
   return out;
+}
+
+const postRefreshing = new Set<string>();
+
+/** Ambil metrik satu postingan dan simpan ke cache (penyegaran ganda untuk postingan yang sama digabung). */
+function fetchPostMetrics(p: LivePost, now: Date): Promise<LivePostMetrics | null> {
+  const cached = postCache.get(p.id);
+  if (postRefreshing.has(p.id) && cached) return cached.value;
+  const token = liveTokens.get(p.accountId);
+  if (!token) return Promise.resolve(null);
+  postRefreshing.add(p.id);
+  const value = graph<{ data?: Insight[] }>(`${p.id}/insights`, {
+    metric: "views,likes,replies,reposts",
+    access_token: token,
+  })
+    .then((res) => ({
+      views: metric(res.data, "views"),
+      likes: metric(res.data, "likes"),
+      replies: metric(res.data, "replies"),
+      reposts: metric(res.data, "reposts"),
+    }))
+    .catch(() => null)
+    .finally(() => postRefreshing.delete(p.id));
+  // Penyegaran latar: entri lama tetap dipakai sampai yang baru selesai.
+  if (cached) void value.then(() => postCache.set(p.id, { at: now.getTime(), value }));
+  else postCache.set(p.id, { at: now.getTime(), value });
+  return value;
 }
