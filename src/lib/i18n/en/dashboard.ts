@@ -16,8 +16,8 @@ const dict: Record<string, string> = {
   Aktivitas: "Activity",
   "Aktivitas {label}": "Activity: {label}",
   "Aktivitas {label} & 6 hari sebelumnya": "Activity: {label} & the previous 6 days",
-  "Penayangan dan interaksi per hari": "Views and interactions per day",
-  Penayangan: "Views",
+  "Kunjungan profil dan interaksi per hari": "Profile views and interactions per day",
+  "Kunjungan profil": "Profile views",
   Interaksi: "Interactions",
   "Semua akun ({n})": "All accounts ({n})",
 

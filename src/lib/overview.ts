@@ -104,6 +104,7 @@ export async function buildOverview(opts: OverviewParams) {
       prevDaily,
       mediaRows,
       prevPostRows,
+      prevMediaRows,
       topPostRows,
       reportLogRows,
       lbCurRows,
@@ -119,6 +120,8 @@ export async function buildOverview(opts: OverviewParams) {
       agg.dailyByDate({ from: prevFrom, to: prevTo, ids }),
       hasDbPosts ? agg.postsByMedia({ from: dbPostRange.gte, to: dbPostRange.lt, ids }) : Promise.resolve([]),
       agg.postsByAccount({ from: prevPostRange.gte, to: prevPostRange.lt, ids }),
+      // Views postingan periode pembanding (dijumlah di SQL per format)
+      agg.postsByMedia({ from: prevPostRange.gte, to: prevPostRange.lt, ids }),
       must<
         {
           id: string;
@@ -180,6 +183,12 @@ export async function buildOverview(opts: OverviewParams) {
     const mediaTypesGrouped = [...mediaCounts].map(([mediaType, posts]) => ({ mediaType, _count: { id: posts } }));
     const postsCur = mediaRows.reduce((s, m) => s + m.posts, 0) + livePosts.length;
     const postsPrev = prevPostRows.reduce((s, p) => s + p.posts, 0);
+    // Views postingan = jumlah views tiap postingan yang terbit pada periode, sama dengan kartu "Views" di
+    // aplikasi Threads. `views` level akun dari API adalah kunjungan profil, jadi tidak dipakai di sini.
+    const postViewsCur =
+      mediaRows.reduce((s, m) => s + Number(m.views || 0), 0) +
+      livePosts.reduce((s, p) => s + (postMetrics.get(p.id)?.views ?? 0), 0);
+    const postViewsPrev = prevMediaRows.reduce((s, m) => s + Number(m.views || 0), 0);
     const dbTop = topPostRows[0]
       ? (({ ThreadsAccount, ...p }) => ({
           ...p,
@@ -226,7 +235,7 @@ export async function buildOverview(opts: OverviewParams) {
     const prev = total(prevByDate);
     const totalInteractions = cur.likes + cur.replies + cur.reposts;
     const prevInteractions = prev.likes + prev.replies + prev.reposts;
-    const avgER = erOf(cur.views, totalInteractions);
+    const avgER = erOf(postViewsCur, totalInteractions);
     // Hari ini belum selesai: membandingkannya dengan kemarin sehari penuh menyesatkan
     const hasPrev = period.key !== "today" && prevByDate.length >= Math.ceil(days * 0.6);
 
@@ -269,11 +278,11 @@ export async function buildOverview(opts: OverviewParams) {
 
     const deltas = hasPrev
       ? {
-          views: pctDelta(cur.views, prev.views),
+          views: pctDelta(postViewsCur, postViewsPrev),
           posts: pctDelta(postsCur, postsPrev),
           interactions: pctDelta(totalInteractions, prevInteractions),
           // Selisih ER dalam poin persen
-          er: Number((avgER - erOf(prev.views, prevInteractions)).toFixed(1)),
+          er: Number((avgER - erOf(postViewsPrev, prevInteractions)).toFixed(1)),
           followers: followersDelta,
         }
       : null;
@@ -411,7 +420,7 @@ export async function buildOverview(opts: OverviewParams) {
       },
       currentAccount,
       stats: {
-        totalViews: cur.views,
+        totalViews: postViewsCur,
         totalLikes: cur.likes,
         totalReplies: cur.replies,
         totalReposts: cur.reposts,

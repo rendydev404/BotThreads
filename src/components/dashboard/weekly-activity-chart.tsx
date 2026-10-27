@@ -77,7 +77,7 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-accent" />
-                      <span className="text-muted">{t("Penayangan")}</span>
+                      <span className="text-muted">{t("Kunjungan profil")}</span>
                       <span className="ml-auto font-semibold text-fg">
                         {formatNumber(Number(payload[0]?.value) || 0)}
                       </span>
@@ -96,7 +96,7 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
           />
           <Bar
             dataKey="views"
-            name={t("Penayangan")}
+            name={t("Kunjungan profil")}
             fill={viewsColor}
             radius={[4, 4, 0, 0]}
             maxBarSize={22}
