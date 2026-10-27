@@ -79,7 +79,7 @@ export function RegisterForm({ open }: { open: boolean }) {
   };
 
   return (
-    <AuthFrame back title="Buat akun" subtitle="Satu akun, satu workspace untuk brand Anda. Anggota tim bisa diundang setelahnya.">
+    <AuthFrame back title="Buat akun" subtitle="Satu akun, satu workspace untuk brand Anda.">
       {/* Tautan biasa: server mengalihkan ke Google lalu membuat akun + workspace dari profil Google. */}
       <GoogleButton href="/api/auth/google?signup=1">Daftar dengan Google</GoogleButton>
       <div className="my-5 flex items-center gap-3 text-xs text-faint" aria-hidden="true">

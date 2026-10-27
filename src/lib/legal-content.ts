@@ -222,7 +222,7 @@ export const LEGAL_DOCUMENTS: Record<LegalDocId, LegalDocument> = {
         rows: [
           {
             term: "Kepemilikan Workspace",
-            detail: "Pendaftar mandiri otomatis menjadi Pemilik (Owner) atas workspace baru yang dibuat dan berhak mengundang anggota tim.",
+            detail: "Pendaftar mandiri otomatis menjadi Pemilik (Owner) atas workspace baru yang dibuat.",
           },
           {
             term: "Kewenangan Akun Threads",
@@ -313,7 +313,7 @@ export const LEGAL_DOCUMENTS: Record<LegalDocId, LegalDocument> = {
     jurisdiction: "Standar Transaksi Midtrans & Perlindungan Konsumen",
     summarySpecs: [
       { term: "Pembatalan Tagihan", detail: "Dapat dibatalkan kapan saja sebelum dibayar langsung dari menu Tagihan" },
-      { term: "Jendela Pengajuan Refund", detail: "Maksimal 7 hari kalender sejak tanggal pembayaran paket baru" },
+      { term: "Syarat Refund", detail: "Hanya untuk kendala teknis dari pihak kami atau pembayaran ganda, disertai bukti yang dapat diverifikasi" },
       { term: "Tagihan Ganda", detail: "Pengembalian penuh 100% apabila terjadi pemotongan ganda (double charge)" },
       { term: "Estimasi Pencairan", detail: "Verifikasi 2–3 hari kerja; pengembalian dana ke rekening asal 5–14 hari kerja" },
     ],
@@ -345,7 +345,7 @@ export const LEGAL_DOCUMENTS: Record<LegalDocId, LegalDocument> = {
         index: "02",
         title: "Kriteria Kelayakan Pengembalian Dana (Refund)",
         paragraphs: [
-          "Pengembalian dana (refund) dapat diajukan dan disetujui apabila memenuhi salah satu dari kondisi berikut:",
+          "Pengembalian dana (refund) hanya diberikan untuk kendala teknis yang dapat dibuktikan, yaitu salah satu dari kondisi berikut. Setiap pengajuan wajib menyertakan Order ID dan bukti pembayaran, dan diverifikasi terhadap data settlement Midtrans serta catatan sistem kami:",
         ],
         rows: [
           {
@@ -355,10 +355,6 @@ export const LEGAL_DOCUMENTS: Record<LegalDocId, LegalDocument> = {
           {
             term: "Pembayaran Ganda",
             detail: "Terjadi pemotongan saldo lebih dari satu kali (double charge) untuk nomor tagihan atau periode perpanjangan yang sama.",
-          },
-          {
-            term: "Garansi 7 Hari Awal",
-            detail: "Permohonan diajukan maksimal 7 (tujuh) hari kalender sejak pembelian paket berbayar pertama kali, dengan syarat kuota autopilot belum digunakan melebihi batas uji wajar (maksimal 3 posting terbit).",
           },
         ],
       },
@@ -371,12 +367,12 @@ export const LEGAL_DOCUMENTS: Record<LegalDocId, LegalDocument> = {
         ],
         rows: [
           {
-            term: "Melewati Batas Waktu",
-            detail: "Pengajuan dilakukan setelah melewati 7 hari kalender sejak tanggal transaksi lunas (kecuali kasus pembayaran ganda).",
+            term: "Perubahan Keputusan",
+            detail: "Berubah pikiran, merasa hasil tidak sesuai selera, atau tidak memakai layanan selama masa aktif paket. Paket yang sudah aktif dengan normal tidak dapat dikembalikan.",
           },
           {
-            term: "Kuota Telah Terpakai",
-            detail: "Layanan autopilot dan penjadwalan telah digunakan secara aktif dan substansial selama periode berjalan.",
+            term: "Tanpa Bukti yang Dapat Diverifikasi",
+            detail: "Pengajuan tanpa Order ID dan bukti pembayaran, atau kendala yang tidak tercatat pada data settlement Midtrans maupun catatan sistem kami.",
           },
           {
             term: "Pelanggaran Ketentuan",
@@ -394,7 +390,7 @@ export const LEGAL_DOCUMENTS: Record<LegalDocId, LegalDocument> = {
         rows: [
           {
             term: "Langkah 1 — Pengajuan",
-            detail: `Kirim permohonan ke ${MERCHANT_INFO.billingEmail} atau WhatsApp ${MERCHANT_INFO.whatsappDisplay} dengan menyertakan Order ID, email akun pemilik workspace, bukti pembayaran, dan alasan pengajuan.`,
+            detail: `Kirim permohonan ke ${MERCHANT_INFO.billingEmail} atau WhatsApp ${MERCHANT_INFO.whatsappDisplay} dengan menyertakan Order ID, email akun pemilik workspace, bukti pembayaran, serta bukti kendala (misalnya tangkapan layar status paket yang belum aktif atau mutasi rekening yang terpotong dua kali).`,
           },
           {
             term: "Langkah 2 — Verifikasi",
@@ -434,7 +430,7 @@ export const LEGAL_DOCUMENTS: Record<LegalDocId, LegalDocument> = {
         title: "Sifat Produk Digital Tanpa Pengiriman Fisik",
         paragraphs: [
           "Seluruh paket langganan yang ditawarkan pada platform BotThreads adalah layanan perangkat lunak berbasis web (Software as a Service). Tidak ada pengiriman barang berwujud fisik melalui kurir atau ekspedisi.",
-          "Serah terima layanan dinyatakan terpenuhi secara sah pada saat kuota paket (batas akun Threads, jumlah posting harian, kuota anggota tim, dan izin mode Otomatis) telah aktif pada workspace pelanggan.",
+          "Serah terima layanan dinyatakan terpenuhi secara sah pada saat kuota paket (batas akun Threads, jumlah posting harian, dan izin mode Otomatis) telah aktif pada workspace pelanggan.",
         ],
       },
       {

@@ -129,7 +129,6 @@ export async function Pricing({ wrap }: { wrap: string }) {
                   {[
                     `Autopilot untuk ${p.maxAkun} akun Threads`,
                     `Sampai ${p.maxPostingPerHari} posting / akun / hari`,
-                    `Hingga ${p.maxAnggota} anggota tim`,
                     p.modeOtomatis ? "Mode Tinjau Dulu & Full Otomatis" : "Mode Tinjau Dulu (persetujuan manual)",
                   ].map((line) => (
                     <li key={line} className="flex items-start gap-2.5 leading-relaxed">

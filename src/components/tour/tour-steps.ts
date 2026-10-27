@@ -83,7 +83,7 @@ export const TOUR_STEPS: TourStep[] = [
     chip: "Radar",
     title: "4. Radar (di HP: Trend): bahan bakar tulisanku",
     body: "Di sini ada bank ide lengkap dengan skor dan preview postingannya, tren yang lagi viral di niche-mu, dan kalender momen penting.",
-    points: ['Klik "Pakai berikutnya" supaya ide favoritmu diposting duluan', "Preview ide = teks yang nanti diposting (bila lolos pemeriksaan)"],
+    points: ['Klik "Posting ide ini duluan" supaya ide favoritmu dipakai lebih dulu', "Preview ide = teks yang nanti diposting (bila lolos pemeriksaan)"],
     route: "/radar",
     anchors: nav("/radar"),
     mood: "point",

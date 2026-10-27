@@ -67,7 +67,7 @@ export type IdeaStatus = "BARU" | "DIPAKAI" | "DITOLAK" | "KEDALUWARSA";
 export const IDEA_STATUS_LABEL: Record<IdeaStatus, string> = {
   BARU: "Siap dipakai",
   DIPAKAI: "Sudah dipakai",
-  DITOLAK: "Ditolak",
+  DITOLAK: "Dibuang",
   KEDALUWARSA: "Kedaluwarsa",
 };
 

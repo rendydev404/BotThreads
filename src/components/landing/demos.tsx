@@ -100,7 +100,7 @@ export function HoursPlanner() {
         WIB.
       </p>
       <p className="mt-1.5 text-[13px] text-muted leading-relaxed">
-        Dipilih dari jam dengan views tertinggi, dijaga berjarak minimal 2,5 jam, dan menitnya digeser sedikit tiap hari supaya tidak
+        Dipilih dari jam dengan views tertinggi, dijaga berjarak 2,5 jam (bisa diatur), dan menitnya digeser sedikit tiap hari supaya tidak
         terasa seperti mesin.
       </p>
     </div>
