@@ -26,8 +26,24 @@ import {
   type SlotStatus,
 } from "@/lib/autopilot-types";
 import { wibParts } from "@/lib/scheduling";
+import { tr } from "@/lib/i18n/core";
+import { useT } from "@/components/i18n/lang-provider";
 
 /* ------------------------------------------------------------------ pembantu teks */
+
+/**
+ * Terjemahkan pesan galat API yang ditampilkan langsung. Pesan skema-belum-dibuat memuat nama file,
+ * jadi dicocokkan dengan pola; pesan lain lewat kamus apa adanya.
+ */
+export function apiErrorText(msg: string): string {
+  const m = /^Fitur ini belum siap: tabel belum dibuat di database \((.+)\)\. Hubungi pemilik dashboard\.$/.exec(msg);
+  if (m) return tr("Fitur ini belum siap: tabel belum dibuat di database ({file}). Hubungi pemilik dashboard.", { file: m[1] });
+  const notReady = /^Akun belum siap diposting \((.+)\)\.$/.exec(msg);
+  if (notReady) return tr("Akun belum siap diposting ({reason}).", { reason: tr(notReady[1]) });
+  const limit = /^Batas dashboard (\d+) posting per akun per hari\.$/.exec(msg);
+  if (limit) return tr("Batas dashboard {n} posting per akun per hari.", { n: limit[1] });
+  return tr(msg);
+}
 
 export const pad2 = (n: number): string => String(n).padStart(2, "0");
 
@@ -62,14 +78,14 @@ export function HandleText({ account }: { account: { username: string | null; di
 /** Lama waktu untuk kalimat ("5 menit", "2 jam", "3 hari"). */
 export function durationText(ms: number): string {
   const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  if (minutes < 1) return "kurang dari 1 menit";
-  if (minutes < 60) return `${minutes} menit`;
+  if (minutes < 1) return tr("kurang dari 1 menit");
+  if (minutes < 60) return tr("{n} menit", { n: minutes });
   const hours = Math.floor(minutes / 60);
   if (hours < 24) {
     const rest = minutes % 60;
-    return rest ? `${hours} jam ${rest} menit` : `${hours} jam`;
+    return rest ? tr("{h} jam {m} menit", { h: hours, m: rest }) : tr("{n} jam", { n: hours });
   }
-  return `${Math.floor(hours / 24)} hari`;
+  return tr("{n} hari", { n: Math.floor(hours / 24) });
 }
 
 const DAY_SHORT = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
@@ -81,11 +97,37 @@ export function dowOfDayKey(dayKey: string): number {
   return new Date(`${dayKey}T12:00:00Z`).getUTCDay();
 }
 
+/** Pola alasan jam slot dari server (src/lib/autopilot-plan.ts); bagian yang berubah jadi {a}/{b}/{c}. */
+const SLOT_REASONS: [RegExp, string][] = [
+  [/^Jam (\d\d) rata-rata (.+) views akun ini \((\d+) posting\)\.$/, "Jam {a} rata-rata {b} views akun ini ({c} posting)."],
+  [/^Jam (\d\d) termasuk jam teratas akun ini \((\d+) posting\)\.$/, "Jam {a} termasuk jam teratas akun ini ({b} posting)."],
+  [/^Jam (\d\d) ramai di jaringan \((.+) rata-rata jaringan\)\.$/, "Jam {a} ramai di jaringan ({b} rata-rata jaringan)."],
+  [/^Jam (\d\d) termasuk jam teratas jaringan\.$/, "Jam {a} termasuk jam teratas jaringan."],
+  [/^Jam (\d\d) adalah jam bawaan: data jam akun belum cukup\.$/, "Jam {a} adalah jam bawaan: data jam akun belum cukup."],
+  [/^Jam (\d\d) adalah jam tetap pilihan pengguna\.$/, "Jam {a} adalah jam tetap pilihan pengguna."],
+  [/^Eksplorasi: jam (\d\d) baru (\d+) kali dicoba dalam 60 hari terakhir\.$/, "Eksplorasi: jam {a} baru {b} kali dicoba dalam 60 hari terakhir."],
+];
+
+/** Terjemahkan alasan pemilihan jam slot (teks server berpola). */
+export function slotReasonText(reason: string): string {
+  for (const [re, key] of SLOT_REASONS) {
+    const m = re.exec(reason);
+    if (m) return tr(key, { a: m[1], b: m[2], c: m[3] });
+  }
+  return tr(reason);
+}
+
+/** "14 Okt 2026, 09.05 WIB" (nama bulan ikut bahasa antarmuka); padanan formatWibFull. */
+export function wibFullText(date: Date): string {
+  const p = wibParts(date);
+  return `${p.d} ${tr(MONTH_SHORT[p.m])} ${p.y}, ${pad2(p.h)}.${pad2(p.min)} WIB`;
+}
+
 /** "Rab, 14 Okt" dari kunci hari "YYYY-MM-DD". */
 export function dayKeyLabel(dayKey: string): string {
   const d = new Date(`${dayKey}T12:00:00Z`);
   if (Number.isNaN(d.getTime())) return dayKey;
-  return `${DAY_SHORT[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTH_SHORT[d.getUTCMonth()]}`;
+  return `${tr(DAY_SHORT[d.getUTCDay()])}, ${d.getUTCDate()} ${tr(MONTH_SHORT[d.getUTCMonth()])}`;
 }
 
 /* ------------------------------------------------------------------ banner */
@@ -110,6 +152,7 @@ export function Banner({
   onClose?: () => void;
   className?: string;
 }) {
+  const t = useT();
   const Icon = tone === "success" ? CheckCircle2 : tone === "info" ? Info : AlertTriangle;
   return (
     <div
@@ -122,7 +165,7 @@ export function Banner({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Tutup pemberitahuan"
+          aria-label={t("Tutup pemberitahuan")}
           className="shrink-0 -m-2 w-9 h-9 rounded-full inline-flex items-center justify-center cursor-pointer opacity-70 hover:opacity-100"
         >
           <X className="w-4 h-4" />
@@ -157,6 +200,7 @@ export const SLOT_STATUS_STYLE: Record<SlotStatus, StatusStyle> = {
 export const isStruck = (status: SlotStatus): boolean => status === "DILEWATI" || status === "DIBATALKAN";
 
 export function SlotStatusChip({ status, className }: { status: SlotStatus; className?: string }) {
+  const t = useT();
   const { chip, Icon } = SLOT_STATUS_STYLE[status];
   return (
     <span
@@ -168,12 +212,13 @@ export function SlotStatusChip({ status, className }: { status: SlotStatus; clas
       )}
     >
       <Icon className="w-3.5 h-3.5 shrink-0" />
-      {SLOT_STATUS_LABEL[status]}
+      {t(SLOT_STATUS_LABEL[status])}
     </span>
   );
 }
 
 export function SlotKindChip({ kind, className }: { kind: SlotKind; className?: string }) {
+  const t = useT();
   return (
     <span
       className={cn(
@@ -182,7 +227,7 @@ export function SlotKindChip({ kind, className }: { kind: SlotKind; className?: 
         className
       )}
     >
-      {SLOT_KIND_LABEL[kind]}
+      {t(SLOT_KIND_LABEL[kind])}
     </span>
   );
 }
@@ -261,8 +306,9 @@ export function Segmented<T extends string | number>({
   fit?: boolean;
   className?: string;
 }) {
+  const t = useT();
   return (
-    <div role="group" aria-label={ariaLabel} className={cn("flex p-1 rounded-xl bg-subtle", className)}>
+    <div role="group" aria-label={t(ariaLabel)} className={cn("flex p-1 rounded-xl bg-subtle", className)}>
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -270,7 +316,7 @@ export function Segmented<T extends string | number>({
             key={String(o.value)}
             type="button"
             aria-pressed={active}
-            title={o.title}
+            title={o.title && t(o.title)}
             disabled={disabled || o.disabled}
             onClick={() => !active && onChange(o.value)}
             className={cn(
@@ -280,7 +326,7 @@ export function Segmented<T extends string | number>({
             )}
           >
             {busyValue === o.value && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />}
-            <span className="truncate">{o.label}</span>
+            <span className="truncate">{t(o.label)}</span>
           </button>
         );
       })}
@@ -296,6 +342,7 @@ export const MODE_ACTIVE_CLASS: Record<AutopilotMode, string> = {
 };
 
 export function LoadMoreButton({ onClick, loading }: { onClick: () => void; loading: boolean }) {
+  const t = useT();
   return (
     <div className="flex justify-center">
       <button
@@ -305,15 +352,16 @@ export function LoadMoreButton({ onClick, loading }: { onClick: () => void; load
         className="h-10 px-6 rounded-full border border-line-strong text-sm font-semibold text-fg hover:border-accent hover:text-accent transition-colors cursor-pointer inline-flex items-center gap-2 disabled:opacity-60"
       >
         {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-        Muat lagi
+        {t("Muat lagi")}
       </button>
     </div>
   );
 }
 
 export function ListSkeleton({ label, rows = 3 }: { label: string; rows?: number }) {
+  const t = useT();
   return (
-    <div className="space-y-3" aria-busy="true" aria-label={label}>
+    <div className="space-y-3" aria-busy="true" aria-label={t(label)}>
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="card p-4 animate-pulse">
           <div className="h-4 w-1/3 rounded bg-subtle" />

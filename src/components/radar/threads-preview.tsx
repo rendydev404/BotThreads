@@ -19,6 +19,8 @@ import { creditLine, type PostMedia, type PostMediaItem } from "@/lib/post-media
 import { changeIdeaMedia, fetchIdeaPreview, type IdeaMediaAction } from "@/lib/radar-client";
 import { AccountAvatar } from "@/components/content/post-status-chip";
 import { errorText } from "@/components/settings/format";
+import { useT } from "@/components/i18n/lang-provider";
+import { currentLocale } from "@/lib/i18n/core";
 
 /** Antrean penulisan preview: paling banyak 2 panggilan AI bersamaan walau banyak kartu terlihat sekaligus. */
 const MAX_PARALLEL = 2;
@@ -36,7 +38,7 @@ async function limited<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 const timeLabel = (iso: string): string =>
-  new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+  new Date(iso).toLocaleString(currentLocale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 
 /** Ukuran tampil gambar dari metadata item; 4:5 bila tidak diketahui (posting lama tanpa metadata). */
 const dims = (i: PostMediaItem): { width: number; height: number } =>
@@ -48,18 +50,19 @@ const dims = (i: PostMediaItem): { width: number; height: number } =>
  * sumber hilang/diblokir, yang tampil kotak netral (bukan ikon gambar rusak) dengan ukuran yang sama.
  */
 function SourceImage({ item, alt, className }: { item: PostMediaItem; alt: string; className: string }) {
+  const t = useT();
   const [failed, setFailed] = useState(false);
   const d = dims(item);
   if (failed) {
     return (
       <div
         role="img"
-        aria-label="Gambar sumber tidak bisa dimuat"
+        aria-label={t("Gambar sumber tidak bisa dimuat")}
         style={{ aspectRatio: `${d.width} / ${d.height}` }}
         className={cn(className, "flex flex-col items-center justify-center gap-1.5 p-3 text-center text-xs text-muted")}
       >
         <ImageOff className="w-5 h-5 text-faint" aria-hidden />
-        <span>Gambar sumber tidak bisa dimuat</span>
+        <span>{t("Gambar sumber tidak bisa dimuat")}</span>
       </div>
     );
   }
@@ -83,6 +86,7 @@ function SourceImage({ item, alt, className }: { item: PostMediaItem; alt: strin
  * Lebar/tinggi eksplisit dari metadata mencegah tata letak melompat; gambar dimuat malas langsung dari sumbernya.
  */
 export function PostMediaView({ media, compact = false, className }: { media: PostMedia; compact?: boolean; className?: string }) {
+  const t = useT();
   const [index, setIndex] = useState(0);
   const items = media.items;
   if (items.length === 0) return null;
@@ -94,7 +98,7 @@ export function PostMediaView({ media, compact = false, className }: { media: Po
         // Kunci = URL sumber: setelah "Ganti gambar", status gagal-muat gambar lama tidak terbawa.
         key={it.sourceUrl}
         item={it}
-        alt={it.articleTitle ?? "Gambar postingan"}
+        alt={it.articleTitle ?? t("Gambar postingan")}
         className={cn(
           "block max-w-full h-auto rounded-xl border border-line bg-subtle object-cover",
           compact ? "max-h-40" : "max-h-[420px]",
@@ -125,13 +129,13 @@ export function PostMediaView({ media, compact = false, className }: { media: Po
         onScroll={onScroll}
         className="flex gap-2 overflow-x-auto snap-x snap-mandatory overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="group"
-        aria-label={`Carousel ${items.length} gambar`}
+        aria-label={t("Carousel {n} gambar", { n: items.length })}
       >
         {items.map((it, i) => (
           <SourceImage
             key={`${i}:${it.sourceUrl}`}
             item={it}
-            alt={it.articleTitle ?? `Gambar ${i + 1} dari ${items.length}`}
+            alt={it.articleTitle ?? t("Gambar {i} dari {n}", { i: i + 1, n: items.length })}
             className={cn(
               "snap-start shrink-0 w-auto max-w-[85%] rounded-xl border border-line bg-subtle object-cover",
               compact ? "h-28" : "h-[260px]"
@@ -148,6 +152,7 @@ export function PostMediaView({ media, compact = false, className }: { media: Po
 
 /** Baris kredit sumber gambar (teks sama dengan `creditLine`, yang ditambahkan ke postingan saat terbit). */
 export function MediaCredit({ media, className }: { media: PostMedia; className?: string }) {
+  const t = useT();
   if (!creditLine(media)) return null;
   const seen = new Set<string>();
   const credits = media.items.filter((i) => {
@@ -159,7 +164,7 @@ export function MediaCredit({ media, className }: { media: PostMedia; className?
   return (
     <p className={cn("text-[13px] text-muted break-words", className)}>
       <span aria-hidden>📷 </span>
-      <span className="sr-only">Sumber gambar: </span>
+      <span className="sr-only">{t("Sumber gambar:")} </span>
       {credits.map((c, i) => (
         <React.Fragment key={c.credit}>
           {i > 0 && " · "}
@@ -194,8 +199,9 @@ export function ThreadsPostCard({
   meta: string;
   media?: PostMedia | null;
 }) {
+  const t = useT();
   return (
-    <article className="rounded-2xl border border-line bg-surface px-4 pt-3.5 pb-3" aria-label={`Preview postingan ${handle}`}>
+    <article className="rounded-2xl border border-line bg-surface px-4 pt-3.5 pb-3" aria-label={t("Preview postingan {handle}", { handle })}>
       <div className="flex gap-3">
         <div className="flex flex-col items-center shrink-0">
           <AccountAvatar name={name} src={avatarUrl} size="w-9 h-9" />
@@ -263,6 +269,7 @@ export function IdeaPostPreview({
   postAt: string | null;
   canGenerate: boolean;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [preview, setPreview] = useState<Preview | null>(initial ? { text: initial, topicTag: null, at: null } : null);
   const [media, setMedia] = useState<PostMedia | null>(initialMedia);
@@ -344,7 +351,7 @@ export function IdeaPostPreview({
   return (
     <div ref={ref} className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-muted">{isPost ? "Postingan dari ide ini" : "Preview postingan"}</p>
+        <p className="text-xs font-semibold text-muted">{isPost ? t("Postingan dari ide ini") : t("Preview postingan")}</p>
         {canGenerate && !isPost && preview && (
           <button
             type="button"
@@ -353,7 +360,7 @@ export function IdeaPostPreview({
             className="h-7 px-2.5 rounded-full text-xs font-semibold text-muted hover:text-accent hover:bg-subtle inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
-            Tulis ulang
+            {t("Tulis ulang")}
           </button>
         )}
       </div>
@@ -366,7 +373,7 @@ export function IdeaPostPreview({
             avatarUrl={avatarUrl}
             text={preview.text}
             topicTag={preview.topicTag}
-            meta={isPost && postAt ? timeLabel(postAt) : "draf"}
+            meta={isPost && postAt ? timeLabel(postAt) : t("draf")}
             media={media}
           />
         </div>
@@ -383,21 +390,21 @@ export function IdeaPostPreview({
           </div>
           <p className="mt-2 text-xs text-muted inline-flex items-center gap-1.5">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            AI menulis preview dengan gaya {handle}…
+            {t("AI menulis preview dengan gaya {handle}…", { handle })}
           </p>
         </div>
       ) : error ? (
         <p role="alert" className="flex items-start gap-2 rounded-xl bg-danger-soft text-danger p-3 text-[13px] font-medium">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          <span className="min-w-0 flex-1">{error}</span>
+          <span className="min-w-0 flex-1">{t(error)}</span>
           {canGenerate && (
             <button type="button" onClick={() => void generate(false)} className="underline font-semibold cursor-pointer shrink-0">
-              Coba lagi
+              {t("Coba lagi")}
             </button>
           )}
         </p>
       ) : (
-        <p className="rounded-xl bg-subtle p-3 text-xs text-muted">Belum ada preview untuk ide ini.</p>
+        <p className="rounded-xl bg-subtle p-3 text-xs text-muted">{t("Belum ada preview untuk ide ini.")}</p>
       )}
       {canMedia && (
         <div className="flex flex-wrap gap-2">
@@ -405,17 +412,17 @@ export function IdeaPostPreview({
             <>
               <button type="button" onClick={() => void changeMedia("ganti")} disabled={mediaBusy !== null} className={MEDIA_BTN}>
                 {mediaBusy === "ganti" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Images className="w-3.5 h-3.5" />}
-                {mediaBusy === "ganti" ? "Mencari gambar…" : "Ganti gambar"}
+                {mediaBusy === "ganti" ? t("Mencari gambar…") : t("Ganti gambar")}
               </button>
               <button type="button" onClick={() => void changeMedia("hapus")} disabled={mediaBusy !== null} className={MEDIA_BTN}>
                 {mediaBusy === "hapus" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageOff className="w-3.5 h-3.5" />}
-                Tanpa gambar
+                {t("Tanpa gambar")}
               </button>
             </>
           ) : (
             <button type="button" onClick={() => void changeMedia("ganti")} disabled={mediaBusy !== null} className={MEDIA_BTN}>
               {mediaBusy === "ganti" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
-              {mediaBusy === "ganti" ? "Mencari gambar…" : "Tambah gambar"}
+              {mediaBusy === "ganti" ? t("Mencari gambar…") : t("Tambah gambar")}
             </button>
           )}
         </div>
@@ -423,12 +430,14 @@ export function IdeaPostPreview({
       {mediaError && (
         <p role="alert" className="flex items-start gap-2 rounded-xl bg-danger-soft text-danger p-2.5 text-xs font-medium">
           <AlertCircle className="w-3.5 h-3.5 mt-px shrink-0" />
-          <span className="min-w-0 flex-1 break-words">{mediaError}</span>
+          <span className="min-w-0 flex-1 break-words">{t(mediaError)}</span>
         </p>
       )}
       {!isPost && preview && (
         <p className="text-[11px] text-muted">
-          Autopilot memakai teks {media ? "dan gambar " : ""}ini saat menulis slot dengan ide ini, selama lolos pemeriksaan.
+          {media
+            ? t("Autopilot memakai teks dan gambar ini saat menulis slot dengan ide ini, selama lolos pemeriksaan.")
+            : t("Autopilot memakai teks ini saat menulis slot dengan ide ini, selama lolos pemeriksaan.")}
         </p>
       )}
     </div>

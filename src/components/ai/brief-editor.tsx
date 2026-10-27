@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
+import { useLang } from "@/components/i18n/lang-provider";
 
 /**
  * Tombol "Perbesar" + editor layar penuh untuk teks panjang (Peran & tema akun / prompt peran). Mengedit salinan;
@@ -24,6 +25,7 @@ export function BriefExpandButton({
   disabled?: boolean;
   className?: string;
 }) {
+  const { t, locale } = useLang();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -55,20 +57,24 @@ export function BriefExpandButton({
         )}
       >
         <Maximize2 className="w-3.5 h-3.5" />
-        Perbesar
+        {t("Perbesar")}
       </button>
       <ModalShell
         open={open}
         onClose={() => setOpen(false)}
         size="full"
-        title={title}
-        description="Editor lebar untuk menulis atau membaca prompt peran yang panjang. Baris baru tetap tersimpan."
+        title={t(title)}
+        description={t("Editor lebar untuk menulis atau membaca prompt peran yang panjang. Baris baru tetap tersimpan.")}
         footer={
           <>
             <span className={cn("sm:mr-auto text-xs tabular-nums", over ? "text-warning font-semibold" : "text-muted")}>
-              {words.toLocaleString("id-ID")} kata · {draft.length.toLocaleString("id-ID")}/{maxLength.toLocaleString("id-ID")} karakter
+              {t("{words} kata · {used}/{max} karakter", {
+                words: words.toLocaleString(locale),
+                used: draft.length.toLocaleString(locale),
+                max: maxLength.toLocaleString(locale),
+              })}
             </span>
-            <ModalButton onClick={() => setOpen(false)}>Batal</ModalButton>
+            <ModalButton onClick={() => setOpen(false)}>{t("Batal")}</ModalButton>
             <ModalButton
               variant="primary"
               onClick={() => {
@@ -76,7 +82,7 @@ export function BriefExpandButton({
                 setOpen(false);
               }}
             >
-              Pakai teks ini
+              {t("Pakai teks ini")}
             </ModalButton>
           </>
         }
@@ -88,7 +94,7 @@ export function BriefExpandButton({
           onChange={(e) => setDraft(e.target.value)}
           spellCheck={false}
           className="w-full h-[calc(88dvh-13rem)] min-h-64 resize-none rounded-xl border border-line-strong bg-surface px-4 py-3.5 text-[15px] leading-relaxed text-fg placeholder-faint outline-none focus:border-accent focus:ring-4 focus:ring-accent/15"
-          placeholder="Tulis peran akun: siapa akun ini, bahas apa, untuk siapa, gaya bahasanya, aturan dan larangannya."
+          placeholder={t("Tulis peran akun: siapa akun ini, bahas apa, untuk siapa, gaya bahasanya, aturan dan larangannya.")}
         />
       </ModalShell>
     </>

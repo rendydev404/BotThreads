@@ -12,6 +12,8 @@ import { Banner, ListSkeleton, LoadMoreButton, accountHandle } from "@/component
 import { EmptyState, LoadError, RefreshButton } from "./states";
 import { memberName } from "./team-dialogs";
 import { usePaged } from "./use-remote";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
 
 const LOAD_ERROR = "Gagal memuat catatan audit.";
 
@@ -49,7 +51,7 @@ const ACCOUNT_ACTIONS = new Set(["AUTOPILOT_CONFIG", "AUTOPILOT_JEDA", "AUTOPILO
 const text = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 const roleText = (v: unknown): string | null => {
   const r = text(v);
-  return r ? (ROLE_LABELS[r as Role] ?? r) : null;
+  return r ? tr(ROLE_LABELS[r as Role] ?? r) : null;
 };
 /** "AKSI_LAIN" menjadi "Aksi lain" untuk tindakan yang belum dikenal UI. */
 const humanize = (action: string): string => {
@@ -59,8 +61,8 @@ const humanize = (action: string): string => {
 
 function actorText(row: AuditRow): string {
   if (row.actorName) return row.actorName;
-  if (row.actor.startsWith("system:")) return "Sistem autopilot";
-  return "Pengguna yang sudah dihapus";
+  if (row.actor.startsWith("system:")) return tr("Sistem autopilot");
+  return tr("Pengguna yang sudah dihapus");
 }
 
 interface Lookup {
@@ -74,13 +76,13 @@ function targetText(row: AuditRow, { accounts, members }: Lookup): string | null
   const d = row.detail ?? {};
   if (MEMBER_ACTIONS.has(row.action)) {
     const m = row.target ? members?.get(row.target) : null;
-    if (m) return `Anggota: ${memberName(m)}`;
-    return members ? "Anggota yang sudah tidak ada di tim" : "Seorang anggota";
+    if (m) return tr("Anggota: {name}", { name: memberName(m) });
+    return members ? tr("Anggota yang sudah tidak ada di tim") : tr("Seorang anggota");
   }
   const accountId = ACCOUNT_ACTIONS.has(row.action) ? row.target : text(d.accountId);
   if (accountId) {
     const a = accounts.get(accountId);
-    return a ? `Akun ${accountHandle(a)}` : "Satu akun Threads";
+    return a ? tr("Akun {handle}", { handle: accountHandle(a) }) : tr("Satu akun Threads");
   }
   if (row.action === "UNDANGAN_BUAT") return text(d.email);
   if (row.action === "KNOWLEDGE_SIMPAN") return text(d.judul) ? `"${text(d.judul)}"` : null;
@@ -94,34 +96,36 @@ function detailText(row: AuditRow): string | null {
     case "ANGGOTA_UBAH": {
       const from = roleText(d.dari);
       const to = roleText(d.ke);
-      const role = from && to ? (from === to ? `Peran tetap ${to}` : `${from} menjadi ${to}`) : null;
-      const scope = d.lingkup === "SEMUA" ? "semua akun" : d.lingkup === "PILIHAN" ? "akun tertentu" : null;
+      const role = from && to ? (from === to ? tr("Peran tetap {role}", { role: to }) : tr("{from} menjadi {to}", { from, to })) : null;
+      const scope = d.lingkup === "SEMUA" ? tr("semua akun") : d.lingkup === "PILIHAN" ? tr("akun tertentu") : null;
       return [role, scope].filter(Boolean).join(", ") || null;
     }
     case "ANGGOTA_KELUAR":
-      return roleText(d.peran) ? `Peran terakhir ${roleText(d.peran)}` : null;
+      return roleText(d.peran) ? tr("Peran terakhir {role}", { role: roleText(d.peran) }) : null;
     case "UNDANGAN_BUAT":
     case "UNDANGAN_TERIMA":
-      return roleText(d.peran) ? `Sebagai ${roleText(d.peran)}` : null;
+      return roleText(d.peran) ? tr("Sebagai {role}", { role: roleText(d.peran) }) : null;
     case "KNOWLEDGE_SIMPAN":
-      return text(d.jenis) ? (KNOWLEDGE_KIND_LABEL[d.jenis as KnowledgeKind] ?? null) : null;
+      return text(d.jenis) ? (KNOWLEDGE_KIND_LABEL[d.jenis as KnowledgeKind] ? tr(KNOWLEDGE_KIND_LABEL[d.jenis as KnowledgeKind]) : null) : null;
     case "AUTOPILOT_CONFIG": {
       const modeKey = text(d.mode);
-      const mode = modeKey ? `Mode ${MODE_LABEL[modeKey as AutopilotMode] ?? modeKey}` : null;
-      const posts = typeof d.postsPerDay === "number" ? `${d.postsPerDay} posting per hari` : null;
-      const strategy = d.slotStrategy === "JAM_TETAP" ? "jam tetap" : d.slotStrategy === "JAM_RAMAI" ? "jam ramai" : null;
+      const mode = modeKey ? tr("Mode {mode}", { mode: tr(MODE_LABEL[modeKey as AutopilotMode] ?? modeKey) }) : null;
+      const posts = typeof d.postsPerDay === "number" ? tr("{n} posting per hari", { n: d.postsPerDay }) : null;
+      const strategy = d.slotStrategy === "JAM_TETAP" ? tr("jam tetap") : d.slotStrategy === "JAM_RAMAI" ? tr("jam ramai") : null;
       return [mode, posts, strategy].filter(Boolean).join(", ") || null;
     }
-    case "AUTOPILOT_JEDA":
-      return pausedText(text(d.alasan));
+    case "AUTOPILOT_JEDA": {
+      const paused = pausedText(text(d.alasan));
+      return paused ? tr(paused) : null;
+    }
     case "AUTOPILOT_TURUN_MODE":
-      return "Kinerja turun tajam, jadi draf kembali menunggu persetujuan.";
+      return tr("Kinerja turun tajam, jadi draf kembali menunggu persetujuan.");
     case "AUTOPILOT_SETUJUI":
     case "AUTOPILOT_TOLAK":
     case "AUTOPILOT_TULIS_ULANG":
     case "AUTOPILOT_LEWATI": {
       const statusKey = text(d.status);
-      return statusKey ? `Status slot: ${SLOT_STATUS_LABEL[statusKey as SlotStatus] ?? statusKey}` : null;
+      return statusKey ? tr("Status slot: {status}", { status: tr(SLOT_STATUS_LABEL[statusKey as SlotStatus] ?? statusKey) }) : null;
     }
     default:
       return null;
@@ -138,6 +142,7 @@ interface AuditTabProps {
 /** Tab Audit: siapa mengubah apa dan kapan (WIB), terbaru dulu, berhalaman lewat kursor server. */
 export function AuditTab({ members, onNeedMembers }: AuditTabProps) {
   const accounts = usePublishAccounts();
+  const t = useT();
   const audit = usePaged<AuditRow, AuditResponse>(
     "audit",
     async (cursor, signal) => {
@@ -159,12 +164,12 @@ export function AuditTab({ members, onNeedMembers }: AuditTabProps) {
   );
 
   if (loading) return <ListSkeleton label="Memuat catatan audit" rows={5} />;
-  if (!audit.data) return <LoadError message={error ?? LOAD_ERROR} status={status} onRetry={reload} />;
+  if (!audit.data) return <LoadError message={error ?? t(LOAD_ERROR)} status={status} onRetry={reload} />;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted max-w-xl">Setiap perubahan penting di workspace ini tercatat, terbaru di atas.</p>
+        <p className="text-sm text-muted max-w-xl">{t("Setiap perubahan penting di workspace ini tercatat, terbaru di atas.")}</p>
         <div className="ml-auto">
           <RefreshButton onClick={reload} busy={refreshing} />
         </div>
@@ -172,16 +177,16 @@ export function AuditTab({ members, onNeedMembers }: AuditTabProps) {
 
       {error && (
         <Banner tone="danger">
-          Gagal menyegarkan data: {error}{" "}
+          {t("Gagal menyegarkan data: {error}", { error })}{" "}
           <button type="button" onClick={reload} className="underline font-semibold cursor-pointer">
-            Coba lagi
+            {t("Coba lagi")}
           </button>
         </Banner>
       )}
 
       {items.length === 0 ? (
-        <EmptyState icon={<ScrollText className="w-6 h-6" />} title="Belum ada catatan audit.">
-          Perubahan peran, undangan, pengaturan brand, pengetahuan, dan autopilot akan tercatat di sini.
+        <EmptyState icon={<ScrollText className="w-6 h-6" />} title={t("Belum ada catatan audit.")}>
+          {t("Perubahan peran, undangan, pengaturan brand, pengetahuan, dan autopilot akan tercatat di sini.")}
         </EmptyState>
       ) : (
         <>
@@ -198,7 +203,7 @@ export function AuditTab({ members, onNeedMembers }: AuditTabProps) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-col gap-x-3 gap-y-0.5 sm:flex-row sm:items-baseline sm:justify-between">
-                      <p className="text-sm font-semibold text-fg break-words">{known?.label ?? humanize(row.action)}</p>
+                      <p className="text-sm font-semibold text-fg break-words">{known ? t(known.label) : humanize(row.action)}</p>
                       <time dateTime={row.createdAt} className="shrink-0 text-xs text-muted tabular-nums">
                         {formatWibFull(new Date(row.createdAt))}
                       </time>

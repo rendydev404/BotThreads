@@ -3,6 +3,7 @@
 import React from "react";
 import { Dropdown, type DropdownOption } from "@/components/autopilot/dropdown";
 import { MONTH_LONG, daysInMonth, parseDayKey, toDayKey } from "./format";
+import { useT } from "@/components/i18n/lang-provider";
 
 const DAY_MS = 86_400_000;
 /** Tahun yang ditawarkan setelah tahun berjalan. */
@@ -46,6 +47,7 @@ interface DayFieldProps {
  * Mengganti bulan atau tahun menjepit tanggal ke hari terakhir bulan itu (31 Jan lalu Feb = 28/29 Feb).
  */
 export function DayField({ label, value, onChange, today, disabled }: DayFieldProps) {
+  const t = useT();
   const now = parseDayKey(today);
   const cur = parseDayKey(value) ?? now;
   if (!cur) return null;
@@ -65,7 +67,7 @@ export function DayField({ label, value, onChange, today, disabled }: DayFieldPr
   const set = (y: number, m: number, d: number) => onChange(toDayKey(y, m, Math.min(d, daysInMonth(y, m))));
 
   return (
-    <div role="group" aria-label={label} className="grid grid-cols-[4.5rem_minmax(0,1fr)_5.5rem] gap-2">
+    <div role="group" aria-label={t(label)} className="grid grid-cols-[4.5rem_minmax(0,1fr)_5.5rem] gap-2">
       <Dropdown ariaLabel="Tanggal" value={cur.d} options={dayOptions} onChange={(d) => set(cur.y, cur.m, d)} disabled={disabled} />
       <Dropdown ariaLabel="Bulan" value={cur.m} options={MONTH_OPTIONS} onChange={(m) => set(cur.y, m, cur.d)} disabled={disabled} />
       <Dropdown

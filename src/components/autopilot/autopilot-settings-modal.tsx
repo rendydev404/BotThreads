@@ -32,7 +32,9 @@ import { DEFAULT_SLOT_HOURS } from "@/lib/scheduling";
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { ConfirmModal, autoModeWarning } from "./confirm-modal";
 import { Dropdown, type DropdownOption } from "./dropdown";
-import { Banner, DAY_LABELS, Segmented, SlotKindChip, accountHandle, dayKeyLabel, dowOfDayKey, pad2 } from "./shared";
+import { useT } from "@/components/i18n/lang-provider";
+import { currentLocale, tr } from "@/lib/i18n/core";
+import { Banner, DAY_LABELS, Segmented, SlotKindChip, accountHandle, apiErrorText, dayKeyLabel, dowOfDayKey, pad2, slotReasonText } from "./shared";
 
 const PREVIEW_DEBOUNCE_MS = 400;
 const MAX_PILLARS = 8;
@@ -102,7 +104,8 @@ const maxPostsForGap = (gap: number): number => Math.floor(((ACTIVE_LAST_HOUR - 
 
 const gapHint = (minutes: number): string => {
   const hours = minutes / 60;
-  return `${String(hours).replace(".", ",")} jam`;
+  const n = currentLocale().startsWith("en") ? String(hours) : String(hours).replace(".", ",");
+  return tr("{n} jam", { n });
 };
 
 const toForm = (c: AutopilotConfigDTO): FormState => ({
@@ -129,30 +132,30 @@ function pillarError(rows: PillarRow[]): string | null {
   for (const r of rows) {
     const key = cleanKey(r.key);
     if (!key) continue;
-    if (key.length < 2 || key.length > 40) return "Nama kategori harus 2-40 karakter.";
-    if (seen.has(key.toLowerCase())) return "Nama kategori tidak boleh berulang.";
+    if (key.length < 2 || key.length > 40) return tr("Nama kategori harus 2-40 karakter.");
+    if (seen.has(key.toLowerCase())) return tr("Nama kategori tidak boleh berulang.");
     seen.add(key.toLowerCase());
     const bobot = Number(r.bobot);
-    if (!r.bobot || !Number.isInteger(bobot) || bobot < 1 || bobot > 100) return "Porsi kategori harus bilangan 1-100.";
+    if (!r.bobot || !Number.isInteger(bobot) || bobot < 1 || bobot > 100) return tr("Porsi kategori harus bilangan 1-100.");
   }
   return null;
 }
 
 /** Validasi lokal untuk field yang memengaruhi jadwal (pesannya sama dengan server). */
 function planError(form: FormState): string | null {
-  if (form.activeDays.length === 0) return "Pilih minimal satu hari aktif.";
+  if (form.activeDays.length === 0) return tr("Pilih minimal satu hari aktif.");
   if (form.slotStrategy === "JAM_TETAP") {
     const hours = form.fixedHours;
-    if (hours.length < FIXED_MIN || hours.length > FIXED_MAX) return `Pilih ${FIXED_MIN} sampai ${FIXED_MAX} jam tetap.`;
+    if (hours.length < FIXED_MIN || hours.length > FIXED_MAX) return tr("Pilih {min} sampai {max} jam tetap.", { min: FIXED_MIN, max: FIXED_MAX });
     for (let i = 1; i < hours.length; i++) {
       if ((hours[i] - hours[i - 1]) * 60 < form.minGapMinutes) {
-        return `Jarak antar jam tetap minimal ${form.minGapMinutes} menit.`;
+        return tr("Jarak antar jam tetap minimal {n} menit.", { n: form.minGapMinutes });
       }
     }
     return null;
   }
   const max = maxPostsForGap(form.minGapMinutes);
-  if (form.postsPerDay > max) return `Dengan jeda ${form.minGapMinutes} menit, paling banyak ${max} posting per hari.`;
+  if (form.postsPerDay > max) return tr("Dengan jeda {gap} menit, paling banyak {max} posting per hari.", { gap: form.minGapMinutes, max });
   return null;
 }
 
@@ -214,14 +217,15 @@ function Field({
   hint?: string;
   children: (labelId: string) => React.ReactNode;
 }) {
+  const t = useT();
   const id = useId();
   return (
     <div>
       <p id={id} className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
-        {label}
+        {t(label)}
       </p>
       {children(id)}
-      {hint && <p className="mt-1.5 text-xs text-muted leading-relaxed">{hint}</p>}
+      {hint && <p className="mt-1.5 text-xs text-muted leading-relaxed">{t(hint)}</p>}
     </div>
   );
 }
@@ -240,6 +244,7 @@ interface DialogProps {
 }
 
 function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogProps) {
+  const t = useT();
   // Nilai awal dikunci saat dialog dibuka: polling ringkasan di belakang tidak menimpa isian.
   const [initial] = useState(() => account.config);
   const [form, setForm] = useState<FormState>(() => toForm(account.config));
@@ -287,7 +292,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
           setPreview({
             key: planKey,
             res: null,
-            error: { message: e instanceof Error ? e.message : "Pratinjau gagal dimuat.", validation },
+            error: { message: e instanceof Error ? apiErrorText(e.message) : tr("Pratinjau gagal dimuat."), validation },
           });
         });
     }, delay);
@@ -347,7 +352,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
       await saveAutopilotSettings(account.id, patch);
       onSaved(account);
     } catch (e) {
-      setSaveError(e instanceof ContentApiError ? e.message : "Gagal menyimpan pengaturan. Coba lagi.");
+      setSaveError(e instanceof ContentApiError ? apiErrorText(e.message) : tr("Gagal menyimpan pengaturan. Coba lagi."));
       setSaving(false);
     }
   };
@@ -362,14 +367,15 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
   };
 
   const gapOptions: DropdownOption<number>[] = sortNumbers([...GAP_CHOICES, form.minGapMinutes, initial.minGapMinutes]).map(
-    (m) => ({ value: m, label: `${m} menit`, hint: gapHint(m) })
+    (m) => ({ value: m, label: t("{n} menit", { n: m }), hint: gapHint(m) })
   );
   const exploreOptions = EXPLORE_CHOICES.map((rate) => ({ value: rate, label: `${Math.round(rate * 100)}%` }));
-  const mediaModeOptions = MEDIA_MODES.map((m) => ({ value: m, label: MEDIA_MODE_LABEL[m] }));
+  const mediaModeOptions = MEDIA_MODES.map((m) => ({ value: m, label: t(MEDIA_MODE_LABEL[m]) }));
   const mediaPersenOptions = sortNumbers([...MEDIA_PERSEN_CHOICES, initial.mediaMaxPersen]).map((p) => ({ value: p, label: `${p}%` }));
   const pillarTotal = form.pillars.reduce((sum, p) => (cleanKey(p.key) ? sum + (Number(p.bobot) || 0) : sum), 0);
   const blocked = !!planIssue || !!pillarIssue || !!serverIssue;
-  const paused = pausedText(initial.pausedReason);
+  const pausedRaw = pausedText(initial.pausedReason);
+  const paused = pausedRaw && t(pausedRaw);
   const tomorrowOff =
     preview.res && preview.res.slots.length === 0 && !form.activeDays.includes(dowOfDayKey(preview.res.dayKey));
 
@@ -380,16 +386,16 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
         onClose={onClose}
         busy={saving}
         size="lg"
-        title="Atur autopilot"
+        title={t("Atur autopilot")}
         description={`${handle}${account.outletNama ? ` · ${account.outletNama}` : ""}`}
         footer={
           <>
             <ModalButton onClick={onClose} disabled={saving}>
-              Batal
+              {t("Batal")}
             </ModalButton>
             <ModalButton variant="primary" onClick={submit} disabled={saving || blocked}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? t("Menyimpan...") : t("Simpan")}
             </ModalButton>
             {saveError && (
               <p role="alert" className="sm:order-first sm:mr-auto flex items-start gap-1.5 text-[13px] font-medium text-danger">
@@ -405,8 +411,11 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
             <Banner tone="warning">
               {!account.ready && (
                 <p>
-                  Akun belum siap diposting{account.reason ? ` (${REASON_LABEL[account.reason]})` : ""}. Autopilot baru bisa
-                  dinyalakan setelah akun siap.
+                  {account.reason
+                    ? t("Akun belum siap diposting ({reason}). Autopilot baru bisa dinyalakan setelah akun siap.", {
+                        reason: t(REASON_LABEL[account.reason]),
+                      })
+                    : t("Akun belum siap diposting. Autopilot baru bisa dinyalakan setelah akun siap.")}
                 </p>
               )}
               {paused && <p>{paused}</p>}
@@ -425,7 +434,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                       type="button"
                       aria-pressed={active}
                       disabled={locked}
-                      title={locked ? "Akun belum siap diposting" : undefined}
+                      title={locked ? t("Akun belum siap diposting") : undefined}
                       onClick={() => update({ mode: m })}
                       className={cn(
                         "min-h-14 p-3 rounded-xl border text-left transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed",
@@ -434,9 +443,9 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                     >
                       <span className={cn("flex items-center gap-1.5 text-sm font-semibold", active ? "text-accent" : "text-fg")}>
                         {m === "OTOMATIS" && <Zap className="w-3.5 h-3.5 shrink-0" />}
-                        {MODE_LABEL[m]}
+                        {t(MODE_LABEL[m])}
                       </span>
-                      <span className="mt-0.5 block text-xs text-muted leading-snug">{MODE_INFO[m]}</span>
+                      <span className="mt-0.5 block text-xs text-muted leading-snug">{t(MODE_INFO[m])}</span>
                     </button>
                   );
                 })}
@@ -461,7 +470,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                           active ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg"
                         )}
                       >
-                        {s.label}
+                        {t(s.label)}
                       </button>
                     );
                   })}
@@ -469,7 +478,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
 
                 {fixed ? (
                   <div>
-                    <div role="group" aria-label="Jam tetap (WIB)" className="grid grid-cols-6 sm:grid-cols-9 gap-1.5">
+                    <div role="group" aria-label={t("Jam tetap (WIB)")} className="grid grid-cols-6 sm:grid-cols-9 gap-1.5">
                       {HOURS.map((h) => {
                         const on = form.fixedHours.includes(h);
                         const tooClose = form.fixedHours.some((s) => s !== h && Math.abs(s - h) * 60 < form.minGapMinutes);
@@ -479,9 +488,9 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                             key={h}
                             type="button"
                             aria-pressed={on}
-                            aria-label={`Jam ${pad2(h)}.00`}
+                            aria-label={t("Jam {h}.00", { h: pad2(h) })}
                             disabled={!on && (full || tooClose)}
-                            title={!on && tooClose ? `Terlalu dekat dengan jam lain (jeda ${form.minGapMinutes} menit)` : undefined}
+                            title={!on && tooClose ? t("Terlalu dekat dengan jam lain (jeda {n} menit)", { n: form.minGapMinutes }) : undefined}
                             onClick={() => toggleHour(h)}
                             className={cn(CHIP, on ? CHIP_ON : CHIP_OFF)}
                           >
@@ -491,8 +500,9 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                       })}
                     </div>
                     <p className="mt-2 text-xs text-muted">
-                      Pilih {FIXED_MIN} sampai {FIXED_MAX} jam (WIB). Posting per hari:{" "}
-                      <span className="font-semibold text-fg tabular-nums">{postsPerDay}</span>, mengikuti jumlah jam.
+                      {t("Pilih {min} sampai {max} jam (WIB). Posting per hari:", { min: FIXED_MIN, max: FIXED_MAX })}{" "}
+                      <span className="font-semibold text-fg tabular-nums">{postsPerDay}</span>
+                      {t(", mengikuti jumlah jam.")}
                     </p>
                   </div>
                 ) : (
@@ -500,7 +510,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                     <div className="inline-flex items-center gap-1 rounded-xl border border-line-strong p-1">
                       <button
                         type="button"
-                        aria-label="Kurangi posting per hari"
+                        aria-label={t("Kurangi posting per hari")}
                         disabled={form.postsPerDay <= POSTS_PER_DAY_MIN}
                         onClick={() => update({ postsPerDay: form.postsPerDay - 1 })}
                         className="w-10 h-10 rounded-lg inline-flex items-center justify-center text-fg hover:bg-subtle cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
@@ -512,7 +522,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                       </span>
                       <button
                         type="button"
-                        aria-label="Tambah posting per hari"
+                        aria-label={t("Tambah posting per hari")}
                         disabled={form.postsPerDay >= postsMax}
                         onClick={() => update({ postsPerDay: form.postsPerDay + 1 })}
                         className="w-10 h-10 rounded-lg inline-flex items-center justify-center text-fg hover:bg-subtle cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
@@ -521,13 +531,13 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                       </button>
                     </div>
                     <p className="text-sm text-muted">
-                      posting per hari
+                      {t("posting per hari")}
                       <span className="block text-xs">
-                        {POSTS_PER_DAY_MIN} sampai {postsMax}
+                        {t("{min} sampai {max}", { min: POSTS_PER_DAY_MIN, max: postsMax })}
                         {postsMax < POSTS_PER_DAY_MAX &&
                           (gapMax < Math.min(POSTS_PER_DAY_MAX, maxPostsPerDay)
-                            ? ` (dibatasi jeda ${form.minGapMinutes} menit)`
-                            : " (batas dashboard)")}
+                            ? ` ${t("(dibatasi jeda {n} menit)", { n: form.minGapMinutes })}`
+                            : ` ${t("(batas dashboard)")}`)}
                       </span>
                     </p>
                   </div>
@@ -540,7 +550,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
             <Field label="Jeda minimal antar posting">
               {() => (
                 <Dropdown
-                  ariaLabel="Jeda minimal antar posting"
+                  ariaLabel={t("Jeda minimal antar posting")}
                   value={form.minGapMinutes}
                   options={gapOptions}
                   onChange={setGap}
@@ -578,7 +588,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                       onClick={() => toggleDay(dayIndex)}
                       className={cn(CHIP, on ? CHIP_ON : CHIP_OFF)}
                     >
-                      {label}
+                      {t(label)}
                     </button>
                   );
                 })}
@@ -587,14 +597,14 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
           </Field>
 
           {/* Pratinjau jam besok */}
-          <section aria-label="Pratinjau jadwal besok" className="rounded-xl border border-line bg-subtle p-3.5">
+          <section aria-label={t("Pratinjau jadwal besok")} className="rounded-xl border border-line bg-subtle p-3.5">
             <div className="flex items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 text-sm font-bold text-fg">
                 <CalendarClock className="w-4 h-4 text-accent" />
-                Jadwal besok
+                {t("Jadwal besok")}
                 {preview.res && <span className="text-xs font-medium text-muted">{dayKeyLabel(preview.res.dayKey)}</span>}
               </h3>
-              {previewLoading && <Loader2 className="w-4 h-4 text-muted animate-spin" aria-label="Memuat pratinjau" />}
+              {previewLoading && <Loader2 className="w-4 h-4 text-muted animate-spin" aria-label={t("Memuat pratinjau")} />}
             </div>
 
             {planIssue || serverIssue ? (
@@ -603,14 +613,14 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                 {planIssue ?? serverIssue}
               </p>
             ) : previewCurrent && preview.error ? (
-              <p className="mt-2 text-[13px] text-muted">Pratinjau belum bisa dimuat: {preview.error.message}</p>
+              <p className="mt-2 text-[13px] text-muted">{t("Pratinjau belum bisa dimuat:")} {preview.error.message}</p>
             ) : preview.res ? (
               <div className={cn("mt-2.5 transition-opacity", previewLoading && "opacity-50")}>
                 {preview.res.slots.length === 0 ? (
                   <p className="text-[13px] text-muted">
                     {tomorrowOff
-                      ? "Besok bukan hari aktif, jadi tidak ada posting yang dijadwalkan."
-                      : "Tidak ada jam yang muat untuk besok dengan pengaturan ini."}
+                      ? t("Besok bukan hari aktif, jadi tidak ada posting yang dijadwalkan.")
+                      : t("Tidak ada jam yang muat untuk besok dengan pengaturan ini.")}
                   </p>
                 ) : (
                   <>
@@ -621,16 +631,16 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                             {pad2(s.hour)}.{pad2(s.minute)} WIB
                           </span>
                           <SlotKindChip kind={s.kind} className="bg-surface" />
-                          <span className="basis-full text-xs text-muted">{s.reason}</span>
+                          <span className="basis-full text-xs text-muted">{slotReasonText(s.reason)}</span>
                         </li>
                       ))}
                     </ul>
                     {/* Jam tetap dipilih pengguna, jadi catatan asal data jam hanya untuk strategi jam ramai. */}
-                    {!fixed && <p className="mt-2.5 text-xs text-muted">{SOURCE_NOTE[preview.res.source]}</p>}
+                    {!fixed && <p className="mt-2.5 text-xs text-muted">{t(SOURCE_NOTE[preview.res.source])}</p>}
                   </>
                 )}
                 {form.mode === "MATI" && (
-                  <p className="mt-1 text-xs text-muted">Mode masih Mati: jadwal ini baru dipakai setelah autopilot dinyalakan.</p>
+                  <p className="mt-1 text-xs text-muted">{t("Mode masih Mati: jadwal ini baru dipakai setelah autopilot dinyalakan.")}</p>
                 )}
               </div>
             ) : (
@@ -653,7 +663,10 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
             label="Postingan bergambar"
             hint={
               form.mediaMode === "OTOMATIS"
-                ? `AI menambahkan foto berita atau Wikimedia Commons (dengan kredit sumber) bila cocok dengan topiknya, paling banyak ${form.mediaMaxPersen}% dari posting akun ini dalam 7 hari.`
+                ? t(
+                    "AI menambahkan foto berita atau Wikimedia Commons (dengan kredit sumber) bila cocok dengan topiknya, paling banyak {n}% dari posting akun ini dalam 7 hari.",
+                    { n: form.mediaMaxPersen }
+                  )
                 : "Semua posting akun ini berupa teks saja."
             }
           >
@@ -702,7 +715,9 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                   onChange={(e) => update({ brief: e.target.value })}
                   rows={8}
                   maxLength={BRIEF_MAX_CHARS}
-                  placeholder="Contoh: akun cabang dekat kampus, audiensnya mahasiswa. Bahas menu andalan, suasana makan bareng, dan cerita ringan seputar cabang. Hindari bahasa yang terlalu formal."
+                  placeholder={t(
+                    "Contoh: akun cabang dekat kampus, audiensnya mahasiswa. Bahas menu andalan, suasana makan bareng, dan cerita ringan seputar cabang. Hindari bahasa yang terlalu formal."
+                  )}
                   className="w-full resize-y bg-transparent border-0 px-3.5 pt-3 pb-1 text-sm leading-relaxed text-fg placeholder-faint outline-none focus:outline-none focus-visible:outline-none focus:ring-0"
                 />
                 <div className="flex items-center justify-between gap-2 pl-2 pr-3.5 pb-2 text-xs">
@@ -723,7 +738,10 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
 
           <Field
             label="Kategori topik (opsional)"
-            hint={`Maksimal ${MAX_PILLARS} kategori. Angka di sebelah nama menentukan seberapa sering kategori itu dipakai dibanding yang lain; persentasenya dihitung otomatis. Baris tanpa nama diabaikan.`}
+            hint={t(
+              "Maksimal {n} kategori. Angka di sebelah nama menentukan seberapa sering kategori itu dipakai dibanding yang lain; persentasenya dihitung otomatis. Baris tanpa nama diabaikan.",
+              { n: MAX_PILLARS }
+            )}
           >
             {() => (
               <div className="space-y-2">
@@ -737,8 +755,8 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                         value={p.key}
                         onChange={(e) => setPillar(p.id, { key: e.target.value })}
                         maxLength={40}
-                        placeholder="Nama kategori, mis. Tips & trik"
-                        aria-label={`Nama kategori ${index + 1}`}
+                        placeholder={t("Nama kategori, mis. Tips & trik")}
+                        aria-label={t("Nama kategori {n}", { n: index + 1 })}
                         className={cn(FIELD, "flex-1 min-w-0")}
                       />
                       <input
@@ -747,16 +765,16 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                         value={p.bobot}
                         onChange={(e) => setPillar(p.id, { bobot: e.target.value.replace(/\D/g, "").slice(0, 3) })}
                         placeholder="1-100"
-                        aria-label={`Porsi kategori ${index + 1} (1 sampai 100)`}
+                        aria-label={t("Porsi kategori {n} (1 sampai 100)", { n: index + 1 })}
                         className={cn(FIELD, "w-16 px-2 text-center tabular-nums")}
                       />
-                      <span className="w-10 shrink-0 text-right text-xs font-semibold text-muted tabular-nums" aria-label="Persentase kategori">
+                      <span className="w-10 shrink-0 text-right text-xs font-semibold text-muted tabular-nums" aria-label={t("Persentase kategori")}>
                         {share === null ? "-" : `${share}%`}
                       </span>
                       <button
                         type="button"
                         onClick={() => update({ pillars: form.pillars.filter((row) => row.id !== p.id) })}
-                        aria-label={`Hapus kategori ${index + 1}`}
+                        aria-label={t("Hapus kategori {n}", { n: index + 1 })}
                         className="w-10 h-10 shrink-0 rounded-lg inline-flex items-center justify-center text-muted hover:text-danger hover:bg-danger-soft transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -776,7 +794,7 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
                   className="h-10 px-4 rounded-full border border-line-strong text-[13px] font-semibold text-fg inline-flex items-center gap-1.5 hover:border-accent hover:text-accent transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Tambah kategori
+                  {t("Tambah kategori")}
                 </button>
               </div>
             )}
@@ -791,8 +809,8 @@ function SettingsDialog({ account, maxPostsPerDay, onClose, onSaved }: DialogPro
           setConfirmAuto(false);
           void save();
         }}
-        title="Aktifkan mode Otomatis?"
-        confirmLabel="Ya, aktifkan Otomatis"
+        title={t("Aktifkan mode Otomatis?")}
+        confirmLabel={t("Ya, aktifkan Otomatis")}
         confirmIcon={<Zap className="w-4 h-4" />}
       >
         <p className="text-sm text-fg leading-relaxed">{autoModeWarning(handle, postsPerDay)}</p>

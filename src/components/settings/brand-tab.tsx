@@ -9,6 +9,7 @@ import { FormError, INPUT_CLS, TextAreaField, TextField } from "./fields";
 import { errorDetails, errorText } from "./format";
 import { BTN_OUTLINE, BTN_PRIMARY, LoadError } from "./states";
 import { useRemote } from "./use-remote";
+import { useT } from "@/components/i18n/lang-provider";
 
 /** Batas yang sama dengan validasi server (team-service.ts `saveSettings`). */
 const NAME_MIN = 2;
@@ -32,8 +33,9 @@ interface BrandValues {
 }
 
 function BrandSkeleton() {
+  const t = useT();
   return (
-    <div className="card p-4 sm:p-6 space-y-5 animate-pulse" aria-busy="true" aria-label="Memuat pengaturan brand">
+    <div className="card p-4 sm:p-6 space-y-5 animate-pulse" aria-busy="true" aria-label={t("Memuat pengaturan brand")}>
       {[11, 28, 11].map((h, i) => (
         <div key={i}>
           <div className="h-3.5 w-28 rounded bg-subtle" />
@@ -46,23 +48,24 @@ function BrandSkeleton() {
 
 /** Tampilan baca saja untuk peran yang tidak boleh menyimpan (di bawah Admin). */
 function BrandReadOnly({ data }: { data: WorkspaceSettingsResponse }) {
+  const tt = useT();
   return (
     <div className="space-y-4">
-      <Banner tone="info">Hanya Admin dan Pemilik yang bisa mengubah pengaturan brand.</Banner>
+      <Banner tone="info">{tt("Hanya Admin dan Pemilik yang bisa mengubah pengaturan brand.")}</Banner>
       <dl className="card p-4 sm:p-6 space-y-5">
         <div>
-          <dt className="text-[13px] font-semibold text-muted">Nama brand</dt>
-          <dd className="mt-1 text-sm font-semibold text-fg break-words">{data.namaBrand || "Belum diisi"}</dd>
+          <dt className="text-[13px] font-semibold text-muted">{tt("Nama brand")}</dt>
+          <dd className="mt-1 text-sm font-semibold text-fg break-words">{data.namaBrand || tt("Belum diisi")}</dd>
         </div>
         <div>
-          <dt className="text-[13px] font-semibold text-muted">Deskripsi brand</dt>
-          <dd className="mt-1 text-sm text-fg leading-relaxed break-words">{data.deskripsiBrand || "Belum diisi"}</dd>
+          <dt className="text-[13px] font-semibold text-muted">{tt("Deskripsi brand")}</dt>
+          <dd className="mt-1 text-sm text-fg leading-relaxed break-words">{data.deskripsiBrand || tt("Belum diisi")}</dd>
         </div>
         <div>
-          <dt className="text-[13px] font-semibold text-muted">Topik terlarang</dt>
+          <dt className="text-[13px] font-semibold text-muted">{tt("Topik terlarang")}</dt>
           <dd className="mt-2">
             {data.topikTerlarang.length === 0 ? (
-              <span className="text-sm text-fg">Belum ada topik terlarang.</span>
+              <span className="text-sm text-fg">{tt("Belum ada topik terlarang.")}</span>
             ) : (
               <ul className="flex flex-wrap gap-2">
                 {data.topikTerlarang.map((t) => (
@@ -93,6 +96,7 @@ interface BrandFormProps {
 }
 
 function BrandForm({ data, onSaved }: BrandFormProps) {
+  const tt = useT();
   // `base` = nilai tersimpan yang dikenal form ini; "ada perubahan" dihitung terhadapnya.
   const [base, setBase] = useState<BrandValues>(() => valuesOf(data));
   const [nama, setNama] = useState(data.namaBrand);
@@ -124,7 +128,7 @@ function BrandForm({ data, onSaved }: BrandFormProps) {
     setTopik(data.topikTerlarang);
   }
 
-  const nameError = dirty && namaClean.length < NAME_MIN ? `Nama brand harus ${NAME_MIN}-${NAME_MAX} karakter.` : null;
+  const nameError = dirty && namaClean.length < NAME_MIN ? tt("Nama brand harus {min}-{max} karakter.", { min: NAME_MIN, max: NAME_MAX }) : null;
   const full = topik.length >= TOPICS_MAX;
 
   const touch = () => {
@@ -146,11 +150,11 @@ function BrandForm({ data, onSaved }: BrandFormProps) {
     setDraft(bad.join(", "));
     setTopicError(
       bad.length > 0
-        ? `Topik harus ${TOPIC_MIN}-${TOPIC_MAX} karakter.`
+        ? tt("Topik harus {min}-{max} karakter.", { min: TOPIC_MIN, max: TOPIC_MAX })
         : fresh.length === 0
-          ? "Topik ini sudah ada di daftar."
+          ? tt("Topik ini sudah ada di daftar.")
           : fresh.length > room
-            ? `Maksimal ${TOPICS_MAX} topik.`
+            ? tt("Maksimal {n} topik.", { n: TOPICS_MAX })
             : null
     );
   };
@@ -196,7 +200,7 @@ function BrandForm({ data, onSaved }: BrandFormProps) {
       className="card p-4 sm:p-6 space-y-5"
     >
       <TextField
-        label="Nama brand"
+        label={tt("Nama brand")}
         value={nama}
         onChange={(v) => {
           setNama(v);
@@ -205,14 +209,14 @@ function BrandForm({ data, onSaved }: BrandFormProps) {
         maxLength={NAME_MAX}
         showCount
         autoComplete="off"
-        placeholder="Nama yang dipakai di posting"
+        placeholder={tt("Nama yang dipakai di posting")}
         error={nameError}
-        hint="AI menyebut brand dengan nama ini."
+        hint={tt("AI menyebut brand dengan nama ini.")}
         disabled={saving}
       />
 
       <TextAreaField
-        label="Deskripsi brand"
+        label={tt("Deskripsi brand")}
         value={deskripsi}
         onChange={(v) => {
           setDeskripsi(v);
@@ -220,15 +224,15 @@ function BrandForm({ data, onSaved }: BrandFormProps) {
         }}
         maxLength={DESC_MAX}
         rows={5}
-        placeholder="Contoh: kedai makan keluarga dengan harga terjangkau. Gaya bicara santai dan hangat, suka bercanda ringan, tidak pernah menjelekkan kompetitor."
-        hint="AI memakai deskripsi ini supaya posting terdengar seperti brand Anda: ceritakan apa yang dijual, untuk siapa, dan gaya bicaranya. Disimpan sebagai satu paragraf."
+        placeholder={tt("Contoh: kedai makan keluarga dengan harga terjangkau. Gaya bicara santai dan hangat, suka bercanda ringan, tidak pernah menjelekkan kompetitor.")}
+        hint={tt("AI memakai deskripsi ini supaya posting terdengar seperti brand Anda: ceritakan apa yang dijual, untuk siapa, dan gaya bicaranya. Disimpan sebagai satu paragraf.")}
         disabled={saving}
       />
 
       <div>
         <div className="mb-1.5 flex items-baseline justify-between gap-3">
           <label htmlFor={topicId} className="text-[13px] font-semibold text-fg">
-            Topik terlarang
+            {tt("Topik terlarang")}
           </label>
           <span className="text-xs text-faint tabular-nums shrink-0">
             {topik.length}/{TOPICS_MAX}
@@ -250,7 +254,7 @@ function BrandForm({ data, onSaved }: BrandFormProps) {
             }}
             maxLength={400}
             autoComplete="off"
-            placeholder="Contoh: politik"
+            placeholder={tt("Contoh: politik")}
             disabled={saving || full}
             aria-invalid={topicError ? true : undefined}
             aria-describedby={`${topicId}-msg`}
@@ -258,7 +262,7 @@ function BrandForm({ data, onSaved }: BrandFormProps) {
           />
           <button type="button" onClick={addTopics} disabled={saving || full || !draft.trim()} className={cn(BTN_OUTLINE, "h-11 shrink-0")}>
             <Plus className="w-4 h-4" />
-            Tambah
+            {tt("Tambah")}
           </button>
         </div>
         {topicError ? (
@@ -268,13 +272,13 @@ function BrandForm({ data, onSaved }: BrandFormProps) {
         ) : (
           <p id={`${topicId}-msg`} className="mt-1.5 text-xs text-muted leading-relaxed">
             {full
-              ? `Daftar sudah penuh (${TOPICS_MAX} topik). Hapus satu untuk menambah yang lain.`
-              : `AI tidak akan menulis tentang topik ini di akun mana pun. Tekan Enter atau koma untuk menambahkan; satu topik ${TOPIC_MIN}-${TOPIC_MAX} karakter.`}
+              ? tt("Daftar sudah penuh ({n} topik). Hapus satu untuk menambah yang lain.", { n: TOPICS_MAX })
+              : tt("AI tidak akan menulis tentang topik ini di akun mana pun. Tekan Enter atau koma untuk menambahkan; satu topik {min}-{max} karakter.", { min: TOPIC_MIN, max: TOPIC_MAX })}
           </p>
         )}
 
         {topik.length > 0 && (
-          <ul aria-label="Daftar topik terlarang" className="mt-3 flex flex-wrap gap-2">
+          <ul aria-label={tt("Daftar topik terlarang")} className="mt-3 flex flex-wrap gap-2">
             {topik.map((t) => (
               <li key={t} className="h-10 pl-3.5 rounded-full bg-subtle text-[13px] font-medium text-fg inline-flex items-center max-w-full">
                 <span className="truncate">{t}</span>
@@ -286,7 +290,7 @@ function BrandForm({ data, onSaved }: BrandFormProps) {
                     touch();
                   }}
                   disabled={saving}
-                  aria-label={`Hapus topik ${t}`}
+                  aria-label={tt("Hapus topik {topic}", { topic: t })}
                   className="w-10 h-10 shrink-0 rounded-full inline-flex items-center justify-center text-muted hover:text-danger cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <X className="w-4 h-4" />
@@ -304,22 +308,22 @@ function BrandForm({ data, onSaved }: BrandFormProps) {
           {saved && !dirty ? (
             <span className="inline-flex items-center gap-1.5 text-success">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
-              Perubahan tersimpan.
+              {tt("Perubahan tersimpan.")}
             </span>
           ) : dirty ? (
-            <span className="text-muted">Ada perubahan yang belum disimpan.</span>
+            <span className="text-muted">{tt("Ada perubahan yang belum disimpan.")}</span>
           ) : null}
         </p>
         <div className="flex flex-col-reverse sm:flex-row gap-2">
           {dirty && (
             <button type="button" onClick={reset} disabled={saving} className={BTN_OUTLINE}>
               <Undo2 className="w-4 h-4" />
-              Batalkan
+              {tt("Batalkan")}
             </button>
           )}
           <button type="submit" disabled={!dirty || !!nameError || saving} className={BTN_PRIMARY}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {saving ? "Menyimpan..." : "Simpan"}
+            {saving ? tt("Menyimpan...") : tt("Simpan")}
           </button>
         </div>
       </div>
@@ -330,18 +334,19 @@ function BrandForm({ data, onSaved }: BrandFormProps) {
 /** Tab Brand: nama dan deskripsi brand (dipakai prompt AI) dan daftar topik terlarang. */
 export function BrandTab() {
   const { data, error, status, loading, reload, mutate } = useRemote<WorkspaceSettingsResponse>("brand", fetchWorkspaceSettings, LOAD_ERROR);
+  const t = useT();
 
   if (loading) return <BrandSkeleton />;
-  if (!data) return <LoadError message={error ?? LOAD_ERROR} status={status} onRetry={reload} />;
+  if (!data) return <LoadError message={error ?? t(LOAD_ERROR)} status={status} onRetry={reload} />;
   if (!data.canEdit) return <BrandReadOnly data={data} />;
 
   return (
     <div className="space-y-4">
       {error && (
         <Banner tone="danger">
-          Gagal menyegarkan data: {error}{" "}
+          {t("Gagal menyegarkan data: {error}", { error })}{" "}
           <button type="button" onClick={reload} className="underline font-semibold cursor-pointer">
-            Coba lagi
+            {t("Coba lagi")}
           </button>
         </Banner>
       )}

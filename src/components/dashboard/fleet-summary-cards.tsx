@@ -5,6 +5,7 @@ import { formatNumber } from "@/lib/utils";
 import { Users, Eye, FileText, TrendingUp, UserCheck, type LucideIcon } from "lucide-react";
 import type { Delta } from "@/lib/report";
 import { DeltaBadge } from "@/components/ui/delta-badge";
+import { useT } from "@/components/i18n/lang-provider";
 
 interface FleetSummaryCardsProps {
   isAll: boolean;
@@ -46,22 +47,23 @@ export function FleetSummaryCards({
   deltas,
   loading = false,
 }: FleetSummaryCardsProps) {
+  const t = useT();
   const cards: Card[] = [
     {
-      title: isAll ? "Akun" : "Akun dipilih",
+      title: isAll ? t("Akun@@jumlah") : t("Akun dipilih"),
       value: isAll ? String(activeAccounts) : `@${accountName}`,
-      hint: isAll ? "Semua akun terhubung" : displayName,
+      hint: isAll ? t("Semua akun terhubung") : displayName,
       icon: Users,
       tone: "bg-subtle text-muted",
     },
     {
-      title: isAll ? "Total pengikut" : "Pengikut akun",
+      title: isAll ? t("Total pengikut") : t("Pengikut akun"),
       value:
         totalFollowers !== null && totalFollowers !== undefined
           ? formatNumber(totalFollowers)
           : "-",
       hint: isAll
-        ? `Gabungan dari ${activeAccounts} cabang`
+        ? t("Gabungan dari {n} cabang", { n: activeAccounts })
         : displayName,
       icon: UserCheck,
       tone: "bg-accent-soft text-accent",
@@ -71,28 +73,32 @@ export function FleetSummaryCards({
         ) : undefined,
     },
     {
-      title: "Total penayangan",
+      title: t("Total penayangan"),
       value: formatNumber(totalViews),
-      hint: "Berapa kali postingan dilihat",
+      hint: t("Berapa kali postingan dilihat"),
       icon: Eye,
       tone: "bg-accent-soft text-accent",
       delta: deltas && <DeltaBadge delta={deltas.views} />,
     },
     {
-      title: "Postingan terbit",
+      title: t("Postingan terbit"),
       value: formatNumber(totalPosts),
-      hint: "Postingan baru pada periode ini",
+      hint: t("Postingan baru pada periode ini"),
       icon: FileText,
       tone: "bg-warning-soft text-warning",
       delta: deltas && <DeltaBadge delta={deltas.posts} />,
     },
     {
-      title: "Tingkat interaksi",
+      title: t("Tingkat interaksi"),
       value: `${avgER}%`,
-      hint: `${formatNumber(totalInteractions)} interaksi: ${formatNumber(totalLikes)} suka, ${formatNumber(totalReplies)} komentar`,
+      hint: t("{interactions} interaksi: {likes} suka, {replies} komentar", {
+        interactions: formatNumber(totalInteractions),
+        likes: formatNumber(totalLikes),
+        replies: formatNumber(totalReplies),
+      }),
       icon: TrendingUp,
       tone: "bg-success-soft text-success",
-      delta: deltas && <DeltaBadge delta={deltas.er} unit=" poin" />,
+      delta: deltas && <DeltaBadge delta={deltas.er} unit={` ${t("poin")}`} />,
     },
   ];
 

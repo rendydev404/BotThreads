@@ -4,6 +4,7 @@ import React, { useSyncExternalStore } from "react";
 import { Monitor, Settings, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThreadsMark } from "@/components/landing/threads-mark";
+import { useT } from "@/components/i18n/lang-provider";
 
 /**
  * Tombol "hubungkan akun Threads" bergaya merek Threads: logo Threads, hitam di tema terang dan putih di
@@ -34,19 +35,26 @@ export function ThreadsConnectButton({
   disabledTitle?: string;
   className?: string;
 }) {
+  // Label boleh berupa teks sumber (ID) atau sudah diterjemahkan pemanggil: t() pada teks EN tetap mengembalikannya apa adanya.
+  const t = useT();
   const icon = <ThreadsMark className={size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4"} />;
   if (disabled) {
     return (
-      <button type="button" disabled title={disabledTitle} className={cn(BASE, SIZE[size], "opacity-50 cursor-not-allowed", className)}>
+      <button
+        type="button"
+        disabled
+        title={disabledTitle ? t(disabledTitle) : disabledTitle}
+        className={cn(BASE, SIZE[size], "opacity-50 cursor-not-allowed", className)}
+      >
         {icon}
-        {label}
+        {t(label)}
       </button>
     );
   }
   return (
     <a href={reconnect ? "/api/threads/oauth?reconnect=1" : "/api/threads/oauth"} className={cn(BASE, SIZE[size], className)}>
       {icon}
-      {label}
+      {t(label)}
     </a>
   );
 }
@@ -61,6 +69,7 @@ const isAndroid = () => /Android/i.test(navigator.userAgent);
  * didukung" untuk aplikasi Threads. Di luar Android tidak ditampilkan.
  */
 export function ThreadsAndroidHelp({ className }: { className?: string }) {
+  const t = useT();
   const android = useSyncExternalStore(noop, isAndroid, () => false);
   const dashboardUrl = useSyncExternalStore(noop, () => `${window.location.host}/akun`, () => "");
   if (!android) return null;
@@ -69,46 +78,50 @@ export function ThreadsAndroidHelp({ className }: { className?: string }) {
     <div className={cn("rounded-xl border border-line bg-subtle p-4 text-left text-[13px] text-muted leading-relaxed", className)}>
       <p className="font-semibold text-fg text-sm flex items-center gap-2">
         <Smartphone className="w-4 h-4 text-accent shrink-0" />
-        Pakai HP Android? Aplikasi Threads bisa terbuka sendiri
+        {t("Pakai HP Android? Aplikasi Threads bisa terbuka sendiri")}
       </p>
       <p className="mt-1">
-        Bila aplikasi Threads terpasang, halaman login Threads (milik Meta) langsung pindah ke aplikasi sehingga dialog izin tidak
-        muncul. Pilih salah satu cara ini:
+        {t(
+          "Bila aplikasi Threads terpasang, halaman login Threads (milik Meta) langsung pindah ke aplikasi sehingga dialog izin tidak muncul. Pilih salah satu cara ini:"
+        )}
       </p>
 
       <div className="mt-3 rounded-lg bg-surface border border-line p-3">
         <p className="font-semibold text-fg flex items-center gap-2">
           <Monitor className="w-4 h-4 shrink-0" />
-          Cara 1 (paling mudah): lewat komputer
+          {t("Cara 1 (paling mudah): lewat komputer")}
         </p>
         <ol className="mt-1.5 list-decimal pl-5 space-y-0.5">
           <li>
-            Buka <b className="text-fg break-all">{dashboardUrl}</b> di browser komputer, masuk dengan akun dashboard yang sama.
+            {t("Buka")} <b className="text-fg break-all">{dashboardUrl}</b>{" "}
+            {t("di browser komputer, masuk dengan akun dashboard yang sama.")}
           </li>
           <li>
-            Klik <b>Hubungkan Akun Threads</b>, masuk ke Threads, lalu tekan <b>Izinkan</b>.
+            {t("Klik")} <b>{t("Hubungkan Akun Threads")}</b>
+            {t(", masuk ke Threads, lalu tekan")} <b>{t("Izinkan")}</b>.
           </li>
-          <li>Selesai. Akun langsung bisa dipakai juga dari HP ini.</li>
+          <li>{t("Selesai. Akun langsung bisa dipakai juga dari HP ini.")}</li>
         </ol>
       </div>
 
       <div className="mt-2.5 rounded-lg bg-surface border border-line p-3">
         <p className="font-semibold text-fg flex items-center gap-2">
           <Settings className="w-4 h-4 shrink-0" />
-          Cara 2: tetap dari HP ini
+          {t("Cara 2: tetap dari HP ini")}
         </p>
         <ol className="mt-1.5 list-decimal pl-5 space-y-0.5">
           <li>
-            Buka <b>Setelan HP &gt; Aplikasi &gt; Threads</b>.
+            {t("Buka")} <b>{t("Setelan HP > Aplikasi > Threads")}</b>.
           </li>
           <li>
-            Ketuk <b>Buka secara default</b> (di Samsung: <b>Tetapkan sebagai default</b>), lalu matikan <b>Buka link yang didukung</b>.
+            {t("Ketuk")} <b>{t("Buka secara default")}</b> {t("(di Samsung:")} <b>{t("Tetapkan sebagai default")}</b>
+            {t("), lalu matikan")} <b>{t("Buka link yang didukung")}</b>.
           </li>
           <li>
-            Kembali ke sini, ketuk <b>Hubungkan Akun Threads</b>, masuk dengan username dan password Threads, lalu tekan{" "}
-            <b>Izinkan</b>.
+            {t("Kembali ke sini, ketuk")} <b>{t("Hubungkan Akun Threads")}</b>
+            {t(", masuk dengan username dan password Threads, lalu tekan")} <b>{t("Izinkan")}</b>.
           </li>
-          <li>Setelah terhubung, setelan tadi boleh dinyalakan lagi.</li>
+          <li>{t("Setelah terhubung, setelan tadi boleh dinyalakan lagi.")}</li>
         </ol>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { Check, ChevronDown, Search, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { REASON_LABEL, type PublishAccountDTO } from "@/lib/content-types";
 import { AccountAvatar } from "./post-status-chip";
+import { useT } from "@/components/i18n/lang-provider";
 import { ModalButton, ModalShell } from "./modal-shell";
 
 interface AccountPickerProps {
@@ -36,10 +37,11 @@ export function AccountPicker({
   max = 10,
   disabled,
   loading,
-  placeholder = "Pilih akun",
+  placeholder,
   className,
   compact,
 }: AccountPickerProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -78,10 +80,10 @@ export function AccountPicker({
   };
 
   const label = (() => {
-    if (loading) return "Memuat akun...";
-    if (selected.length === 0) return placeholder;
+    if (loading) return t("Memuat akun...");
+    if (selected.length === 0) return placeholder ?? t("Pilih akun");
     if (!multiple || selected.length === 1) return `@${handle(selected[0])}`;
-    return `${selected.length} akun dipilih`;
+    return t("{n} akun dipilih", { n: selected.length });
   })();
 
   return (
@@ -112,20 +114,20 @@ export function AccountPicker({
       <ModalShell
         open={open}
         onClose={close}
-        title={multiple ? "Pilih akun tujuan" : "Pilih akun"}
+        title={multiple ? t("Pilih akun tujuan") : t("Pilih akun")}
         description={
           multiple
-            ? `${value.length}/${max} dipilih. ${readyCount} dari ${accounts.length} akun siap diposting.`
-            : `${readyCount} dari ${accounts.length} akun siap diposting.`
+            ? t("{count}/{max} dipilih. {ready} dari {total} akun siap diposting.", { count: value.length, max, ready: readyCount, total: accounts.length })
+            : t("{ready} dari {total} akun siap diposting.", { ready: readyCount, total: accounts.length })
         }
         footer={
           multiple ? (
             <>
               {value.length > 0 && (
-                <ModalButton onClick={() => onChange([])}>Kosongkan</ModalButton>
+                <ModalButton onClick={() => onChange([])}>{t("Kosongkan")}</ModalButton>
               )}
               <ModalButton variant="primary" onClick={close}>
-                Selesai
+                {t("Selesai")}
               </ModalButton>
             </>
           ) : undefined
@@ -138,12 +140,12 @@ export function AccountPicker({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari nama cabang atau @username"
-            aria-label="Cari akun"
+            placeholder={t("Cari nama cabang atau @username")}
+            aria-label={t("Cari akun")}
             className="w-full h-11 pl-10 pr-3 rounded-xl bg-subtle border border-transparent text-sm text-fg placeholder-faint outline-none focus:bg-surface focus:border-accent transition-colors"
           />
         </div>
-        <ul role="listbox" aria-label="Daftar akun" aria-multiselectable={multiple} className="space-y-1">
+        <ul role="listbox" aria-label={t("Daftar akun")} aria-multiselectable={multiple} className="space-y-1">
           {filtered.map((a) => {
             const isSel = value.includes(a.id);
             const blocked = !a.ready;
@@ -165,7 +167,7 @@ export function AccountPicker({
                     <span className="block text-sm font-semibold text-fg truncate">{a.outletNama ?? a.displayName}</span>
                     <span className="block text-xs text-muted truncate">
                       @{handle(a)}
-                      {blocked && a.reason ? ` · ${REASON_LABEL[a.reason]}` : ""}
+                      {blocked && a.reason ? ` · ${t(REASON_LABEL[a.reason])}` : ""}
                     </span>
                   </span>
                   <span
@@ -183,7 +185,7 @@ export function AccountPicker({
             );
           })}
           {filtered.length === 0 && (
-            <li className="py-10 text-center text-sm text-muted">Tidak ada akun yang cocok dengan &ldquo;{query}&rdquo;.</li>
+            <li className="py-10 text-center text-sm text-muted">{t("Tidak ada akun yang cocok dengan “{query}”.", { query })}</li>
           )}
         </ul>
       </ModalShell>

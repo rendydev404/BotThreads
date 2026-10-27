@@ -7,6 +7,8 @@ import { AccountAvatar } from "@/components/content/post-status-chip";
 import { fetchOnboarding, runOnboardingAgent, type OnboardingDTO, type OnboardStepKey, type OnboardStepStatus } from "@/lib/ai-client";
 import { cn } from "@/lib/utils";
 import { AgentSteps, type AgentStepStatus } from "./agent-ui";
+import { useT } from "@/components/i18n/lang-provider";
+import type { TFunction } from "@/lib/i18n/core";
 
 const LABELS: Record<OnboardStepKey, string> = {
   baca: "Membaca postingan & metrik akun",
@@ -38,6 +40,25 @@ interface AccountLite {
   avatarUrl: string | null;
 }
 
+/** Keterangan langkah dari server (teks Indonesia tetap, sebagian memuat angka): terjemahkan untuk tampilan. */
+const DYNAMIC_DETAILS: [RegExp, (m: RegExpExecArray, t: TFunction) => string][] = [
+  [/^(\d+) postingan dibaca$/, (m, t) => t("{n} postingan dibaca", { n: Number(m[1]) })],
+  [/^(\d+) tren di niche akun$/, (m, t) => t("{n} tren di niche akun", { n: Number(m[1]) })],
+  [
+    /^(\d+) ide baru siap dipakai, (\d+) ide lama diganti$/,
+    (m, t) => `${t("{n} ide baru siap dipakai", { n: Number(m[1]) })}, ${t("{n} ide lama diganti", { n: Number(m[2]) })}`,
+  ],
+  [/^(\d+) ide baru siap dipakai$/, (m, t) => t("{n} ide baru siap dipakai", { n: Number(m[1]) })],
+];
+
+function localizeDetail(t: TFunction, detail: string): string {
+  for (const [re, fmt] of DYNAMIC_DETAILS) {
+    const m = re.exec(detail);
+    if (m) return fmt(m, t);
+  }
+  return t(detail);
+}
+
 function readDismissed(): Set<string> {
   try {
     return new Set(JSON.parse(localStorage.getItem(DISMISS_KEY) ?? "[]") as string[]);
@@ -62,6 +83,7 @@ export function OnboardingPanel({
   canRun: boolean;
   onOpenProfile: (accountId: string) => void;
 }) {
+  const t = useT();
   const [items, setItems] = useState<OnboardingDTO[]>([]);
   /** Waktu data terakhir diterima: dipakai sebagai "sekarang" tanpa Date.now() saat render. */
   const [loadedAt, setLoadedAt] = useState(0);
@@ -160,17 +182,17 @@ export function OnboardingPanel({
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-fg">
                   {live ? (
-                    <span className="ai-shimmer-text">Agen AI sedang mempelajari @{acc.username}</span>
+                    <span className="ai-shimmer-text">{t("Agen AI sedang mempelajari @{username}", { username: acc.username })}</span>
                   ) : i.status === "SELESAI" ? (
-                    `Agen AI selesai mempelajari @${acc.username}`
+                    t("Agen AI selesai mempelajari @{username}", { username: acc.username })
                   ) : (
-                    `Agen AI belum selesai mempelajari @${acc.username}`
+                    t("Agen AI belum selesai mempelajari @{username}", { username: acc.username })
                   )}
                 </p>
                 <p className="mt-0.5 text-xs text-muted">
                   {live
-                    ? "Membaca postingan, mengenali peran akun, mencari tren niche, lalu menyiapkan draf pertama hari ini."
-                    : "Tren, ide, dan draf pertama sudah disiapkan untuk akun ini."}
+                    ? t("Membaca postingan, mengenali peran akun, mencari tren niche, lalu menyiapkan draf pertama hari ini.")
+                    : t("Tren, ide, dan draf pertama sudah disiapkan untuk akun ini.")}
                 </p>
                 <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-subtle">
                   <div
@@ -183,7 +205,7 @@ export function OnboardingPanel({
                 <button
                   type="button"
                   onClick={() => dismiss(i)}
-                  aria-label="Tutup panel agen"
+                  aria-label={t("Tutup panel agen")}
                   className="rounded-lg p-1 text-muted hover:bg-subtle hover:text-fg cursor-pointer"
                 >
                   <X className="h-4 w-4" />
@@ -195,9 +217,9 @@ export function OnboardingPanel({
               <AgentSteps
                 steps={i.steps.map((s) => ({
                   key: s.key,
-                  label: LABELS[s.key] ?? s.key,
+                  label: t(LABELS[s.key] ?? s.key),
                   status: STATUS[s.status],
-                  detail: s.detail,
+                  detail: s.detail ? localizeDetail(t, s.detail) : s.detail,
                   items: s.items,
                 }))}
               />
@@ -210,7 +232,7 @@ export function OnboardingPanel({
                     href="/radar?tab=ide"
                     className="inline-flex h-9 items-center gap-1.5 rounded-full bg-accent px-4 text-xs font-semibold text-on-accent hover:bg-accent-hover"
                   >
-                    <Lightbulb className="h-3.5 w-3.5" /> Lihat ide <ArrowRight className="h-3.5 w-3.5" />
+                    <Lightbulb className="h-3.5 w-3.5" /> {t("Lihat ide")} <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                 )}
                 <button
@@ -218,7 +240,7 @@ export function OnboardingPanel({
                   onClick={() => onOpenProfile(i.accountId)}
                   className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line-strong px-4 text-xs font-semibold text-fg hover:border-accent hover:text-accent cursor-pointer"
                 >
-                  <SlidersHorizontal className="h-3.5 w-3.5" /> Atur Profil AI
+                  <SlidersHorizontal className="h-3.5 w-3.5" /> {t("Atur Profil AI")}
                 </button>
                 {canRun && (
                   <button
@@ -227,7 +249,7 @@ export function OnboardingPanel({
                     onClick={() => void runAgain(i.accountId)}
                     className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-muted hover:text-fg disabled:opacity-50 cursor-pointer"
                   >
-                    <RefreshCw className={cn("h-3.5 w-3.5", rerun === i.accountId && "animate-spin")} /> Jalankan ulang
+                    <RefreshCw className={cn("h-3.5 w-3.5", rerun === i.accountId && "animate-spin")} /> {t("Jalankan ulang")}
                   </button>
                 )}
               </div>

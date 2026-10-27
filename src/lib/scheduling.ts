@@ -8,6 +8,7 @@ import {
   SCHEDULE_MIN_LEAD_MS,
   SLOT_MIN_LEAD_MS,
 } from "./content-config";
+import { tr } from "./i18n/core";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -70,13 +71,14 @@ export function dayOffsetFromKey(now: Date, key: string): number | null {
 /** "Senin 12.00 WIB" */
 export function formatWibLabel(date: Date): string {
   const p = wibParts(date);
-  return `${DAY_NAMES[p.dow]} ${pad2(p.h)}.${pad2(p.min)} WIB`;
+  return `${tr(DAY_NAMES[p.dow])} ${pad2(p.h)}.${pad2(p.min)} WIB`;
 }
 
 /** "13 Okt 2026, 12.00 WIB" */
 export function formatWibFull(date: Date): string {
   const p = wibParts(date);
-  return `${p.d} ${MONTH_SHORT[p.m]} ${p.y}, ${pad2(p.h)}.${pad2(p.min)} WIB`;
+  // tr(): di browser mengikuti bahasa UI; di server (prompt AI) selalu bahasa Indonesia.
+  return `${p.d} ${tr(MONTH_SHORT[p.m])} ${p.y}, ${pad2(p.h)}.${pad2(p.min)} WIB`;
 }
 
 /* ------------------------------------------------------------------ jam terbaik */

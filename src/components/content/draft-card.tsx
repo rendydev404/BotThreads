@@ -17,12 +17,12 @@ import {
 import { cn } from "@/lib/utils";
 import { ContentApiError, createPosts, newIdempotencyKey, recommend } from "@/lib/content-client";
 import type { BestHourDTO, ContentDraft, PostStatusKey } from "@/lib/content-types";
-import { formatWibFull } from "@/lib/scheduling";
+import { useT } from "@/components/i18n/lang-provider";
 import { AccountPicker } from "./account-picker";
 import { AccountAvatar, PostStatusChip } from "./post-status-chip";
-import { PostTextField, checkPostText, type PostTextState } from "./post-text-field";
+import { PostTextField, checkPostText, tContentMessage, type PostTextState } from "./post-text-field";
 import { PublishConfirmModal } from "./publish-confirm-modal";
-import { SchedulePicker, type ScheduleValue } from "./schedule-picker";
+import { SchedulePicker, useWibFormat, type ScheduleValue } from "./schedule-picker";
 import { usePostStatusPoll } from "./use-post-status-poll";
 import { usePublishAccounts } from "./use-publish-accounts";
 
@@ -58,6 +58,8 @@ const SECONDARY_BTN =
  * otomatis; antrean baru terisi setelah pengguna mengonfirmasi lewat modal.
  */
 export function DraftCard({ draft, index }: { draft: ContentDraft; index?: number }) {
+  const t = useT();
+  const wib = useWibFormat();
   const { accounts, publishEnabled, loading } = usePublishAccounts();
   const [accountId, setAccountId] = useState(draft.threadsAccountId);
   const [fields, setFields] = useState<PostTextState>({ text: draft.text, topic: draft.topicTag ?? "" });
@@ -81,7 +83,7 @@ export function DraftCard({ draft, index }: { draft: ContentDraft; index?: numbe
   const polled = usePostStatusPoll(sent?.mode === "now" ? [sent.postId] : []);
   const live = sent ? polled[sent.postId] : undefined;
 
-  const username = account?.username ?? draft.username ?? "akun";
+  const username = account?.username ?? draft.username ?? t("akun");
   const accountReady = !!account?.ready;
   const canSubmit = publishEnabled && accountReady && check.valid && !busy && !loading;
   const aiEdited = fields.text.trim() !== original.trim();
@@ -185,13 +187,18 @@ export function DraftCard({ draft, index }: { draft: ContentDraft; index?: numbe
         {sent.movedFrom && (
           <p className="flex items-start gap-2 rounded-xl bg-accent-soft text-accent p-3 text-[13px] font-medium">
             <Sparkles className="w-4 h-4 mt-0.5 shrink-0" />
-            Digeser otomatis dari {formatWibFull(new Date(sent.movedFrom))} ke {formatWibFull(new Date(sent.at))} supaya tidak bentrok dengan postingan lain di akun ini.
+            {t("Digeser otomatis dari {from} ke {to} supaya tidak bentrok dengan postingan lain di akun ini.", {
+              from: wib.full(new Date(sent.movedFrom)),
+              to: wib.full(new Date(sent.at)),
+            })}
           </p>
         )}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] text-muted">
           <span className="inline-flex items-center gap-1.5">
             <CalendarClock className="w-3.5 h-3.5" />
-            {sent.mode === "now" && status !== "SCHEDULED" ? "Diposting sekarang" : `Tayang ${formatWibFull(new Date(live?.tayangPada ?? sent.at))}`}
+            {sent.mode === "now" && status !== "SCHEDULED"
+              ? t("Diposting sekarang")
+              : t("Tayang {when}", { when: wib.full(new Date(live?.tayangPada ?? sent.at)) })}
           </span>
           {live?.releaseUrl && (
             <a
@@ -201,17 +208,17 @@ export function DraftCard({ draft, index }: { draft: ContentDraft; index?: numbe
               className="inline-flex items-center gap-1.5 font-semibold text-accent hover:underline"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              Lihat di Threads
+              {t("Lihat di Threads")}
             </a>
           )}
           <Link href="/jadwal" className="font-semibold text-accent hover:underline">
-            Buka Jadwal Konten
+            {t("Buka Jadwal Konten")}
           </Link>
         </div>
         {status === "FAILED" && live?.pesanError && (
           <p className="flex items-start gap-2 rounded-xl bg-danger-soft text-danger p-3 text-[13px] font-medium">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-            {live.pesanError}
+            {tContentMessage(t, live.pesanError)}
           </p>
         )}
       </div>
@@ -233,7 +240,7 @@ export function DraftCard({ draft, index }: { draft: ContentDraft; index?: numbe
           )}
         </div>
         <span className="inline-flex items-center h-7 px-2.5 rounded-full bg-accent-soft text-accent text-xs font-semibold max-w-full truncate">
-          {index ? `Draf ${index} · ` : ""}
+          {index ? `${t("Draf {n}", { n: index })} · ` : ""}
           {meta.angle}
         </span>
       </div>
@@ -259,18 +266,18 @@ export function DraftCard({ draft, index }: { draft: ContentDraft; index?: numbe
       {account && !account.ready && (
         <p className="flex items-start gap-2 rounded-xl bg-warning-soft text-warning p-3 text-[13px] font-medium">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          Akun ini belum siap diposting. Pilih akun lain.
+          {t("Akun ini belum siap diposting. Pilih akun lain.")}
         </p>
       )}
       {!loading && !publishEnabled && (
         <p className="flex items-start gap-2 rounded-xl bg-subtle text-muted p-3 text-[13px] font-medium">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
-          Fitur posting belum diaktifkan oleh pemilik dashboard. Draf tetap bisa disalin atau diedit.
+          {t("Fitur posting belum diaktifkan oleh pemilik dashboard. Draf tetap bisa disalin atau diedit.")}
         </p>
       )}
       {regenError && (
         <p role="alert" className="text-[13px] font-medium text-danger">
-          {regenError}
+          {tContentMessage(t, regenError)}
         </p>
       )}
 
@@ -282,7 +289,7 @@ export function DraftCard({ draft, index }: { draft: ContentDraft; index?: numbe
           className="h-10 px-5 rounded-full text-[13px] font-semibold inline-flex items-center justify-center gap-1.5 bg-accent text-on-accent hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Send className="w-4 h-4" />
-          Posting sekarang
+          {t("Posting sekarang")}
         </button>
         <button
           type="button"
@@ -291,15 +298,15 @@ export function DraftCard({ draft, index }: { draft: ContentDraft; index?: numbe
           className={SECONDARY_BTN}
         >
           <CalendarClock className="w-4 h-4" />
-          Jadwalkan
+          {t("Jadwalkan")}
         </button>
         <button type="button" onClick={copy} className={SECONDARY_BTN}>
           {copied ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
-          {copied ? "Tersalin" : "Salin"}
+          {copied ? t("Tersalin") : t("Salin")}
         </button>
         <button type="button" onClick={regenerate} disabled={regenerating || busy} className={cn(SECONDARY_BTN)}>
           {regenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          Buat ulang
+          {t("Buat ulang")}
         </button>
       </div>
 
@@ -317,7 +324,7 @@ export function DraftCard({ draft, index }: { draft: ContentDraft; index?: numbe
             text: fields.text.trim(),
             whenLabel:
               pending === "schedule" && schedule.mode === "at" && schedule.at
-                ? formatWibFull(new Date(schedule.at))
+                ? wib.full(new Date(schedule.at))
                 : undefined,
           },
         ]}

@@ -28,6 +28,7 @@ import { LandingFooter } from "@/components/landing/legal-section";
 import { HeroStatus, HeroTry } from "@/components/landing/hero-interactive";
 import { LandingMotion, Magnetic, Tilt } from "@/components/landing/motion";
 import { Pricing } from "@/components/landing/pricing";
+import { SystemFlow } from "@/components/flow/system-flow";
 import { ThreadsMark, ThreadsPost } from "@/components/landing/threads-mark";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import "./landing.css";
@@ -83,7 +84,7 @@ function HeroDesc() {
 const AUTOMATION_FACTS = [
   { Icon: Workflow, value: "6 tahap", label: "dari tren sampai terbit, berjalan sendiri" },
   { Icon: ShieldCheck, value: "4 cek", label: "plus skor editor AI sebelum antre" },
-  { Icon: Clock, value: "≥ 2,5 jam", label: "jeda antarposting di jam ramai akun" },
+  { Icon: Clock, value: "2,5 jam", label: "jeda bawaan antarposting, di jam ramai akun" },
   { Icon: BadgeCheck, value: "API resmi", label: "terbit dan statistik lewat Threads" },
 ];
 
@@ -105,30 +106,48 @@ const LEARNING = [
   },
 ];
 
+// Setiap jawaban mengikuti perilaku sistem yang sebenarnya (autopilot-config, autopilot-gate, radar, midtrans,
+// legal-content). Ubah bersama kodenya bila aturannya berubah.
 const FAQ = [
   {
+    q: "BotThreads itu sebenarnya apa?",
+    a: "Asisten AI untuk akun Threads. Setiap hari ia mencari ide, menulis posting dengan gaya akun Anda, memeriksanya, lalu memposting di jam ketika pengikut akun itu paling aktif. Anda cukup menghubungkan akun dan mengisi profil brand sekali di awal. Setelah itu Anda tinggal memantau hasilnya, atau ikut menyetujui setiap posting bila mau.",
+  },
+  {
+    q: "Apakah saya harus memberikan kata sandi Threads?",
+    a: "Tidak. Akun dihubungkan lewat halaman login resmi Threads, jadi kata sandi Anda tidak pernah kami terima. Memposting, membaca statistik, dan mencari posting populer semuanya memakai API resmi Threads. Permintaan penghapusan data bisa diajukan kapan saja lewat halaman Penghapusan Data di bagian bawah situs ini.",
+  },
+  {
+    q: "Apakah setiap posting harus saya setujui dulu?",
+    a: "Anda yang memilih, per akun. Mode Tinjau dulu: AI menulis sekitar 6 jam sebelum jam tayang, lalu Anda menyetujui, mengedit, atau menolak. Draf yang belum disetujui sampai 15 menit sebelum jamnya dilewati, tidak diterbitkan. Mode Otomatis: AI menulis sekitar 90 menit sebelum jam tayang, dan draf yang lolos pemeriksaan terbit sendiri. Beberapa paket hanya menyediakan mode Tinjau dulu.",
+  },
+  {
     q: "Apakah AI bisa memposting sesuatu yang memalukan brand saya?",
-    a: "Setiap draf melewati pemeriksaan aturan (bentuk, klaim harga dan promo, topik terlarang, kembar dengan akun lain) lalu dinilai editor AI. Yang tidak lolos ditulis ulang atau dilewati. Anda juga bisa memulai dengan mode Tinjau dulu, di mana tidak ada yang terbit tanpa persetujuan Anda.",
+    a: "Setiap draf diperiksa dulu: harga, persen, dan kata promo hanya boleh muncul bila ada di data brand Anda. Topik sensitif dan kata terlarang diblokir, draf tidak boleh mirip posting akun lain Anda di hari yang sama, dan panjangnya dicek. Setelah itu draf dinilai editor AI dan harus mendapat skor minimal 0,7 dari 1. Draf yang gagal ditulis ulang. Kalau tetap gagal, jadwal itu dilewati, bukan dipaksa terbit.",
   },
   {
     q: "Dari mana AI tahu harga, menu, dan promo saya?",
-    a: "Dari halaman Pengetahuan yang Anda isi sendiri: fakta, produk, promo beserta tanggal berakhirnya, dan larangan. AI tidak boleh menyebut harga atau promo yang tidak ada di sana.",
+    a: "Dari menu Pengetahuan yang Anda isi sendiri, dengan empat jenis isian: fakta brand, produk dan harga, promo beserta tanggal berakhirnya, serta larangan. Draf yang menyebut harga atau promo yang tidak tertulis di sana tidak lolos pemeriksaan.",
   },
   {
-    q: "Apakah ini mengambil data dari Threads secara diam-diam?",
-    a: "Tidak. Penerbitan dan statistik memakai API resmi Threads lewat login resmi Threads. Ide diambil dari posting akun Anda sendiri, tren pencarian Google Indonesia, momen kalender, dan catatan yang Anda tempel.",
+    q: "Dari mana ide postingannya?",
+    a: "Dari posting akun Anda yang paling ramai, tren pencarian Google di Indonesia, berita terbaru seputar niche akun Anda, posting Threads paling populer untuk topik yang sedang naik, momen kalender seperti gajian, tanggal tua, akhir pekan, dan momen yang Anda tambahkan sendiri, serta catatan inspirasi yang Anda tulis sendiri. Semua ide masuk ke menu Radar lengkap dengan skor dan contoh tulisannya. Sumbernya hanya dijadikan bahan, teksnya tidak disalin.",
+  },
+  {
+    q: "Berapa kali sehari akun saya posting, dan jam berapa?",
+    a: "Bawaannya 3 kali sehari per akun. Jumlahnya bisa Anda ubah sampai batas paket. Jamnya dipilih dari jam ketika pengikut akun itu paling aktif, dengan jeda antarposting bawaan 2,5 jam (bisa diatur 2 sampai 8 jam), jadi akun tidak terlihat seperti spam.",
   },
   {
     q: "Kalau hasilnya tidak cocok, bagaimana menghentikannya?",
-    a: "Satu tombol menjeda semua akun. Tiap posting yang sudah dijadwalkan tetap bisa diubah atau dibatalkan dari halaman Jadwal. Akun yang gagal terbit tiga kali berturut-turut dijeda otomatis.",
+    a: "Satu tombol di menu Autopilot menjeda semua akun sekaligus, dan autopilot tiap akun juga bisa dimatikan satu per satu. Posting yang sudah terjadwal tetap bisa diubah atau dibatalkan dari menu Jadwal. Sistem juga punya rem sendiri: akun yang gagal terbit tiga kali berturut-turut dijeda otomatis. Kalau views seminggu turun lebih dari separuh, akun itu pindah ke mode Tinjau dulu dan Anda diberi tahu.",
   },
   {
-    q: "Bagaimana cara pembayaran paket dan kapan layanan saya aktif?",
-    a: "Seluruh pembayaran ditagihkan dalam mata uang Rupiah (IDR) dan diproses secara resmi melalui Midtrans (QRIS, GoPay, ShopeePay, serta Virtual Account BCA, BNI, BRI, Mandiri, Permata, dan CIMB Niaga). Begitu pembayaran berstatus lunas, kuota paket langsung aktif otomatis pada workspace Anda dalam hitungan detik tanpa pengiriman fisik.",
+    q: "Bagaimana cara bayar, dan kapan paket aktif?",
+    a: "Pembayaran dalam Rupiah lewat Midtrans: QRIS, GoPay, ShopeePay, Virtual Account (BCA, BNI, BRI, Permata, CIMB Niaga), atau Mandiri Bill. Paket aktif otomatis begitu pembayaran lunas. Tidak ada potongan otomatis tiap bulan, jadi Anda memperpanjang sendiri bila ingin lanjut, dan sisa hari tidak hangus. Kalau paket habis, autopilot berhenti, tetapi data dan statistik Anda tetap bisa dibuka.",
   },
   {
-    q: "Apakah ada jaminan pengembalian dana (refund) atau biaya pembatalan?",
-    a: "Tidak ada biaya pembatalan maupun penarikan saldo otomatis (non-auto-debit). Kami juga menyediakan jaminan pengembalian dana (refund) hingga 7 hari kalender untuk pembelian paket awal yang belum terpakai, serta pengembalian 100% apabila terjadi kendala teknis aktivasi atau pembayaran ganda.",
+    q: "Bisakah uang saya dikembalikan (refund)?",
+    a: "Hanya bila ada kendala teknis yang bisa dibuktikan: pembayaran sudah lunas tetapi paket tidak aktif lebih dari 24 jam karena kesalahan sistem kami, atau saldo terpotong dua kali untuk tagihan yang sama. Pengajuan wajib menyertakan Order ID dan bukti pembayaran, lalu kami cocokkan dengan data Midtrans. Berubah pikiran atau tidak memakai layanan bukan alasan refund. Rinciannya ada di halaman Kebijakan Pengembalian.",
   },
 ];
 
@@ -173,11 +192,11 @@ export default function LandingPage() {
           </p>
 
           <nav className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-            <a href="#demo" className="hidden md:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
-              Demo
-            </a>
-            <a href="#cara-kerja" className="hidden lg:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
+            <a href="#cara-kerja" className="hidden md:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
               Cara kerja
+            </a>
+            <a href="#demo" className="hidden lg:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
+              Demo
             </a>
             <a href="#cara-mulai" className="hidden xl:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
               Cara mulai
@@ -276,7 +295,7 @@ export default function LandingPage() {
                 aria-hidden="true"
                 className="lp-mono hidden md:flex absolute -bottom-4 -right-4 items-center gap-2 h-9 px-3 rounded-lg border border-line bg-surface text-[11px] font-bold text-fg shadow-pop"
               >
-                jeda antarposting min. 2,5 jam
+                jeda antarposting 2,5 jam
               </p>
             </div>
           </div>
@@ -293,6 +312,24 @@ export default function LandingPage() {
             ))}
           </div>
         </div>
+
+        {/* ---------- cara kerja: peta alur yang sama dengan di dalam aplikasi (lib/system-flow) ---------- */}
+        <section id="cara-kerja" className={`${WRAP} py-16 md:py-24 scroll-mt-24`}>
+          <div className="max-w-2xl" data-reveal>
+            <p className="lp-mono text-xs font-bold tracking-widest text-accent">CARA KERJA</p>
+            <h2 className="lp-display mt-4 text-[2rem] leading-[1.05] md:text-[2.75rem] font-extrabold">
+              Anda kerjakan 2 langkah, <span className="lp-gradient-text">sisanya jalan sendiri.</span>
+            </h2>
+            <p className="mt-4 text-[15px] md:text-base text-muted leading-relaxed">
+              Hubungkan akun Threads dan kenalkan brand Anda ke AI, cukup sekali. Setelah itu BotThreads mencari ide, menulis, memeriksa,
+              memposting, dan belajar dari hasilnya setiap hari. Klik tiap langkah untuk melihat apa yang terjadi dan menu mana yang
+              dipakai di aplikasi.
+            </p>
+          </div>
+          <div className="mt-10" data-reveal style={{ "--i": 1 } as React.CSSProperties}>
+            <SystemFlow variant="landing" />
+          </div>
+        </section>
 
         {/* ---------- film demo: satu hari autopilot dalam 23 detik (Remotion, dimuat saat mendekati layar) ---------- */}
         <section id="demo" className="relative scroll-mt-24 overflow-hidden">
@@ -326,7 +363,7 @@ export default function LandingPage() {
         </section>
 
         {/* ---------- 06.00 ide ---------- */}
-        <section id="cara-kerja" className={`${WRAP} py-16 md:py-24 scroll-mt-24`}>
+        <section id="rincian" className={`${WRAP} py-16 md:py-24 scroll-mt-24`}>
           <SectionHead time="06.00" label="TREN DIPANTAU" title="Setiap posting punya asal-usul">
             Tidak ada ide yang muncul dari udara. Pilih satu sumber di bawah untuk melihat bagaimana sebuah tren berubah menjadi bahan
             tulisan.
@@ -368,6 +405,7 @@ export default function LandingPage() {
                 diatur per akun dan bisa diganti kapan saja.
               </SectionHead>
               <div data-reveal style={{ "--i": 1 } as React.CSSProperties}>
+                <p className="lp-mono mb-2 text-[11px] font-bold tracking-widest text-faint">CONTOH TAMPILAN DI THREADS</p>
                 <div data-parallax="-0.06">
                   <ThreadsPost
                     handle="@kedai.sore"

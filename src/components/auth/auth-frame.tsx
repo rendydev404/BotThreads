@@ -6,16 +6,19 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/lang-provider";
+import { LangToggle } from "@/components/i18n/lang-toggle";
 
 /** Tautan kembali ke halaman perkenalan, di pojok kiri atas halaman masuk dan daftar. */
 export function BackToLanding() {
+  const t = useT();
   return (
     <Link
       href="/selamat-datang"
       className="group absolute top-4 left-4 h-10 pl-2.5 pr-3.5 rounded-lg inline-flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-fg hover:bg-subtle transition-colors"
     >
       <ArrowLeft className="w-[18px] h-[18px] transition-transform group-hover:-translate-x-0.5" />
-      Beranda
+      {t("Beranda")}
     </Link>
   );
 }
@@ -25,18 +28,20 @@ export function BackToLanding() {
  * `back` menampilkan tautan kembali ke halaman perkenalan.
  */
 export function AuthFrame({ title, subtitle, children, back }: { title: string; subtitle?: React.ReactNode; children: React.ReactNode; back?: boolean }) {
+  const t = useT();
   return (
     <main className="relative flex-1 w-full min-h-screen flex items-center justify-center px-5 py-16 bg-canvas">
       {back && <BackToLanding />}
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 flex items-center gap-1.5">
+        <LangToggle />
         <ThemeToggle />
       </div>
 
       <div className="w-full max-w-[420px]">
         <div className="flex flex-col items-center text-center">
           <Image src="/logo.webp" alt="BotThreads" width={64} height={64} priority className="w-16 h-16 rounded-2xl shadow-pop" />
-          <h1 className="mt-5 text-2xl font-semibold tracking-tight text-fg">{title}</h1>
-          {subtitle && <p className="mt-1.5 text-sm text-muted leading-relaxed">{subtitle}</p>}
+          <h1 className="mt-5 text-2xl font-semibold tracking-tight text-fg">{t(title)}</h1>
+          {subtitle && <p className="mt-1.5 text-sm text-muted leading-relaxed">{typeof subtitle === "string" ? t(subtitle) : subtitle}</p>}
         </div>
         <div className="card mt-7 p-6">{children}</div>
       </div>
@@ -63,6 +68,7 @@ export function AuthNotice({
   href?: string;
   action?: string;
 }) {
+  const t = useT();
   return (
     <div className="text-center" role={tone === "danger" ? "alert" : "status"}>
       <div
@@ -73,10 +79,10 @@ export function AuthNotice({
       >
         {icon}
       </div>
-      <h2 className="mt-4 text-base font-bold text-fg">{title}</h2>
+      <h2 className="mt-4 text-base font-bold text-fg">{t(title)}</h2>
       <p className="mt-1.5 text-sm text-muted leading-relaxed">{children}</p>
       <Link href={href} className={cn(AUTH_BUTTON_CLS, "mt-5 bg-accent hover:bg-accent-hover text-on-accent")}>
-        {action}
+        {t(action)}
         <ArrowRight className="w-[18px] h-[18px]" />
       </Link>
     </div>
@@ -84,8 +90,9 @@ export function AuthNotice({
 }
 
 export function AuthSkeleton({ label }: { label: string }) {
+  const t = useT();
   return (
-    <div className="space-y-4 animate-pulse" aria-busy="true" aria-label={label}>
+    <div className="space-y-4 animate-pulse" aria-busy="true" aria-label={t(label)}>
       <div className="h-4 w-2/3 rounded bg-subtle" />
       <div className="h-11 rounded-xl bg-subtle" />
       <div className="h-11 rounded-xl bg-subtle" />

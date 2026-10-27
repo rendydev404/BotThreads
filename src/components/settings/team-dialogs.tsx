@@ -10,6 +10,7 @@ import { Banner } from "@/components/autopilot/shared";
 import { AccountScopeField } from "./account-scope-field";
 import { ControlLabel, FormError, TextField } from "./fields";
 import { errorDetails, errorText } from "./format";
+import { useT } from "@/components/i18n/lang-provider";
 
 type InviteRole = Exclude<Role, "OWNER">;
 
@@ -56,6 +57,7 @@ interface InviteDialogProps {
 }
 
 export function InviteDialog({ accounts, memberEmails, onClose, onInvited }: InviteDialogProps) {
+  const t = useT();
   const [email, setEmail] = useState("");
   // Bawaan peran terendah: akses lebih tinggi harus dipilih dengan sadar.
   const [role, setRole] = useState<InviteRole>("VIEWER");
@@ -66,8 +68,8 @@ export function InviteDialog({ accounts, memberEmails, onClose, onInvited }: Inv
   const formId = useId();
 
   const address = email.trim().toLowerCase();
-  const emailError = EMAIL.test(address) ? null : "Alamat email tidak valid.";
-  const scopeError = scope !== null && scope.length === 0 ? EMPTY_SCOPE : null;
+  const emailError = EMAIL.test(address) ? null : t("Alamat email tidak valid.");
+  const scopeError = scope !== null && scope.length === 0 ? t(EMPTY_SCOPE) : null;
 
   const submit = async () => {
     setSubmitted(true);
@@ -88,16 +90,16 @@ export function InviteDialog({ accounts, memberEmails, onClose, onInvited }: Inv
       open
       onClose={onClose}
       busy={busy}
-      title="Undang anggota"
-      description="Dashboard membuat tautan undangan; Anda yang mengirimkannya ke orangnya."
+      title={t("Undang anggota")}
+      description={t("Dashboard membuat tautan undangan; Anda yang mengirimkannya ke orangnya.")}
       footer={
         <>
           <ModalButton onClick={onClose} disabled={busy}>
-            Batal
+            {t("Batal")}
           </ModalButton>
           <ModalButton variant="primary" type="submit" form={formId} disabled={busy}>
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            {busy ? "Membuat..." : "Buat tautan undangan"}
+            {busy ? t("Membuat...") : t("Buat tautan undangan")}
           </ModalButton>
         </>
       }
@@ -112,7 +114,7 @@ export function InviteDialog({ accounts, memberEmails, onClose, onInvited }: Inv
         className="space-y-5"
       >
         <TextField
-          label="Email"
+          label={t("Email")}
           type="email"
           inputMode="email"
           autoComplete="off"
@@ -125,20 +127,20 @@ export function InviteDialog({ accounts, memberEmails, onClose, onInvited }: Inv
             setFailure(null);
           }}
           maxLength={254}
-          placeholder="nama@contoh.com"
+          placeholder={t("nama@contoh.com")}
           error={submitted ? emailError : null}
           hint={
             memberEmails.has(address)
-              ? "Email ini sudah menjadi anggota workspace. Ubah aksesnya dari daftar anggota."
-              : "Undangan lama yang belum diterima untuk email yang sama otomatis diganti."
+              ? t("Email ini sudah menjadi anggota workspace. Ubah aksesnya dari daftar anggota.")
+              : t("Undangan lama yang belum diterima untuk email yang sama otomatis diganti.")
           }
           disabled={busy}
         />
 
         <div>
-          <ControlLabel>Peran</ControlLabel>
+          <ControlLabel>{t("Peran")}</ControlLabel>
           <Dropdown ariaLabel="Peran" value={role} options={roleOptions(INVITE_ROLES)} onChange={setRole} disabled={busy} />
-          <p className="mt-1.5 text-xs text-muted leading-relaxed">{ROLE_HINTS[role]}</p>
+          <p className="mt-1.5 text-xs text-muted leading-relaxed">{t(ROLE_HINTS[role])}</p>
         </div>
 
         <AccountScopeField
@@ -174,6 +176,7 @@ interface MemberDialogProps {
 }
 
 export function MemberDialog({ member, myRole, isSelf, accounts, onClose, onSaved }: MemberDialogProps) {
+  const t = useT();
   const original = member.accountScope === "PILIHAN" ? member.accountIds : null;
   const [role, setRole] = useState<Role>(member.role);
   const [scope, setScope] = useState<string[] | null>(original);
@@ -190,7 +193,7 @@ export function MemberDialog({ member, myRole, isSelf, accounts, onClose, onSave
   const hidden = (scope?.length ?? 0) - (visibleScope?.length ?? 0);
 
   const effective = role === "OWNER" ? null : visibleScope;
-  const scopeError = effective !== null && effective.length === 0 ? EMPTY_SCOPE : null;
+  const scopeError = effective !== null && effective.length === 0 ? t(EMPTY_SCOPE) : null;
   const changed = role !== member.role || !sameScope(effective, visible(original));
   const name = memberName(member);
 
@@ -218,16 +221,16 @@ export function MemberDialog({ member, myRole, isSelf, accounts, onClose, onSave
       open
       onClose={onClose}
       busy={busy}
-      title="Ubah akses anggota"
+      title={t("Ubah akses anggota")}
       description={member.email ? `${name} · ${member.email}` : name}
       footer={
         <>
           <ModalButton onClick={onClose} disabled={busy}>
-            Batal
+            {t("Batal")}
           </ModalButton>
           <ModalButton variant="primary" type="submit" form={formId} disabled={busy || !changed}>
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {busy ? "Menyimpan..." : "Simpan"}
+            {busy ? t("Menyimpan...") : t("Simpan")}
           </ModalButton>
         </>
       }
@@ -243,12 +246,12 @@ export function MemberDialog({ member, myRole, isSelf, accounts, onClose, onSave
       >
         {isSelf && (
           <Banner tone="warning">
-            Ini akses Anda sendiri. Menurunkan peran atau mempersempit akun bisa membuat Anda tidak lagi bisa membuka halaman ini.
+            {t("Ini akses Anda sendiri. Menurunkan peran atau mempersempit akun bisa membuat Anda tidak lagi bisa membuka halaman ini.")}
           </Banner>
         )}
 
         <div>
-          <ControlLabel>Peran</ControlLabel>
+          <ControlLabel>{t("Peran")}</ControlLabel>
           <Dropdown
             ariaLabel="Peran"
             value={role}
@@ -259,13 +262,13 @@ export function MemberDialog({ member, myRole, isSelf, accounts, onClose, onSave
             }}
             disabled={busy}
           />
-          <p className="mt-1.5 text-xs text-muted leading-relaxed">{ROLE_HINTS[role]}</p>
+          <p className="mt-1.5 text-xs text-muted leading-relaxed">{t(ROLE_HINTS[role])}</p>
         </div>
 
         {role === "OWNER" ? (
           <div>
-            <ControlLabel>Akses akun</ControlLabel>
-            <p className="text-[13px] text-muted">Pemilik selalu melihat dan mengelola semua akun.</p>
+            <ControlLabel>{t("Akses akun")}</ControlLabel>
+            <p className="text-[13px] text-muted">{t("Pemilik selalu melihat dan mengelola semua akun.")}</p>
           </div>
         ) : (
           <AccountScopeField
@@ -285,7 +288,7 @@ export function MemberDialog({ member, myRole, isSelf, accounts, onClose, onSave
 
         {hidden > 0 && role !== "OWNER" && (
           <Banner tone="info">
-            {hidden} akun dalam lingkup anggota ini berada di luar akses Anda. Akun itu dilepas dari lingkupnya bila perubahan disimpan.
+            {t("{n} akun dalam lingkup anggota ini berada di luar akses Anda. Akun itu dilepas dari lingkupnya bila perubahan disimpan.", { n: hidden })}
           </Banner>
         )}
 

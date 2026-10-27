@@ -20,6 +20,8 @@ import { errorText, formatDateWib, formatDayKey } from "./format";
 import { KIND_STYLE, KNOWLEDGE_KINDS, KnowledgeDialog } from "./knowledge-dialog";
 import { BTN_PRIMARY, EmptyState, ICON_BTN, LoadError, NotInstalled, Pill, RefreshButton, type PillTone } from "./states";
 import { useRemote } from "./use-remote";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
 
 type KindFilter = "ALL" | KnowledgeKind;
 
@@ -37,11 +39,11 @@ const SOON_DAYS = 3;
 function expiryOf(until: string | null, today: string | null): { tone: PillTone; text: string; expired: boolean } | null {
   if (!until) return null;
   const left = dayDiff(today, until);
-  if (left === null) return { tone: "neutral", text: `Sampai ${formatDayKey(until)}`, expired: false };
-  if (left < 0) return { tone: "danger", text: `Berakhir ${formatDayKey(until)}`, expired: true };
-  if (left === 0) return { tone: "warning", text: "Berakhir hari ini", expired: false };
-  if (left <= SOON_DAYS) return { tone: "warning", text: `Berakhir ${left} hari lagi`, expired: false };
-  return { tone: "neutral", text: `Sampai ${formatDayKey(until)}`, expired: false };
+  if (left === null) return { tone: "neutral", text: tr("Sampai {date}", { date: formatDayKey(until) }), expired: false };
+  if (left < 0) return { tone: "danger", text: tr("Berakhir {date}", { date: formatDayKey(until) }), expired: true };
+  if (left === 0) return { tone: "warning", text: tr("Berakhir hari ini"), expired: false };
+  if (left <= SOON_DAYS) return { tone: "warning", text: tr("Berakhir {n} hari lagi", { n: left }), expired: false };
+  return { tone: "neutral", text: tr("Sampai {date}", { date: formatDayKey(until) }), expired: false };
 }
 
 interface KnowledgeTabProps {
@@ -59,6 +61,7 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
     LOAD_ERROR
   );
   const accounts = usePublishAccounts();
+  const t = useT();
   const [kind, setKind] = useState<KindFilter>("ALL");
   const [shown, setShown] = useState(PAGE);
   const [dialog, setDialog] = useState<{ item: KnowledgeDTO | null; today: string } | null>(null);
@@ -93,8 +96,8 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
   );
 
   if (loading) return <ListSkeleton label="Memuat pengetahuan" rows={4} />;
-  if (!data) return <LoadError message={error ?? LOAD_ERROR} status={status} onRetry={reload} />;
-  if (!data.installed) return <NotInstalled title="Knowledge base belum dipasang." file="sql/006_autopilot_radar.sql" />;
+  if (!data) return <LoadError message={error ?? t(LOAD_ERROR)} status={status} onRetry={reload} />;
+  if (!data.installed) return <NotInstalled title={t("Knowledge base belum dipasang.")} file="sql/006_autopilot_radar.sql" />;
 
   // "Hari ini" (WIB) diambil dari saat data diterima, bukan dari jam saat render.
   const today = loadedAt ? wibDayKey(new Date(loadedAt)) : null;
@@ -120,7 +123,7 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
     try {
       await deleteKnowledge(target.id);
       mutate((d) => ({ ...d, items: d.items.filter((i) => i.id !== target.id) }));
-      setNotice(`Butir "${target.judul}" dihapus.`);
+      setNotice(t("Butir \"{title}\" dihapus.", { title: target.judul }));
       setRemoving(null);
     } catch (e) {
       setRemoveError(errorText(e, "Gagal menghapus butir. Coba lagi."));
@@ -132,7 +135,7 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
   const addButton = canEdit ? (
     <button type="button" onClick={() => setDialog({ item: null, today: wibDayKey(new Date()) })} className={BTN_PRIMARY}>
       <Plus className="w-4 h-4" />
-      Tambah butir
+      {t("Tambah butir")}
     </button>
   ) : null;
 
@@ -140,7 +143,7 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted max-w-xl">
-          Yang AI wajib tahu dan patuhi. Harga dan promo di posting hanya boleh berasal dari sini.
+          {t("Yang AI wajib tahu dan patuhi. Harga dan promo di posting hanya boleh berasal dari sini.")}
         </p>
         <div className="flex items-center gap-2 ml-auto">
           <RefreshButton onClick={reload} busy={refreshing} />
@@ -150,9 +153,9 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
 
       {error && (
         <Banner tone="danger">
-          Gagal menyegarkan data: {error}{" "}
+          {t("Gagal menyegarkan data: {error}", { error })}{" "}
           <button type="button" onClick={reload} className="underline font-semibold cursor-pointer">
-            Coba lagi
+            {t("Coba lagi")}
           </button>
         </Banner>
       )}
@@ -163,18 +166,18 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
       )}
       {accounts.error && (
         <Banner tone="warning">
-          Daftar akun gagal dimuat, jadi nama akun belum tampil: {accounts.error}{" "}
+          {t("Daftar akun gagal dimuat, jadi nama akun belum tampil: {error}", { error: t(accounts.error) })}{" "}
           <button type="button" onClick={accounts.reload} className="underline font-semibold cursor-pointer">
-            Coba lagi
+            {t("Coba lagi")}
           </button>
         </Banner>
       )}
-      {!canEdit && <Banner tone="info">Anda melihat pengetahuan dalam mode baca saja. Editor ke atas yang bisa mengubahnya.</Banner>}
+      {!canEdit && <Banner tone="info">{t("Anda melihat pengetahuan dalam mode baca saja. Editor ke atas yang bisa mengubahnya.")}</Banner>}
 
       {/* Filter jenis: baris chip yang bisa digulir mendatar di layar sempit. */}
       <div
         role="group"
-        aria-label="Filter jenis butir"
+        aria-label={t("Filter jenis butir")}
         className="-mx-4 px-4 -my-1 py-1 md:-mx-1 md:px-1 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {(["ALL", ...KNOWLEDGE_KINDS] as KindFilter[]).map((k) => {
@@ -190,7 +193,7 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
                 active ? "bg-accent border-accent text-on-accent" : "bg-surface border-line-strong text-fg hover:border-accent hover:text-accent"
               )}
             >
-              {k === "ALL" ? "Semua" : KIND_STYLE[k].short}
+              {k === "ALL" ? t("Semua") : t(KIND_STYLE[k].short)}
               <span className={cn("tabular-nums", active ? "opacity-80" : "text-muted")}>{counts[k]}</span>
             </button>
           );
@@ -198,19 +201,19 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
       </div>
       {kind !== "ALL" && (
         <p className="text-[13px] text-muted">
-          <span className="font-semibold text-fg">{KNOWLEDGE_KIND_LABEL[kind]}.</span> {KNOWLEDGE_KIND_HINT[kind]}
+          <span className="font-semibold text-fg">{t(KNOWLEDGE_KIND_LABEL[kind])}.</span> {t(KNOWLEDGE_KIND_HINT[kind])}
         </p>
       )}
 
       {items.length === 0 ? (
         <EmptyState
           icon={<BookOpen className="w-6 h-6" />}
-          title={kind === "ALL" ? "Belum ada butir pengetahuan." : `Belum ada butir ${KNOWLEDGE_KIND_LABEL[kind].toLowerCase()}.`}
+          title={kind === "ALL" ? t("Belum ada butir pengetahuan.") : t("Belum ada butir {kind}.", { kind: t(KNOWLEDGE_KIND_LABEL[kind]).toLowerCase() })}
           action={addButton}
         >
           {canEdit
-            ? "Tambahkan fakta brand, daftar harga, promo yang sedang berjalan, dan kata terlarang supaya AI tidak mengarang."
-            : "Butir yang ditambahkan Editor atau Admin akan muncul di sini."}
+            ? t("Tambahkan fakta brand, daftar harga, promo yang sedang berjalan, dan kata terlarang supaya AI tidak mengarang.")
+            : t("Butir yang ditambahkan Editor atau Admin akan muncul di sini.")}
         </EmptyState>
       ) : (
         <>
@@ -229,12 +232,12 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
                   <div className="flex items-start gap-2">
                     <div className={cn("flex-1 min-w-0 flex flex-wrap items-center gap-1.5", editable && "pt-2")}>
                       <Pill tone={tone} icon={<Icon className="w-3.5 h-3.5 shrink-0" />}>
-                        {short}
+                        {t(short)}
                       </Pill>
                       <Pill
                         icon={item.accountId ? <AtSign className="w-3.5 h-3.5 shrink-0" /> : <Globe className="w-3.5 h-3.5 shrink-0" />}
                       >
-                        {item.accountId ? (account ? accountHandle(account).slice(1) : "satu akun") : "Semua akun"}
+                        {item.accountId ? (account ? accountHandle(account).slice(1) : t("satu akun")) : t("Semua akun")}
                       </Pill>
                       {expiry && (
                         <Pill tone={expiry.tone} icon={<CalendarClock className="w-3.5 h-3.5 shrink-0" />}>
@@ -247,8 +250,8 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
                         <button
                           type="button"
                           onClick={() => setDialog({ item, today: wibDayKey(new Date()) })}
-                          aria-label={`Ubah butir ${item.judul}`}
-                          title="Ubah"
+                          aria-label={t("Ubah butir {title}", { title: item.judul })}
+                          title={t("Ubah")}
                           className={ICON_BTN}
                         >
                           <Pencil className="w-4 h-4" />
@@ -259,8 +262,8 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
                             setRemoveError(null);
                             setRemoving(item);
                           }}
-                          aria-label={`Hapus butir ${item.judul}`}
-                          title="Hapus"
+                          aria-label={t("Hapus butir {title}", { title: item.judul })}
+                          title={t("Hapus")}
                           className={cn(ICON_BTN, "hover:text-danger hover:bg-danger-soft")}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -271,7 +274,7 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
 
                   <p className={cn("mt-2 text-sm font-semibold break-words", expiry?.expired ? "text-muted" : "text-fg")}>{item.judul}</p>
                   {terms ? (
-                    <ul aria-label="Kata atau frasa terlarang" className="mt-1.5 flex flex-wrap gap-1.5">
+                    <ul aria-label={t("Kata atau frasa terlarang")} className="mt-1.5 flex flex-wrap gap-1.5">
                       {(open ? terms : terms.slice(0, TERMS_SHOWN)).map((term, i) => (
                         <li key={i} className="px-2.5 py-1 rounded-lg bg-subtle text-[13px] text-fg break-all">
                           {term}
@@ -290,12 +293,12 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
                       aria-expanded={open}
                       className="-mb-2 h-10 inline-flex items-center text-[13px] font-semibold text-accent hover:underline cursor-pointer"
                     >
-                      {open ? "Ringkas" : terms ? `Tampilkan ${terms.length - TERMS_SHOWN} lainnya` : "Selengkapnya"}
+                      {open ? t("Ringkas") : terms ? t("Tampilkan {n} lainnya", { n: terms.length - TERMS_SHOWN }) : t("Selengkapnya")}
                     </button>
                   )}
                   <p className="mt-1.5 text-xs text-faint">
-                    {expiry?.expired ? "Sudah berakhir, tidak dipakai AI lagi. " : ""}
-                    Diperbarui {formatDateWib(item.updatedAt)}
+                    {expiry?.expired ? `${t("Sudah berakhir, tidak dipakai AI lagi.")} ` : ""}
+                    {t("Diperbarui {date}", { date: formatDateWib(item.updatedAt) })}
                   </p>
                 </li>
               );
@@ -303,7 +306,7 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
           </ul>
           {items.length > shown && <LoadMoreButton onClick={() => setShown((n) => n + PAGE)} loading={false} />}
           {data.items.length >= SERVER_CAP && (
-            <p className="text-xs text-muted text-center">Menampilkan {SERVER_CAP} butir pertama. Hapus butir lama supaya sisanya terlihat.</p>
+            <p className="text-xs text-muted text-center">{t("Menampilkan {n} butir pertama. Hapus butir lama supaya sisanya terlihat.", { n: SERVER_CAP })}</p>
           )}
         </>
       )}
@@ -325,7 +328,7 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
               items: created ? [saved, ...d.items] : d.items.map((i) => (i.id === saved.id ? saved : i)),
             }));
             if (kind !== "ALL" && kind !== saved.jenis) pickKind(saved.jenis);
-            setNotice(created ? `Butir "${saved.judul}" ditambahkan.` : `Butir "${saved.judul}" diperbarui.`);
+            setNotice(created ? t("Butir \"{title}\" ditambahkan.", { title: saved.judul }) : t("Butir \"{title}\" diperbarui.", { title: saved.judul }));
             setDialog(null);
           }}
         />
@@ -343,8 +346,8 @@ export function KnowledgeTab({ canEdit, accountScoped }: KnowledgeTabProps) {
         confirmIcon={<Trash2 className="w-4 h-4" />}
       >
         <p className="text-sm text-fg leading-relaxed">
-          <span className="font-semibold break-words">{removing?.judul}</span> tidak lagi dipakai AI saat menulis. Tindakan ini tidak bisa
-          dibatalkan.
+          <span className="font-semibold break-words">{removing?.judul}</span>{" "}
+          {t("tidak lagi dipakai AI saat menulis. Tindakan ini tidak bisa dibatalkan.")}
         </p>
       </ConfirmModal>
     </div>

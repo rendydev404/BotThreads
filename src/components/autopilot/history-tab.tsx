@@ -5,11 +5,12 @@ import { AlertTriangle, History, RefreshCw, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listAutopilotSlots } from "@/lib/autopilot-client";
 import type { AutopilotAccountDTO, SlotListResponse } from "@/lib/autopilot-types";
-import { formatWibFull } from "@/lib/scheduling";
 import { charLength, clipChars } from "@/lib/threads-text";
 import { AccountFilterSelect } from "@/components/dashboard/account-filter-select";
 import { AccountAvatar } from "@/components/content/post-status-chip";
-import { Banner, ListSkeleton, LoadMoreButton, SlotKindChip, SlotStatusChip, accountHandle } from "./shared";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
+import { Banner, ListSkeleton, LoadMoreButton, SlotKindChip, SlotStatusChip, accountHandle, apiErrorText, wibFullText } from "./shared";
 
 type Item = SlotListResponse["items"][number];
 
@@ -24,6 +25,7 @@ interface Loaded {
 }
 
 export function HistoryTab({ accounts }: { accounts: AutopilotAccountDTO[] }) {
+  const t = useT();
   /** "all" atau username (format yang dipakai AccountFilterSelect). */
   const [account, setAccount] = useState("all");
   const [tick, setTick] = useState(0);
@@ -64,7 +66,7 @@ export function HistoryTab({ accounts }: { accounts: AutopilotAccountDTO[] }) {
           tick,
           items: prev.key === queryKey ? prev.items : [],
           nextCursor: prev.key === queryKey ? prev.nextCursor : null,
-          error: e instanceof Error ? e.message : "Gagal memuat riwayat.",
+          error: e instanceof Error ? apiErrorText(e.message) : tr("Gagal memuat riwayat."),
         }));
       });
     return () => ctrl.abort();
@@ -82,7 +84,7 @@ export function HistoryTab({ accounts }: { accounts: AutopilotAccountDTO[] }) {
         return { ...prev, items: [...prev.items, ...res.items.filter((i) => !seen.has(i.id))], nextCursor: res.nextCursor };
       });
     } catch (e) {
-      setMoreError(e instanceof Error ? e.message : "Gagal memuat halaman berikutnya.");
+      setMoreError(e instanceof Error ? apiErrorText(e.message) : tr("Gagal memuat halaman berikutnya."));
     } finally {
       setLoadingMore(false);
     }
@@ -107,12 +109,12 @@ export function HistoryTab({ accounts }: { accounts: AutopilotAccountDTO[] }) {
         />
         <button
           type="button"
-          onClick={() => setTick((t) => t + 1)}
+          onClick={() => setTick((n) => n + 1)}
           disabled={loading || refreshing}
           className="self-end sm:self-auto shrink-0 h-10 px-3.5 rounded-full border border-line-strong text-[13px] font-semibold text-fg inline-flex items-center gap-1.5 hover:border-accent hover:text-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
-          Segarkan
+          {t("Segarkan")}
         </button>
       </div>
 
@@ -124,11 +126,11 @@ export function HistoryTab({ accounts }: { accounts: AutopilotAccountDTO[] }) {
           <p className="mt-3 text-sm font-semibold text-fg">{loaded.error}</p>
           <button
             type="button"
-            onClick={() => setTick((t) => t + 1)}
+            onClick={() => setTick((n) => n + 1)}
             className="mt-4 h-10 px-5 rounded-full bg-accent text-on-accent text-sm font-semibold inline-flex items-center gap-2 cursor-pointer hover:bg-accent-hover"
           >
             <RotateCw className="w-4 h-4" />
-            Coba lagi
+            {t("Coba lagi")}
           </button>
         </div>
       ) : loaded.items.length === 0 ? (
@@ -136,8 +138,8 @@ export function HistoryTab({ accounts }: { accounts: AutopilotAccountDTO[] }) {
           <div className="mx-auto w-12 h-12 rounded-xl bg-accent-soft text-accent flex items-center justify-center">
             <History className="w-6 h-6" />
           </div>
-          <p className="mt-4 text-sm font-semibold text-fg">Belum ada riwayat autopilot.</p>
-          <p className="mt-1 text-sm text-muted">Slot yang sudah terjadwal, terbit, gagal, atau dilewati akan muncul di sini.</p>
+          <p className="mt-4 text-sm font-semibold text-fg">{t("Belum ada riwayat autopilot.")}</p>
+          <p className="mt-1 text-sm text-muted">{t("Slot yang sudah terjadwal, terbit, gagal, atau dilewati akan muncul di sini.")}</p>
         </div>
       ) : (
         <>
@@ -151,7 +153,7 @@ export function HistoryTab({ accounts }: { accounts: AutopilotAccountDTO[] }) {
               return (
                 <li key={item.id} className="p-4 space-y-2">
                   <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-                    <span className="text-[13px] font-bold text-fg tabular-nums">{formatWibFull(new Date(item.slotAt))}</span>
+                    <span className="text-[13px] font-bold text-fg tabular-nums">{wibFullText(new Date(item.slotAt))}</span>
                     <span className="inline-flex items-center gap-1.5 min-w-0">
                       <AccountAvatar name={item.account.displayName} src={item.account.avatarUrl} size="w-5 h-5" />
                       <span className="text-[13px] font-semibold text-fg truncate max-w-[12rem]">{accountHandle(item.account)}</span>
@@ -172,12 +174,12 @@ export function HistoryTab({ accounts }: { accounts: AutopilotAccountDTO[] }) {
                           aria-expanded={open}
                           className="-mb-2 h-10 inline-flex items-center text-[13px] font-semibold text-accent hover:underline cursor-pointer"
                         >
-                          {open ? "Ringkas" : "Selengkapnya"}
+                          {open ? t("Ringkas") : t("Selengkapnya")}
                         </button>
                       )}
                     </div>
                   ) : (
-                    <p className="text-sm text-faint">Belum ada draf untuk slot ini.</p>
+                    <p className="text-sm text-faint">{t("Belum ada draf untuk slot ini.")}</p>
                   )}
 
                   {notes.map((note) => (
@@ -189,7 +191,7 @@ export function HistoryTab({ accounts }: { accounts: AutopilotAccountDTO[] }) {
                       )}
                     >
                       {note === item.lastError && <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
-                      {note}
+                      {t(note)}
                     </p>
                   ))}
                 </li>

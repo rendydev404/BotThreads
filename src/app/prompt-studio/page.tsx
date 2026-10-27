@@ -5,9 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { useChat } from "@/components/chat/use-chat";
+import { useT } from "@/components/i18n/lang-provider";
 
 function StudioInner() {
   const chat = useChat();
+  const t = useT();
   const initialPrompt = useSearchParams().get("prompt");
   const sentInitial = useRef(false);
 
@@ -25,9 +27,9 @@ function StudioInner() {
           <Sparkles className="w-5 h-5" />
         </div>
         <div className="min-w-0">
-          <h2 className="text-2xl font-bold text-fg leading-tight">Asisten AI</h2>
+          <h2 className="text-2xl font-bold text-fg leading-tight">{t("Asisten AI")}</h2>
           <p className="text-sm text-muted">
-            Tanyakan performa cabang, minta analisis, atau minta draf postingan.
+            {t("Tanyakan performa cabang, minta analisis, atau minta draf postingan.")}
           </p>
         </div>
       </div>
@@ -39,10 +41,15 @@ function StudioInner() {
   );
 }
 
+function StudioFallback() {
+  const t = useT();
+  return <div className="p-8 text-center text-muted">{t("Memuat…")}</div>;
+}
+
 export default function PromptStudioPage() {
   return (
     <Suspense
-      fallback={<div className="p-8 text-center text-muted">Memuat…</div>}
+      fallback={<StudioFallback />}
     >
       <StudioInner />
     </Suspense>

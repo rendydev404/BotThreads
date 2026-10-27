@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { ThreadsMark } from "@/components/landing/threads-mark";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/lang-provider";
 import { SIGNAL_SOURCE_LABEL, type SignalSource } from "@/lib/radar-types";
 
 /* ------------------------------------------------------------------ tombol */
@@ -31,6 +32,7 @@ export const ICON_BTN =
   "w-10 h-10 shrink-0 rounded-full inline-flex items-center justify-center text-muted transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
 
 export function RefreshButton({ onClick, busy, disabled }: { onClick: () => void; busy: boolean; disabled?: boolean }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -39,7 +41,7 @@ export function RefreshButton({ onClick, busy, disabled }: { onClick: () => void
       className="shrink-0 h-10 px-3.5 rounded-full border border-line-strong text-[13px] font-semibold text-fg inline-flex items-center gap-1.5 hover:border-accent hover:text-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
     >
       <RefreshCw className={cn("w-3.5 h-3.5", busy && "animate-spin")} />
-      Segarkan
+      {t("Segarkan")}
     </button>
   );
 }
@@ -129,20 +131,22 @@ export function EmptyState({ icon, title, children }: { icon: React.ReactNode; t
 
 /** Skema radar belum dibuat di database (API membalas `installed: false`). */
 export function NotInstalled() {
+  const t = useT();
   return (
-    <StateCard icon={<Database className="w-6 h-6" />} iconClass="bg-warning-soft text-warning" title="Radar belum dipasang.">
+    <StateCard icon={<Database className="w-6 h-6" />} iconClass="bg-warning-soft text-warning" title={t("Radar belum dipasang.")}>
       <p>
-        Pemilik dashboard perlu menjalankan <code className={CODE_CLS}>sql/006_autopilot_radar.sql</code> di Supabase.
+        {t("Pemilik dashboard perlu menjalankan")} <code className={CODE_CLS}>sql/006_autopilot_radar.sql</code> {t("di Supabase.")}
       </p>
     </StateCard>
   );
 }
 
 function RetryButton({ onRetry }: { onRetry: () => void }) {
+  const t = useT();
   return (
     <button type="button" onClick={onRetry} className={cn(BTN, BTN_PRIMARY, "px-5")}>
       <RotateCw className="w-4 h-4" />
-      Coba lagi
+      {t("Coba lagi")}
     </button>
   );
 }
@@ -152,7 +156,9 @@ function RetryButton({ onRetry }: { onRetry: () => void }) {
  * tidak cukup), dan 409 (workspace belum bisa ditentukan) diberi penjelasan sendiri; pesan aslinya
  * dari server tetap ditampilkan.
  */
-export function LoadFailure({ status, message, onRetry }: { status: number | null; message: string; onRetry: () => void }) {
+export function LoadFailure({ status, message: raw, onRetry }: { status: number | null; message: string; onRetry: () => void }) {
+  const t = useT();
+  const message = t(raw);
   const retry = <RetryButton onRetry={onRetry} />;
   if (status === 503) {
     return (
@@ -160,7 +166,7 @@ export function LoadFailure({ status, message, onRetry }: { status: number | nul
         alert
         icon={<Database className="w-6 h-6" />}
         iconClass="bg-warning-soft text-warning"
-        title="Radar belum siap."
+        title={t("Radar belum siap.")}
         action={retry}
       >
         {/* Pesan server sudah menyebut berkas SQL yang perlu dijalankan. */}
@@ -174,11 +180,11 @@ export function LoadFailure({ status, message, onRetry }: { status: number | nul
         alert
         icon={<Lock className="w-6 h-6" />}
         iconClass="bg-warning-soft text-warning"
-        title="Anda tidak punya izin membuka bagian ini."
+        title={t("Anda tidak punya izin membuka bagian ini.")}
         action={retry}
       >
         <p>{message}</p>
-        <p>Minta Pemilik atau Admin workspace memeriksa peran Anda.</p>
+        <p>{t("Minta Pemilik atau Admin workspace memeriksa peran Anda.")}</p>
       </StateCard>
     );
   }
@@ -188,7 +194,7 @@ export function LoadFailure({ status, message, onRetry }: { status: number | nul
         alert
         icon={<Building2 className="w-6 h-6" />}
         iconClass="bg-warning-soft text-warning"
-        title="Workspace belum bisa ditentukan."
+        title={t("Workspace belum bisa ditentukan.")}
         action={retry}
       >
         <p>{message}</p>
@@ -221,6 +227,7 @@ const SOURCE_STYLE: Record<SignalSource, { cls: string; Icon: React.ComponentTyp
 };
 
 export function SourceChip({ source, className }: { source: SignalSource; className?: string }) {
+  const t = useT();
   // Sumber yang belum dikenal klien (ditambah di server kemudian) tetap tampil dengan gaya netral.
   const { cls, Icon } = SOURCE_STYLE[source] ?? SOURCE_STYLE.MANUAL;
   return (
@@ -232,7 +239,7 @@ export function SourceChip({ source, className }: { source: SignalSource; classN
       )}
     >
       <Icon className="w-3.5 h-3.5 shrink-0" />
-      {SIGNAL_SOURCE_LABEL[source] ?? source}
+      {SIGNAL_SOURCE_LABEL[source] ? t(SIGNAL_SOURCE_LABEL[source]) : source}
     </span>
   );
 }

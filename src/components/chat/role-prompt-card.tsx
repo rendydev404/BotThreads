@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { saveAutopilotSettings } from "@/lib/autopilot-client";
 import { ContentApiError } from "@/lib/content-client";
 import { VOICE_STYLES, type VoiceStyle } from "@/lib/autopilot-types";
+import { useLang, useT } from "@/components/i18n/lang-provider";
 
 export interface RolePromptProfileDTO {
   accountId: string;
@@ -20,16 +21,17 @@ const same = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLowerCase
 
 /** Satu baris "sebelum -> sesudah"; bagian yang tidak berubah ditandai. */
 function Change({ label, before, after, unchanged }: { label: string; before: React.ReactNode; after: React.ReactNode; unchanged: boolean }) {
+  const t = useT();
   return (
     <div>
-      <dt className="text-xs font-semibold text-muted">{label}</dt>
+      <dt className="text-xs font-semibold text-muted">{t(label)}</dt>
       <dd className="mt-1 grid gap-2 sm:grid-cols-2">
         <div className="rounded-lg bg-subtle p-2.5">
-          <p className="text-[11px] font-semibold text-muted mb-1">Sebelum</p>
+          <p className="text-[11px] font-semibold text-muted mb-1">{t("Sebelum")}</p>
           <div className="max-h-56 overflow-auto whitespace-pre-line text-muted leading-relaxed">{before}</div>
         </div>
         <div className="rounded-lg bg-accent-soft/60 border border-accent/25 p-2.5">
-          <p className="text-[11px] font-semibold text-accent mb-1">Sesudah{unchanged ? " (sama)" : ""}</p>
+          <p className="text-[11px] font-semibold text-accent mb-1">{t("Sesudah")}{unchanged ? ` ${t("(sama)")}` : ""}</p>
           <div className="max-h-56 overflow-auto whitespace-pre-line text-fg leading-relaxed">{after}</div>
         </div>
       </dd>
@@ -81,15 +83,16 @@ function useCopied(): [boolean, (text: string) => void] {
 /** Blok ```prompt di jawaban asisten: prompt peran utuh dengan tombol salin. */
 export function PromptBlock({ text }: { text: string }) {
   const [copied, copy] = useCopied();
+  const t = useT();
   return (
     <div className="rounded-xl border border-accent/30 bg-accent-soft/40 overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-accent/20">
         <Sparkles className="w-4 h-4 text-accent shrink-0" />
-        <span className="text-xs font-bold text-fg flex-1">Prompt peran siap pakai</span>
-        <span className="text-[11px] text-muted tabular-nums">{text.trim().split(/\s+/).length} kata</span>
+        <span className="text-xs font-bold text-fg flex-1">{t("Prompt peran siap pakai")}</span>
+        <span className="text-[11px] text-muted tabular-nums">{t("{n} kata", { n: text.trim().split(/\s+/).length })}</span>
         <button type="button" onClick={() => copy(text.trim())} className={cn(BTN, "h-8 px-3 bg-accent text-on-accent hover:bg-accent-hover")}>
           {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-          {copied ? "Tersalin" : "Salin prompt"}
+          {copied ? t("Tersalin") : t("Salin prompt")}
         </button>
       </div>
       <pre className="max-h-[28rem] overflow-auto p-3 text-[13px] leading-relaxed text-fg whitespace-pre-wrap break-words font-mono">{text.trim()}</pre>
@@ -102,6 +105,7 @@ export function PromptBlock({ text }: { text: string }) {
  * pengaturan akun; karena topiknya berubah, agen otomatis riset tren dan menyusun ide baru dari profil ini.
  */
 export function RolePromptCard({ profile }: { profile: RolePromptProfileDTO }) {
+  const { t, locale } = useLang();
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
   const cur = profile.current;
@@ -120,7 +124,7 @@ export function RolePromptCard({ profile }: { profile: RolePromptProfileDTO }) {
       setState("saved");
     } catch (e) {
       setState("idle");
-      setError(e instanceof ContentApiError ? e.message : "Profil AI gagal disimpan. Coba lagi.");
+      setError(e instanceof ContentApiError ? t(e.message) : t("Profil AI gagal disimpan. Coba lagi."));
     }
   };
 
@@ -128,8 +132,8 @@ export function RolePromptCard({ profile }: { profile: RolePromptProfileDTO }) {
     <div className="mt-3 rounded-2xl border border-line bg-surface p-4 space-y-3">
       <div className="flex items-center gap-2">
         <UserCog className="w-4 h-4 text-accent shrink-0" />
-        <p className="text-sm font-bold text-fg">Profil AI baru untuk {profile.handle}</p>
-        <span className="ml-auto text-[11px] text-muted tabular-nums">{profile.brief.length.toLocaleString("id-ID")} karakter</span>
+        <p className="text-sm font-bold text-fg">{t("Profil AI baru untuk {handle}", { handle: profile.handle })}</p>
+        <span className="ml-auto text-[11px] text-muted tabular-nums">{t("{n} karakter", { n: profile.brief.length.toLocaleString(locale) })}</span>
       </div>
       <dl className="space-y-3 text-[13px]">
         {cur ? (
@@ -141,8 +145,8 @@ export function RolePromptCard({ profile }: { profile: RolePromptProfileDTO }) {
             {profile.voiceStyle && (
               <Change
                 label="Gaya sapaan"
-                before={cur.voiceStyle ? VOICE_STYLES[cur.voiceStyle].label : "Otomatis"}
-                after={VOICE_STYLES[profile.voiceStyle].label}
+                before={cur.voiceStyle ? t(VOICE_STYLES[cur.voiceStyle].label) : t("Otomatis")}
+                after={t(VOICE_STYLES[profile.voiceStyle].label)}
                 unchanged={false}
               />
             )}
@@ -150,12 +154,12 @@ export function RolePromptCard({ profile }: { profile: RolePromptProfileDTO }) {
         ) : (
           <>
             <div>
-              <dt className="text-xs font-semibold text-muted">Peran & tema akun</dt>
+              <dt className="text-xs font-semibold text-muted">{t("Peran & tema akun")}</dt>
               <dd className="mt-0.5 max-h-56 overflow-auto whitespace-pre-line text-fg leading-relaxed">{profile.brief}</dd>
             </div>
             {profile.pillars.length > 0 && (
               <div>
-                <dt className="text-xs font-semibold text-muted">Kategori topik</dt>
+                <dt className="text-xs font-semibold text-muted">{t("Kategori topik")}</dt>
                 <dd className="mt-1">{chips(profile.pillars, "accent")}</dd>
               </div>
             )}
@@ -163,22 +167,21 @@ export function RolePromptCard({ profile }: { profile: RolePromptProfileDTO }) {
         )}
       </dl>
       {briefSame && (
-        <p className="text-xs font-medium text-warning">Peran ini sama dengan Profil AI sekarang. Minta AI menyusun ulang bila ingin versi yang berbeda.</p>
+        <p className="text-xs font-medium text-warning">{t("Peran ini sama dengan Profil AI sekarang. Minta AI menyusun ulang bila ingin versi yang berbeda.")}</p>
       )}
       {error && <p className="rounded-lg bg-danger-soft text-danger p-2.5 text-[13px] font-medium">{error}</p>}
       {state === "saved" ? (
         <p className="rounded-lg bg-success-soft text-success p-2.5 text-[13px] font-medium flex items-start gap-2">
           <Check className="w-4 h-4 mt-0.5 shrink-0" />
-          Profil AI {profile.handle} diperbarui ({profile.brief.length} karakter). Buka ulang Atur autopilot untuk melihatnya. AI otomatis riset
-          tren dan menyusun ide baru dari profil ini; pantau di Radar &gt; Ide.
+          {t("Profil AI {handle} diperbarui ({n} karakter). Buka ulang Atur autopilot untuk melihatnya. AI otomatis riset tren dan menyusun ide baru dari profil ini; pantau di Radar > Ide.", { handle: profile.handle, n: profile.brief.length })}
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => void apply()} disabled={state === "saving"} className={cn(BTN, "bg-accent text-on-accent hover:bg-accent-hover")}>
             {state === "saving" ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCog className="w-4 h-4" />}
-            Terapkan ke Profil AI
+            {t("Terapkan ke Profil AI")}
           </button>
-          <p className="text-xs text-muted">Mengganti peran, kategori topik, dan gaya sapaan akun ini.</p>
+          <p className="text-xs text-muted">{t("Mengganti peran, kategori topik, dan gaya sapaan akun ini.")}</p>
         </div>
       )}
     </div>

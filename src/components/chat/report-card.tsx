@@ -4,28 +4,32 @@ import React, { useRef, useState } from "react";
 import { ChevronDown, Trophy } from "lucide-react";
 import type { Delta, Report } from "@/lib/report";
 import { cn } from "@/lib/utils";
+import { useLang, useT } from "@/components/i18n/lang-provider";
+import { currentLocale, tr } from "@/lib/i18n/core";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
 function shortDate(iso: string) {
   const [, m, d] = iso.split("-").map(Number);
-  return `${d} ${MONTHS[m - 1]}`;
+  return currentLocale() === "id-ID" ? `${d} ${MONTHS[m - 1]}` : `${tr(MONTHS[m - 1])} ${d}`;
 }
 
 /** 70.300 -> "70,3 rb", 1.250.000 -> "1,3 jt" */
 function compact(n: number) {
+  const id = currentLocale() === "id-ID";
   const f = (v: number, unit: string) =>
-    `${(Math.round(v * 10) / 10).toString().replace(".", ",")} ${unit}`;
-  if (n >= 1_000_000) return f(n / 1_000_000, "jt");
-  if (n >= 10_000) return f(n / 1000, "rb");
-  return n.toLocaleString("id-ID");
+    id ? `${(Math.round(v * 10) / 10).toString().replace(".", ",")} ${unit}` : `${Math.round(v * 10) / 10}${unit}`;
+  if (n >= 1_000_000) return f(n / 1_000_000, id ? "jt" : "M");
+  if (n >= 10_000) return f(n / 1000, id ? "rb" : "K");
+  return n.toLocaleString(currentLocale());
 }
 
 function DeltaBadge({ delta, className }: { delta: Delta; className?: string }) {
+  const t = useT();
   if (delta === null) return null;
   if (delta === "new") {
     return (
-      <span className={cn("text-xs font-medium text-accent", className)}>baru</span>
+      <span className={cn("text-xs font-medium text-accent", className)}>{t("baru")}</span>
     );
   }
   const up = delta >= 0;
@@ -70,6 +74,8 @@ function Chip({ active, children, onClick }: { active: boolean; children: React.
 
 export function ReportCard({ report: initial, onPickAccount }: ReportCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const { t, locale } = useLang();
+  const dec = (v: number) => (locale === "id-ID" ? String(v).replace(".", ",") : String(v));
   // Hasil dari klik filter menimpa laporan awal; kartu berubah di tempat, bukan pesan baru
   const [override, setOverride] = useState<Report | null>(null);
   const [busy, setBusy] = useState(false);
@@ -108,13 +114,13 @@ export function ReportCard({ report: initial, onPickAccount }: ReportCardProps) 
 
   const kpis = [
     { label: "Views", value: compact(totals.views), delta: totals.viewsDelta },
-    { label: "ER", value: `${String(totals.er).replace(".", ",")}%` },
-    { label: "Postingan", value: totals.posts.toLocaleString("id-ID") },
+    { label: "ER", value: `${dec(totals.er)}%` },
+    { label: "Postingan", value: totals.posts.toLocaleString(locale) },
     ...(totals.followers !== null
       ? [
           {
             label: "Followers",
-            value: totals.followers.toLocaleString("id-ID"),
+            value: totals.followers.toLocaleString(locale),
             note:
               totals.followersDelta !== null
                 ? `${totals.followersDelta >= 0 ? "+" : ""}${totals.followersDelta}`
@@ -128,49 +134,49 @@ export function ReportCard({ report: initial, onPickAccount }: ReportCardProps) 
     <div className="rounded-xl border border-line bg-surface overflow-hidden">
       <div className="px-4 py-3 border-b border-line bg-subtle/60">
         <p className="text-sm font-semibold text-fg">
-          {report.scope.label} · {report.days} hari
+          {t(report.scope.label)} · {t("{n} hari", { n: report.days })}
         </p>
         <p className="text-xs text-muted mt-0.5">
           {shortDate(report.from)} – {shortDate(report.to)}
           {report.hasPrev
-            ? ` · dibanding ${report.days} hari sebelumnya`
-            : " · belum ada data pembanding"}
+            ? ` · ${t("dibanding {n} hari sebelumnya", { n: report.days })}`
+            : ` · ${t("belum ada data pembanding")}`}
         </p>
       </div>
 
       <div className="px-4 py-2.5 border-b border-line space-y-2">
           <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <span className="text-xs text-muted w-14 shrink-0">Periode</span>
+            <span className="text-xs text-muted w-14 shrink-0">{t("Periode")}</span>
             {PERIODS.map((d) => (
               <Chip
                 key={d}
                 active={d === report.days}
                 onClick={() => reload(d, report.scope.slug)}
               >
-                {d} hari
+                {t("{n} hari", { n: d })}
               </Chip>
             ))}
           </div>
           <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <span className="text-xs text-muted w-14 shrink-0">Cakupan</span>
+            <span className="text-xs text-muted w-14 shrink-0">{t("Cakupan")}</span>
             {report.scopes.map((s) => (
               <Chip
                 key={s.slug}
                 active={s.slug === report.scope.slug}
                 onClick={() => reload(report.days, s.slug)}
               >
-                {s.slug === "all" ? s.label : `${s.label} (${s.accounts})`}
+                {s.slug === "all" ? t(s.label) : `${t(s.label)} (${s.accounts})`}
               </Chip>
             ))}
           </div>
           {failed && (
             <p role="alert" className="text-xs text-danger">
-              Gagal memuat data. Coba klik lagi.
+              {t("Gagal memuat data. Coba klik lagi.")}
             </p>
           )}
           {changed && !busy && (
             <p className="text-xs text-muted">
-              Catatan AI di bawah kartu ini dibuat untuk tampilan awal.
+              {t("Catatan AI di bawah kartu ini dibuat untuk tampilan awal.")}
             </p>
           )}
         </div>
@@ -181,7 +187,7 @@ export function ReportCard({ report: initial, onPickAccount }: ReportCardProps) 
       >
         {kpis.map((k) => (
           <div key={k.label} className="bg-surface px-4 py-3">
-            <p className="text-xs text-muted">{k.label}</p>
+            <p className="text-xs text-muted">{t(k.label)}</p>
             <p className="mt-0.5 flex items-baseline gap-1.5">
               <span className="text-lg font-bold text-fg tabular-nums">{k.value}</span>
               {"delta" in k && <DeltaBadge delta={k.delta ?? null} />}
@@ -195,9 +201,9 @@ export function ReportCard({ report: initial, onPickAccount }: ReportCardProps) 
 
       <div className="px-4 pt-3 pb-1 flex items-center gap-2 text-sm font-semibold text-fg">
         <Trophy className="w-4 h-4 text-warning" />
-        Peringkat views
+        {t("Peringkat views")}
         <span className="text-xs font-normal text-muted">
-          · klik akun untuk dianalisis
+          · {t("klik akun untuk dianalisis")}
         </span>
       </div>
 
@@ -229,9 +235,9 @@ export function ReportCard({ report: initial, onPickAccount }: ReportCardProps) 
               </div>
               <p className="mt-0.5 pl-7 text-xs text-muted">
                 {row.followers !== null && row.followers !== undefined && (
-                  <span className="font-medium text-fg/80">{compact(row.followers)} fol · </span>
+                  <span className="font-medium text-fg/80">{compact(row.followers)} {t("fol")} · </span>
                 )}
-                ER {String(row.er).replace(".", ",")}% · {row.posts} post
+                ER {dec(row.er)}% · {t("{n} post", { n: row.posts })}
               </p>
             </button>
           </li>
@@ -244,7 +250,7 @@ export function ReportCard({ report: initial, onPickAccount }: ReportCardProps) 
           onClick={() => setExpanded((v) => !v)}
           className="w-full px-4 py-2.5 border-t border-line text-sm font-medium text-accent hover:bg-subtle inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
         >
-          {expanded ? "Tampilkan 10 teratas" : `Lihat semua ${ranking.length} akun`}
+          {expanded ? t("Tampilkan 10 teratas") : t("Lihat semua {n} akun", { n: ranking.length })}
           <ChevronDown className={cn("w-4 h-4 transition-transform", expanded && "rotate-180")} />
         </button>
       )}

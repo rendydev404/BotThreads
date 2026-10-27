@@ -3,6 +3,7 @@
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/lang-provider";
 
 export interface DropdownOption<T> {
   value: T;
@@ -38,6 +39,7 @@ export function Dropdown<T extends string | number>({
   className,
   buttonClassName,
 }: DropdownProps<T>) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -103,7 +105,7 @@ export function Dropdown<T extends string | number>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
-        aria-label={`${ariaLabel}: ${selected?.label ?? "belum dipilih"}`}
+        aria-label={`${t(ariaLabel)}: ${selected ? t(selected.label) : t("belum dipilih")}`}
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={cn(
@@ -113,7 +115,7 @@ export function Dropdown<T extends string | number>({
         )}
       >
         {icon}
-        <span className="flex-1 min-w-0 truncate font-medium">{selected?.label ?? "Pilih"}</span>
+        <span className="flex-1 min-w-0 truncate font-medium">{selected ? t(selected.label) : t("Pilih")}</span>
         <ChevronDown className={cn("w-4 h-4 text-muted shrink-0 transition-transform", open && "rotate-180")} />
       </button>
 
@@ -122,7 +124,7 @@ export function Dropdown<T extends string | number>({
           ref={listRef}
           id={listId}
           role="listbox"
-          aria-label={ariaLabel}
+          aria-label={t(ariaLabel)}
           className={cn(
             "absolute z-30 top-full mt-1 min-w-full w-max max-w-[min(20rem,calc(100vw-2rem))] max-h-64 overflow-y-auto overscroll-contain",
             "bg-surface border border-line rounded-xl shadow-pop p-1 animate-[pop-in_150ms_ease-out]",
@@ -148,8 +150,8 @@ export function Dropdown<T extends string | number>({
                 )}
               >
                 <span className="flex-1 min-w-0">
-                  <span className="block font-medium">{o.label}</span>
-                  {o.hint && <span className={cn("block text-xs", active ? "text-accent" : "text-muted")}>{o.hint}</span>}
+                  <span className="block font-medium">{t(o.label)}</span>
+                  {o.hint && <span className={cn("block text-xs", active ? "text-accent" : "text-muted")}>{t(o.hint)}</span>}
                 </span>
                 {active && <Check className="w-4 h-4 shrink-0" />}
               </button>

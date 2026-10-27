@@ -23,6 +23,7 @@ import {
 import { cn, formatNumber, formatRelativeTime } from "@/lib/utils";
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 import { AccountFilterSelect } from "@/components/dashboard/account-filter-select";
+import { useT } from "@/components/i18n/lang-provider";
 
 interface PostItem {
   id: string;
@@ -73,6 +74,7 @@ function cachedMedia(id: string, now = Date.now()): { value: ThreadsMediaInfo | 
 
 /** Thumbnail kecil (tunggal) atau deretan thumbnail dengan penanda "1/3" (carousel), dimuat malas. */
 function PostThumbs({ info, permalink }: { info: ThreadsMediaInfo; permalink?: string }) {
+  const t = useT();
   const [failed, setFailed] = useState<Set<number>>(() => new Set());
   const shown = info.images.slice(0, 4);
   const extra = info.images.length - shown.length;
@@ -81,15 +83,15 @@ function PostThumbs({ info, permalink }: { info: ThreadsMediaInfo; permalink?: s
       {shown.map((img, i) => (
         <div key={i} className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border border-line bg-subtle">
           {failed.has(i) ? (
-            <div className="w-full h-full flex items-center justify-center text-faint" title="Gambar tidak bisa dimuat">
+            <div className="w-full h-full flex items-center justify-center text-faint" title={t("Gambar tidak bisa dimuat")}>
               <ImageOff className="w-4 h-4" aria-hidden />
-              <span className="sr-only">Gambar tidak bisa dimuat</span>
+              <span className="sr-only">{t("Gambar tidak bisa dimuat")}</span>
             </div>
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- URL CDN Threads berumur pendek; tanpa proxy
             <img
               src={img.url}
-              alt={info.images.length > 1 ? `Gambar ${i + 1} dari ${info.images.length}` : "Gambar postingan"}
+              alt={info.images.length > 1 ? t("Gambar {i} dari {total}", { i: i + 1, total: info.images.length }) : t("Gambar postingan")}
               width={64}
               height={64}
               loading="lazy"
@@ -121,7 +123,7 @@ function PostThumbs({ info, permalink }: { info: ThreadsMediaInfo; permalink?: s
     </div>
   );
   return permalink ? (
-    <a href={permalink} target="_blank" rel="noreferrer" className="block w-fit max-w-full" aria-label="Buka postingan di Threads">
+    <a href={permalink} target="_blank" rel="noreferrer" className="block w-fit max-w-full" aria-label={t("Buka postingan di Threads")}>
       {strip}
     </a>
   ) : (
@@ -130,6 +132,7 @@ function PostThumbs({ info, permalink }: { info: ThreadsMediaInfo; permalink?: s
 }
 
 export default function PostsPage() {
+  const t = useT();
   const router = useRouter();
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
@@ -296,14 +299,14 @@ export default function PostsPage() {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-danger-soft text-danger font-semibold text-[11px]">
           <ImageIcon className="w-3.5 h-3.5 text-danger" />
-          Foto
+          {t("Foto")}
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent-soft text-accent font-semibold text-[11px]">
         <FileText className="w-3.5 h-3.5 text-accent" />
-        Teks
+        {t("Teks")}
       </span>
     );
   };
@@ -329,7 +332,7 @@ export default function PostsPage() {
           Content & Posts Hub
         </h2>
         <p className="text-xs md:text-sm text-muted mt-0.5">
-          Eksplorasi seluruh postingan Threads terpublikasi, tinjau impresi audiens, dan analisis via AI
+          {t("Eksplorasi seluruh postingan Threads terpublikasi, tinjau impresi audiens, dan analisis via AI")}
         </p>
       </div>
 
@@ -341,7 +344,7 @@ export default function PostsPage() {
           </div>
           <div>
             <span className="text-[11px] font-semibold text-muted uppercase">
-              Total Postingan
+              {t("Total Postingan")}
             </span>
             <h4 className="text-xl font-bold text-fg">
               {formatNumber(stats.totalPosts)}
@@ -355,7 +358,7 @@ export default function PostsPage() {
           </div>
           <div>
             <span className="text-[11px] font-semibold text-muted uppercase">
-              Total Penayangan
+              {t("Total Penayangan")}
             </span>
             <h4 className="text-xl font-bold text-fg">
               {formatNumber(stats.totalViews)}
@@ -410,7 +413,7 @@ export default function PostsPage() {
                   : "text-muted hover:text-fg"
               )}
             >
-              Semua Postingan
+              {t("Semua Postingan")}
               {activeTab === "all" && (
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />
               )}
@@ -444,7 +447,7 @@ export default function PostsPage() {
                   : "text-muted hover:text-fg"
               )}
             >
-              Perlu Evaluasi
+              {t("Perlu Evaluasi")}
               {activeTab === "flop" && (
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />
               )}
@@ -458,12 +461,13 @@ export default function PostsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari caption postingan..."
+              placeholder={t("Cari caption postingan...")}
               className="w-full h-10 pl-10 pr-8 bg-subtle text-xs text-fg placeholder-faint rounded-full border border-transparent focus:border-accent focus:bg-surface focus:outline-none transition-all"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
+                aria-label={t("Hapus pencarian")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg p-0.5 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
@@ -508,7 +512,7 @@ export default function PostsPage() {
                     : "bg-subtle text-muted hover:text-fg hover:bg-subtle"
                 )}
               >
-                {f.label}
+                {t(f.label)}
               </button>
             ))}
           </div>
@@ -519,11 +523,11 @@ export default function PostsPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-subtle border-b border-line text-[11px] uppercase tracking-wider text-muted font-bold">
-                <th className="py-3.5 px-4 min-w-[340px]">Konten Threads</th>
+                <th className="py-3.5 px-4 min-w-[340px]">{t("Konten Threads")}</th>
                 <th className="py-3.5 px-3">Format</th>
-                <th className="py-3.5 px-4">Metrik Impresi</th>
+                <th className="py-3.5 px-4">{t("Metrik Impresi")}</th>
                 <th className="py-3.5 px-3 text-right">Engagement (ER)</th>
-                <th className="py-3.5 px-3 text-center">Aksi</th>
+                <th className="py-3.5 px-3 text-center">{t("Aksi")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line text-xs">
@@ -533,7 +537,7 @@ export default function PostsPage() {
                     <div className="flex flex-col items-center justify-center gap-2">
                       <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
                       <span className="text-xs font-medium">
-                        Memuat data postingan Threads...
+                        {t("Memuat data postingan Threads...")}
                       </span>
                     </div>
                   </td>
@@ -542,10 +546,10 @@ export default function PostsPage() {
                 <tr>
                   <td colSpan={5} className="py-16 text-center text-muted">
                     <p className="font-semibold text-sm text-fg">
-                      Tidak ada postingan ditemukan
+                      {t("Tidak ada postingan ditemukan")}
                     </p>
                     <p className="text-xs text-muted mt-1">
-                      Coba ganti filter akun atau kata kunci pencarian Anda
+                      {t("Coba ganti filter akun atau kata kunci pencarian Anda")}
                     </p>
                   </td>
                 </tr>
@@ -601,7 +605,7 @@ export default function PostsPage() {
                               rel="noreferrer"
                               className="text-[11px] font-semibold text-accent hover:underline inline-flex items-center gap-1"
                             >
-                              <span>Lihat di Threads</span>
+                              <span>{t("Lihat di Threads")}</span>
                               <ExternalLink className="w-3 h-3" />
                             </a>
                           </div>
@@ -663,18 +667,18 @@ export default function PostsPage() {
                               )}`
                             )
                           }
-                          title="Analisis postingan ini dengan Hermes AI"
+                          title={t("Analisis postingan ini dengan Hermes AI")}
                           className="h-8 px-3 rounded-lg bg-accent-soft hover:bg-accent text-accent hover:text-on-accent font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
-                          <span>Tanya AI</span>
+                          <span>{t("Tanya AI")}</span>
                         </button>
 
                         {/* Delete Button (Protected with Mandatory Modal) */}
                         <button
                           onClick={() => openDeleteModal(post)}
-                          aria-label="Hapus post"
-                          title="Hapus data post"
+                          aria-label={t("Hapus post")}
+                          title={t("Hapus data post")}
                           className="w-8 h-8 rounded-lg text-muted hover:text-danger hover:bg-danger-soft flex items-center justify-center transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -692,12 +696,12 @@ export default function PostsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
           {/* Records Counter */}
           <div className="text-xs text-muted">
-            Menampilkan{" "}
+            {t("Menampilkan")}{" "}
             <strong className="text-fg">
               {totalCount > 0 ? (currentPage - 1) * limitPerPage + 1 : 0}–
               {Math.min(currentPage * limitPerPage, totalCount)}
             </strong>{" "}
-            dari <strong className="text-fg">{formatNumber(totalCount)}</strong> postingan
+            {t("dari")} <strong className="text-fg">{formatNumber(totalCount)}</strong> {t("postingan")}
           </div>
 
           {/* Pagination Controls */}
@@ -708,11 +712,11 @@ export default function PostsPage() {
               className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-line text-xs font-semibold text-muted hover:text-fg hover:bg-subtle disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span>Sebelumnya</span>
+              <span>{t("Sebelumnya")}</span>
             </button>
 
             <span className="text-xs font-bold text-fg px-2">
-              Halaman {currentPage} dari {totalPages}
+              {t("Halaman {page} dari {total}", { page: currentPage, total: totalPages })}
             </span>
 
             <button
@@ -720,7 +724,7 @@ export default function PostsPage() {
               disabled={currentPage >= totalPages}
               className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-line text-xs font-semibold text-muted hover:text-fg hover:bg-subtle disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
             >
-              <span>Berikutnya</span>
+              <span>{t("Berikutnya")}</span>
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
@@ -736,7 +740,7 @@ export default function PostsPage() {
         recordIdentifier={`Media ID: #${selectedPostToDelete?.mediaId}`}
         description={
           selectedPostToDelete
-            ? `Post milik @${selectedPostToDelete.account}: "${selectedPostToDelete.text.slice(0, 80)}..."`
+            ? t('Post milik @{account}: "{text}..."', { account: selectedPostToDelete.account, text: selectedPostToDelete.text.slice(0, 80) })
             : undefined
         }
         isDeleting={isDeleting}

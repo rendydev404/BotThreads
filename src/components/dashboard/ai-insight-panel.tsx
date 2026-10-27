@@ -16,7 +16,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Markdown } from "@/components/chat/markdown";
-import type { PeriodValue } from "@/components/dashboard/period-filter";
+import {
+  periodLabelText,
+  scopeLabelText,
+  type PeriodValue,
+} from "@/components/dashboard/period-filter";
+import { useLang } from "@/components/i18n/lang-provider";
 
 interface Insight {
   text: string;
@@ -40,8 +45,8 @@ interface AiInsightPanelProps {
   scopeLabel: string;
 }
 
-const timeLabel = (iso: string) =>
-  new Intl.DateTimeFormat("id-ID", {
+const timeLabel = (iso: string, locale: string) =>
+  new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Asia/Jakarta",
@@ -49,6 +54,7 @@ const timeLabel = (iso: string) =>
 
 export const AiInsightPanel = forwardRef<AiInsightPanelHandle, AiInsightPanelProps>(
   function AiInsightPanel({ account, period, periodLabel, scopeLabel }, ref) {
+    const { t, locale } = useLang();
     const rootRef = useRef<HTMLDivElement>(null);
     const abortRef = useRef<AbortController | null>(null);
     const [entry, setEntry] = useState<{ key: string; insight: Insight } | null>(null);
@@ -60,7 +66,7 @@ export const AiInsightPanel = forwardRef<AiInsightPanelHandle, AiInsightPanelPro
     const key = JSON.stringify([account, period.key, period.from ?? "", period.to ?? ""]);
     const current = entry && entry.key === key ? entry.insight : null;
     const stale = entry && entry.key !== key;
-    const label = periodLabel ?? "periode ini";
+    const label = periodLabel ?? t("periode ini");
 
     const analyze = async (force = false) => {
       abortRef.current?.abort();
@@ -87,7 +93,7 @@ export const AiInsightPanel = forwardRef<AiInsightPanelHandle, AiInsightPanelPro
         setLoading(false);
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
-        setError("Analisis belum bisa dibuat. Periksa koneksi lalu coba lagi.");
+        setError(t("Analisis belum bisa dibuat. Periksa koneksi lalu coba lagi."));
         setLoading(false);
       }
     };
@@ -110,7 +116,10 @@ export const AiInsightPanel = forwardRef<AiInsightPanelHandle, AiInsightPanelPro
       }
     };
 
-    const followUp = `Lanjutkan analisis ${label} untuk ${scopeLabel}: dalami saran yang paling berdampak dan buatkan 3 draf postingan Threads-nya.`;
+    const followUp = t(
+      "Lanjutkan analisis {label} untuk {scope}: dalami saran yang paling berdampak dan buatkan 3 draf postingan Threads-nya.",
+      { label, scope: scopeLabel }
+    );
 
     return (
       <div
@@ -126,15 +135,17 @@ export const AiInsightPanel = forwardRef<AiInsightPanelHandle, AiInsightPanelPro
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-fg">
-                  Analisis & saran dari AI
+                  {t("Analisis & saran dari AI")}
                 </p>
                 <p className="text-[13px] text-muted mt-0.5">
-                  Temuan penting, langkah yang bisa dikerjakan, dan ide konten
-                  berdasarkan data {label} · {scopeLabel}.
+                  {t(
+                    "Temuan penting, langkah yang bisa dikerjakan, dan ide konten berdasarkan data {label} · {scope}.",
+                    { label, scope: scopeLabel }
+                  )}
                 </p>
                 {stale && (
                   <p className="text-xs text-accent mt-1">
-                    Filter berubah, analisis sebelumnya tidak ditampilkan.
+                    {t("Filter berubah, analisis sebelumnya tidak ditampilkan.")}
                   </p>
                 )}
               </div>
@@ -145,7 +156,7 @@ export const AiInsightPanel = forwardRef<AiInsightPanelHandle, AiInsightPanelPro
               className="h-11 px-5 inline-flex items-center justify-center gap-2 rounded-lg bg-accent hover:bg-accent-hover text-on-accent text-sm font-semibold cursor-pointer transition-colors shrink-0"
             >
               <Sparkles className="w-4 h-4" />
-              Analisis & beri saran
+              {t("Analisis & beri saran")}
             </button>
           </div>
         )}
@@ -159,9 +170,9 @@ export const AiInsightPanel = forwardRef<AiInsightPanelHandle, AiInsightPanelPro
               </div>
               <div>
                 <p className="text-sm font-semibold text-fg">
-                  AI sedang menganalisis data {label}…
+                  {t("AI sedang menganalisis data {label}…", { label })}
                 </p>
-                <p className="text-[13px] text-muted">Biasanya 10 sampai 25 detik.</p>
+                <p className="text-[13px] text-muted">{t("Biasanya 10 sampai 25 detik.")}</p>
               </div>
             </div>
             <div className="mt-4 space-y-2.5 animate-pulse">
@@ -193,10 +204,10 @@ export const AiInsightPanel = forwardRef<AiInsightPanelHandle, AiInsightPanelPro
                 </div>
                 <div className="min-w-0 leading-tight">
                   <p className="text-sm font-semibold text-fg truncate">
-                    Analisis & saran AI
+                    {t("Analisis & saran AI")}
                   </p>
                   <p className="text-xs text-muted truncate">
-                    {current.scopeLabel} · {current.periodLabel} · {timeLabel(current.generatedAt)} WIB
+                    {scopeLabelText(current.scopeLabel, t)} · {periodLabelText(current.periodLabel, t)} · {timeLabel(current.generatedAt, locale)} WIB
                   </p>
                 </div>
               </div>
@@ -204,8 +215,8 @@ export const AiInsightPanel = forwardRef<AiInsightPanelHandle, AiInsightPanelPro
                 <button
                   type="button"
                   onClick={copy}
-                  title="Salin analisis"
-                  aria-label="Salin analisis"
+                  title={t("Salin analisis")}
+                  aria-label={t("Salin analisis")}
                   className="w-9 h-9 rounded-lg text-muted hover:text-fg hover:bg-surface flex items-center justify-center cursor-pointer transition-colors"
                 >
                   {copied ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
@@ -213,8 +224,8 @@ export const AiInsightPanel = forwardRef<AiInsightPanelHandle, AiInsightPanelPro
                 <button
                   type="button"
                   onClick={() => analyze(true)}
-                  title="Buat ulang analisis"
-                  aria-label="Buat ulang analisis"
+                  title={t("Buat ulang analisis")}
+                  aria-label={t("Buat ulang analisis")}
                   className="w-9 h-9 rounded-lg text-muted hover:text-fg hover:bg-surface flex items-center justify-center cursor-pointer transition-colors"
                 >
                   <RefreshCw className="w-4 h-4" />
@@ -232,11 +243,11 @@ export const AiInsightPanel = forwardRef<AiInsightPanelHandle, AiInsightPanelPro
                 className="h-10 px-4 inline-flex items-center gap-2 rounded-lg bg-accent hover:bg-accent-hover text-on-accent text-sm font-semibold transition-colors"
               >
                 <MessageSquare className="w-4 h-4" />
-                Tanya lanjutan di chat
+                {t("Tanya lanjutan di chat")}
               </Link>
               {current.degraded && (
                 <span className="text-xs text-muted">
-                  AI sedang sibuk, ini analisis otomatis.
+                  {t("AI sedang sibuk, ini analisis otomatis.")}
                 </span>
               )}
             </div>

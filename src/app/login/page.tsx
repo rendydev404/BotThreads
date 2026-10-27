@@ -4,11 +4,13 @@ import { connection } from "next/server";
 import { getGoogleConfig } from "@/lib/google-oauth";
 import { signupOpen } from "@/lib/team-service";
 import { LoginForm } from "./login-form";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Masuk | BotThreads",
-  robots: { index: false, follow: false },
-};
+/** Judul tab mengikuti bahasa (cookie `lang`); halaman ini sudah dirender saat permintaan (LoginGate). */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
+  return { title: `${t("Masuk")} | BotThreads`, robots: { index: false, follow: false } };
+}
 
 /** Saklar Google dibaca dari konfigurasi integrasi/env saat permintaan datang. */
 async function LoginGate() {

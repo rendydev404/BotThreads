@@ -4,9 +4,10 @@ import React, { useState } from "react";
 import { AlertCircle, Loader2, RotateCcw, Save } from "lucide-react";
 import { ContentApiError, patchPost } from "@/lib/content-client";
 import type { PostItemDTO } from "@/lib/content-types";
+import { useT } from "@/components/i18n/lang-provider";
 import { AiAssist } from "./ai-assist";
 import { ModalButton, ModalShell } from "./modal-shell";
-import { PostTextField, checkPostText, type PostTextState } from "./post-text-field";
+import { PostTextField, checkPostText, tContentMessage, type PostTextState } from "./post-text-field";
 import { SchedulePicker, type ScheduleValue } from "./schedule-picker";
 
 interface EditPostModalProps {
@@ -23,6 +24,7 @@ export function EditPostModal({ post, onClose, onSaved }: EditPostModalProps) {
 }
 
 function EditForm({ post, onClose, onSaved }: { post: PostItemDTO; onClose: () => void; onSaved: EditPostModalProps["onSaved"] }) {
+  const t = useT();
   const [fields, setFields] = useState<PostTextState>({ text: post.text, topic: post.topicTag ?? "" });
   const [schedule, setSchedule] = useState<ScheduleValue>({ mode: "at", at: post.tayangPada });
   const [busy, setBusy] = useState(false);
@@ -59,16 +61,16 @@ function EditForm({ post, onClose, onSaved }: { post: PostItemDTO; onClose: () =
       onClose={onClose}
       busy={busy}
       size="lg"
-      title="Ubah jadwal posting"
+      title={t("Ubah jadwal posting")}
       description={`@${post.account.username ?? post.account.displayName}`}
       footer={
         <>
           <ModalButton onClick={onClose} disabled={busy}>
-            Batal
+            {t("Batal")}
           </ModalButton>
           <ModalButton variant="primary" onClick={save} disabled={busy || !dirty || !check.valid}>
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Simpan perubahan
+            {t("Simpan perubahan")}
           </ModalButton>
         </>
       }
@@ -77,8 +79,8 @@ function EditForm({ post, onClose, onSaved }: { post: PostItemDTO; onClose: () =
         <PostTextField value={fields} onChange={setFields} outletNama={post.outletNama} disabled={busy} rows={6} />
         {aiBase !== null && (
           <p className="msg-in -mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted">
-            <span className="font-semibold text-success">Versi AI dipakai.</span>
-            Ubah lagi sesuka Anda, AI akan belajar dari ubahan itu.
+            <span className="font-semibold text-success">{t("Versi AI dipakai.")}</span>
+            {t("Ubah lagi sesuka Anda, AI akan belajar dari ubahan itu.")}
             <button
               type="button"
               disabled={busy}
@@ -88,7 +90,7 @@ function EditForm({ post, onClose, onSaved }: { post: PostItemDTO; onClose: () =
               }}
               className="inline-flex items-center gap-1 font-semibold text-accent hover:underline cursor-pointer"
             >
-              <RotateCcw className="h-3 w-3" /> Kembalikan teks awal
+              <RotateCcw className="h-3 w-3" /> {t("Kembalikan teks awal")}
             </button>
           </p>
         )}
@@ -105,13 +107,13 @@ function EditForm({ post, onClose, onSaved }: { post: PostItemDTO; onClose: () =
           />
         )}
         <div>
-          <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">Jadwal tayang</p>
+          <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">{t("Jadwal tayang")}</p>
           <SchedulePicker value={schedule} onChange={setSchedule} allowNow={false} disabled={busy} />
         </div>
         {error && (
           <p role="alert" className="flex items-start gap-2 rounded-xl bg-danger-soft text-danger p-3 text-[13px] font-medium">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-            {error}
+            {tContentMessage(t, error)}
           </p>
         )}
       </div>

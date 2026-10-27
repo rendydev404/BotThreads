@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Mascot, type MascotMood } from "./mascot";
 import { TOUR_STEPS } from "./tour-steps";
+import { useT } from "@/components/i18n/lang-provider";
 
 /**
  * Tur pengenalan interaktif. Dimuat terpisah (lazy) hanya saat tur dibuka, jadi pengguna yang sudah selesai
@@ -71,6 +72,7 @@ function Reveal({ text, delay = 0 }: { text: string; delay?: number }) {
 }
 
 export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boolean) => void; hasAccounts: boolean }) {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
@@ -281,7 +283,7 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
         <button
           type="button"
           onClick={() => onClose(false)}
-          aria-label="Tutup tur"
+          aria-label={t("Tutup tur")}
           className="absolute top-3 right-3 w-8 h-8 rounded-full text-muted hover:text-fg hover:bg-subtle inline-flex items-center justify-center cursor-pointer"
         >
           <X className="w-4 h-4" />
@@ -289,16 +291,16 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
 
         {!awake ? (
           <div className="flex flex-col items-center text-center pt-2">
-            <Mascot mood="sleep" size={mobile ? 104 : 132} onClick={() => setAwake(true)} label="Bangunkan maskot" className="hover:scale-[1.03] transition-transform" />
-            <p className="mt-2 text-base font-bold text-fg">Ssst... robotnya lagi tidur</p>
-            <p className="mt-1 text-sm text-muted max-w-xs">Wajar, dia kerja semalaman memposting untuk akunmu. Klik robotnya untuk membangunkan dan mulai tur singkat.</p>
+            <Mascot mood="sleep" size={mobile ? 104 : 132} onClick={() => setAwake(true)} label={t("Bangunkan maskot")} className="hover:scale-[1.03] transition-transform" />
+            <p className="mt-2 text-base font-bold text-fg">{t("Ssst... robotnya lagi tidur")}</p>
+            <p className="mt-1 text-sm text-muted max-w-xs">{t("Wajar, dia kerja semalaman memposting untuk akunmu. Klik robotnya untuk membangunkan dan mulai tur singkat.")}</p>
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
                 onClick={() => onClose(false)}
                 className="h-10 px-4 rounded-full text-sm font-semibold text-muted hover:text-fg hover:bg-subtle cursor-pointer"
               >
-                Nanti saja
+                {t("Nanti saja")}
               </button>
               <button
                 type="button"
@@ -306,7 +308,7 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
                 onClick={() => setAwake(true)}
                 className="h-10 px-5 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover cursor-pointer"
               >
-                Bangunkan
+                {t("Bangunkan")}
               </button>
             </div>
           </div>
@@ -317,32 +319,32 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
                 mood={mood}
                 size={mobile ? 52 : 76}
                 flip={side === "left"}
-                onClick={() => setPoke(POKES[Math.floor(Math.random() * POKES.length)])}
-                label="Colek maskot"
+                onClick={() => setPoke(t(POKES[Math.floor(Math.random() * POKES.length)]))}
+                label={t("Colek maskot")}
                 key={`${step.id}-${poke ?? ""}`}
               />
               <div className="min-w-0 flex-1 pt-1">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-accent">
-                  {idx === 0 ? "Tur singkat" : `Langkah ${idx} dari ${TOUR_STEPS.length - 2}`}
+                  {idx === 0 ? t("Tur singkat") : t("Langkah {no} dari {total}", { no: idx, total: TOUR_STEPS.length - 2 })}
                 </p>
-                <h2 className="mt-0.5 text-[15px] sm:text-[17px] font-bold text-fg leading-snug">{step.title}</h2>
+                <h2 className="mt-0.5 text-[15px] sm:text-[17px] font-bold text-fg leading-snug">{t(step.title)}</h2>
               </div>
             </div>
 
             {/* Bagian isi bisa digulir sendiri bila layar pendek; judul dan tombol tetap terlihat. */}
             <div className="mt-2.5 sm:mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="rounded-2xl bg-subtle px-3 py-2.5 sm:px-3.5 sm:py-3 text-[13.5px] sm:text-sm text-fg leading-relaxed" aria-live="polite">
-              {poke ? <span className="font-semibold">{poke}</span> : <Reveal text={step.body} />}
+              {poke ? <span className="font-semibold">{poke}</span> : <Reveal key={t(step.body)} text={t(step.body)} />}
             </div>
             {inMore && !poke && (
-              <p className="mt-2 text-xs font-medium text-accent">Di HP, menu ini ada di tombol Lainnya pada bilah bawah.</p>
+              <p className="mt-2 text-xs font-medium text-accent">{t("Di HP, menu ini ada di tombol Lainnya pada bilah bawah.")}</p>
             )}
             {!poke && step.points && (
               <ul className="mt-2.5 space-y-1.5">
                 {step.points.map((p, i) => (
                   <li key={p} className="btt-word flex items-start gap-2 text-xs sm:text-[13px] text-muted" style={{ animationDelay: `${500 + i * 120}ms` }}>
                     <Check className="w-3.5 h-3.5 mt-0.5 text-success shrink-0" />
-                    <span>{p}</span>
+                    <span>{t(p)}</span>
                   </li>
                 ))}
               </ul>
@@ -350,15 +352,15 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
             </div>
 
             {/* Progres: titik per langkah, bisa diklik untuk melompat. */}
-            <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-1 shrink-0" role="tablist" aria-label="Langkah tur">
+            <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-1 shrink-0" role="tablist" aria-label={t("Langkah tur")}>
               {TOUR_STEPS.map((s, i) => (
                 <button
                   key={s.id}
                   type="button"
                   role="tab"
                   aria-selected={i === idx}
-                  aria-label={`${i + 1}. ${s.chip}`}
-                  title={s.chip}
+                  aria-label={`${i + 1}. ${t(s.chip)}`}
+                  title={t(s.chip)}
                   onClick={() => go(i)}
                   className={cn(
                     "h-1.5 rounded-full transition-all cursor-pointer",
@@ -375,7 +377,7 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
                   onClick={() => onClose(false)}
                   className="h-10 px-3 rounded-full text-sm font-semibold text-muted hover:text-fg hover:bg-subtle cursor-pointer"
                 >
-                  Lewati
+                  {t("Lewati")}
                 </button>
               )}
               <div className="ml-auto flex items-center gap-2">
@@ -383,7 +385,7 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
                   <button
                     type="button"
                     onClick={() => go(idx - 1)}
-                    aria-label="Langkah sebelumnya"
+                    aria-label={t("Langkah sebelumnya")}
                     className="w-10 h-10 rounded-full border border-line-strong text-fg hover:border-accent hover:text-accent inline-flex items-center justify-center cursor-pointer"
                   >
                     <ArrowLeft className="w-4 h-4" />
@@ -399,7 +401,7 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
                     }}
                     className="h-10 px-5 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover inline-flex items-center gap-1.5 cursor-pointer"
                   >
-                    {hasAccounts ? "Buka Autopilot" : "Hubungkan akun"}
+                    {hasAccounts ? t("Buka Autopilot") : t("Hubungkan akun")}
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 ) : (
@@ -409,13 +411,13 @@ export default function Tour({ onClose, hasAccounts }: { onClose: (finished: boo
                     onClick={() => go(idx + 1)}
                     className="h-10 px-5 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover inline-flex items-center gap-1.5 cursor-pointer"
                   >
-                    {idx === 0 ? "Mulai" : "Lanjut"}
+                    {idx === 0 ? t("Mulai") : t("Lanjut")}
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 )}
               </div>
             </div>
-            {!mobile && <p className="mt-2 text-[11px] text-faint text-right">Tombol panah ← → untuk pindah, Esc untuk keluar</p>}
+            {!mobile && <p className="mt-2 text-[11px] text-faint text-right">{t("Tombol panah ← → untuk pindah, Esc untuk keluar")}</p>}
           </>
         )}
       </div>

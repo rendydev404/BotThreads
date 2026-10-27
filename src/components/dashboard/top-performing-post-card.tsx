@@ -3,6 +3,7 @@
 import React from "react";
 import { formatNumber } from "@/lib/utils";
 import { AccountAvatar } from "@/components/content/post-status-chip";
+import { useT } from "@/components/i18n/lang-provider";
 import {
   Eye,
   Heart,
@@ -56,12 +57,13 @@ export function TopPerformingPostCard({
   contentFormats = [],
   loading = false,
 }: TopPerformingPostCardProps) {
+  const t = useT();
   return (
     <div className="space-y-4">
       {/* Postingan terpopuler */}
       <section className="card p-5">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-base font-semibold text-fg">Postingan terpopuler</h3>
+          <h3 className="text-base font-semibold text-fg">{t("Postingan terpopuler")}</h3>
           {topPost && (
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent">
               <Eye className="w-4 h-4" />
@@ -76,7 +78,7 @@ export function TopPerformingPostCard({
             <div className="h-20 rounded-xl bg-subtle" />
           </div>
         ) : !topPost ? (
-          <p className="mt-4 text-sm text-muted">Belum ada postingan.</p>
+          <p className="mt-4 text-sm text-muted">{t("Belum ada postingan.")}</p>
         ) : (
           <>
             <div className="mt-4 flex items-center gap-2.5">
@@ -87,7 +89,7 @@ export function TopPerformingPostCard({
                 className="text-xs"
               />
               <span className="text-sm font-medium text-fg truncate">
-                @{topPost.threadsAccount?.username || "akun"}
+                @{topPost.threadsAccount?.username || t("akun")}
               </span>
             </div>
 
@@ -114,7 +116,7 @@ export function TopPerformingPostCard({
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
                 >
-                  Buka di Threads
+                  {t("Buka di Threads")}
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               )}
@@ -125,9 +127,9 @@ export function TopPerformingPostCard({
 
       {/* Jenis konten */}
       <section className="card p-5">
-        <h3 className="text-base font-semibold text-fg">Jenis konten</h3>
+        <h3 className="text-base font-semibold text-fg">{t("Jenis konten")}</h3>
         <p className="text-[13px] text-muted mt-0.5">
-          Proporsi tiap format dari seluruh postingan
+          {t("Proporsi tiap format dari seluruh postingan")}
         </p>
 
         <ul className="mt-4 space-y-4">
@@ -142,7 +144,7 @@ export function TopPerformingPostCard({
                     <div className="flex items-center justify-between text-sm">
                       <span className="inline-flex items-center gap-2 text-fg">
                         <Icon className="w-4 h-4 text-muted" />
-                        {format.name}
+                        {t(format.name)}
                       </span>
                       <span className="text-muted">
                         <span className="font-semibold text-fg">
@@ -154,7 +156,7 @@ export function TopPerformingPostCard({
                     <div
                       className="mt-2 h-1.5 bg-subtle rounded-full overflow-hidden"
                       role="progressbar"
-                      aria-label={format.name}
+                      aria-label={t(format.name)}
                       aria-valuenow={format.value}
                       aria-valuemin={0}
                       aria-valuemax={100}

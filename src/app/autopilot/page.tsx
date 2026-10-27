@@ -15,8 +15,10 @@ import { HistoryTab } from "@/components/autopilot/history-tab";
 import { PlanTab } from "@/components/autopilot/plan-tab";
 import { RepliesTab } from "@/components/autopilot/replies-tab";
 import { ReviewTab } from "@/components/autopilot/review-tab";
-import { Banner, accountHandle, durationText, timeOf } from "@/components/autopilot/shared";
+import { Banner, accountHandle, apiErrorText, durationText, timeOf } from "@/components/autopilot/shared";
 import { useAutopilotOverview } from "@/components/autopilot/use-autopilot-overview";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
 
 type TabKey = "akun" | "rencana" | "tinjau" | "komentar" | "riwayat" | "affiliate";
 
@@ -30,6 +32,7 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 function PageHeader({ children }: { children?: React.ReactNode }) {
+  const t = useT();
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       {/* Di layar kecil judul sudah tampil di bilah atas; di sini cukup untuk pembaca layar. */}
@@ -39,7 +42,7 @@ function PageHeader({ children }: { children?: React.ReactNode }) {
         </div>
         <div className="min-w-0">
           <h2 className="text-xl font-bold text-fg leading-tight">Autopilot</h2>
-          <p className="text-sm text-muted">AI menulis dan menjadwalkan posting setiap hari di jam ramai tiap akun.</p>
+          <p className="text-sm text-muted">{t("AI menulis dan menjadwalkan posting setiap hari di jam ramai tiap akun.")}</p>
         </div>
       </div>
       {children}
@@ -64,8 +67,9 @@ function SummaryTile({ label, value, tone }: { label: string; value: string | nu
 }
 
 function PageSkeleton() {
+  const t = useT();
   return (
-    <div className="space-y-5" aria-busy="true" aria-label="Memuat autopilot">
+    <div className="space-y-5" aria-busy="true" aria-label={t("Memuat autopilot")}>
       <PageHeader />
       <div className="grid grid-cols-4 gap-2 sm:gap-3">
         {[0, 1, 2, 3].map((i) => (
@@ -91,6 +95,7 @@ function PageSkeleton() {
 }
 
 function AutopilotInner() {
+  const t = useT();
   const { data, error, loadedAt, refetch, patch } = useAutopilotOverview();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -118,7 +123,7 @@ function AutopilotInner() {
   const onTabKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
     e.preventDefault();
-    const at = TABS.findIndex((t) => t.key === tab);
+    const at = TABS.findIndex((x) => x.key === tab);
     const next = TABS[(at + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
     setTab(next.key);
     document.getElementById(`autopilot-tab-${next.key}`)?.focus();
@@ -165,7 +170,7 @@ function AutopilotInner() {
             className="mt-4 h-10 px-5 rounded-full bg-accent text-on-accent text-sm font-semibold inline-flex items-center gap-2 cursor-pointer hover:bg-accent-hover"
           >
             <RotateCw className="w-4 h-4" />
-            Coba lagi
+            {t("Coba lagi")}
           </button>
         </div>
       </div>
@@ -180,11 +185,11 @@ function AutopilotInner() {
           <div className="mx-auto w-12 h-12 rounded-xl bg-warning-soft text-warning flex items-center justify-center">
             <Database className="w-6 h-6" />
           </div>
-          <h3 className="mt-4 text-base font-bold text-fg">Autopilot belum dipasang.</h3>
+          <h3 className="mt-4 text-base font-bold text-fg">{t("Autopilot belum dipasang.")}</h3>
           <p className="mt-1 text-sm text-muted max-w-md mx-auto">
-            Pemilik dashboard perlu menjalankan{" "}
+            {t("Pemilik dashboard perlu menjalankan")}{" "}
             <code className="px-1.5 py-0.5 rounded-md bg-subtle text-fg text-[13px] font-semibold break-all">sql/005_autopilot.sql</code>{" "}
-            di Supabase.
+            {t("di Supabase.")}
           </p>
         </div>
       </div>
@@ -203,7 +208,7 @@ function AutopilotInner() {
       patch((d) => ({ ...d, workspaceActive: res.active }));
       setPauseOpen(false);
     } catch (e) {
-      setPauseError(e instanceof ContentApiError ? e.message : "Gagal mengubah saklar. Coba lagi.");
+      setPauseError(e instanceof ContentApiError ? apiErrorText(e.message) : tr("Gagal mengubah saklar. Coba lagi."));
     } finally {
       setPauseBusy(false);
     }
@@ -217,7 +222,7 @@ function AutopilotInner() {
             type="button"
             role="switch"
             aria-checked={paused}
-            aria-label={paused ? "Lanjutkan autopilot (sedang dijeda untuk semua akun)" : "Jeda semua autopilot"}
+            aria-label={paused ? t("Lanjutkan autopilot (sedang dijeda untuk semua akun)") : t("Jeda semua autopilot")}
             onClick={() => {
               setPauseError(null);
               setPauseOpen(true);
@@ -230,11 +235,11 @@ function AutopilotInner() {
             <span className={cn("relative shrink-0 w-9 h-5 rounded-full transition-colors", paused ? "bg-danger" : "bg-line-strong")} aria-hidden>
               <span className={cn("absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-surface transition-transform", paused && "translate-x-4")} />
             </span>
-            {paused ? "Lanjutkan" : "Jeda semua"}
+            {paused ? t("Lanjutkan") : t("Jeda semua")}
           </button>
           {health.lastRunAt && (
             <p className="text-xs text-muted tabular-nums">
-              Tick <span className="max-sm:sr-only">terakhir </span>
+              Tick <span className="max-sm:sr-only">{t("terakhir")} </span>
               {timeOf(health.lastRunAt)} WIB{health.lastRunMs !== null ? `, ${health.lastRunMs} ms` : ""}
             </p>
           )}
@@ -244,37 +249,39 @@ function AutopilotInner() {
       {/* Banner keadaan */}
       {error && (
         <Banner tone="danger">
-          Gagal menyegarkan data: {error}{" "}
+          {t("Gagal menyegarkan data:")} {apiErrorText(error)}{" "}
           <button type="button" onClick={() => void refetch()} className="underline font-semibold cursor-pointer">
-            Coba lagi
+            {t("Coba lagi")}
           </button>
         </Banner>
       )}
       {!data.publishEnabled && (
         <Banner tone="warning">
-          Saklar posting dashboard sedang mati. Autopilot tetap menyusun rencana, tetapi tidak menulis atau memposting apa pun.
+          {t("Saklar posting dashboard sedang mati. Autopilot tetap menyusun rencana, tetapi tidak menulis atau memposting apa pun.")}
         </Banner>
       )}
       {health.stale && (
         <Banner tone="warning">
           <p>
             {health.lastRunAt
-              ? `Penjadwal terakhir berjalan ${durationText((loadedAt ?? Date.parse(health.lastRunAt)) - Date.parse(health.lastRunAt))} lalu. Autopilot tidak akan bekerja sampai penjadwal aktif lagi.`
-              : "Penjadwal autopilot belum berjalan"}
+              ? t("Penjadwal terakhir berjalan {ago} lalu. Autopilot tidak akan bekerja sampai penjadwal aktif lagi.", {
+                  ago: durationText((loadedAt ?? Date.parse(health.lastRunAt)) - Date.parse(health.lastRunAt)),
+                })
+              : t("Penjadwal autopilot belum berjalan")}
           </p>
-          {health.lastRunError && <p className="mt-1 text-danger">Galat tick terakhir: {health.lastRunError}</p>}
+          {health.lastRunError && <p className="mt-1 text-danger">{t("Galat tick terakhir:")} {health.lastRunError}</p>}
         </Banner>
       )}
-      {!health.stale && health.lastRunError && <Banner tone="danger">Galat tick terakhir: {health.lastRunError}</Banner>}
-      {paused && <Banner tone="danger">Autopilot sedang dijeda untuk semua akun.</Banner>}
+      {!health.stale && health.lastRunError && <Banner tone="danger">{t("Galat tick terakhir:")} {health.lastRunError}</Banner>}
+      {paused && <Banner tone="danger">{t("Autopilot sedang dijeda untuk semua akun.")}</Banner>}
 
       {/* Ringkasan */}
       {summary && (
         <div className="grid grid-cols-4 gap-2 sm:gap-3">
-          <SummaryTile label="Akun aktif" value={`${summary.active}/${summary.total}`} tone="accent" />
-          <SummaryTile label="Slot hari ini" value={summary.slotsToday} />
-          <SummaryTile label="Terbit hari ini" value={summary.publishedToday} tone="success" />
-          <SummaryTile label="Perlu perhatian" value={summary.attention} tone={summary.attention > 0 ? "danger" : undefined} />
+          <SummaryTile label={t("Akun aktif")} value={`${summary.active}/${summary.total}`} tone="accent" />
+          <SummaryTile label={t("Slot hari ini")} value={summary.slotsToday} />
+          <SummaryTile label={t("Terbit hari ini")} value={summary.publishedToday} tone="success" />
+          <SummaryTile label={t("Perlu perhatian")} value={summary.attention} tone={summary.attention > 0 ? "danger" : undefined} />
         </div>
       )}
 
@@ -285,29 +292,29 @@ function AutopilotInner() {
       <div
         role="tablist"
         data-tour="autopilot-tabs"
-        aria-label="Bagian autopilot"
+        aria-label={t("Bagian autopilot")}
         onKeyDown={onTabKey}
         className="flex gap-5 sm:gap-6 border-b border-line overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-4 px-4 sm:mx-0 sm:px-0"
       >
-        {TABS.map((t) => {
-          const active = tab === t.key;
+        {TABS.map((tb) => {
+          const active = tab === tb.key;
           return (
             <button
-              key={t.key}
+              key={tb.key}
               type="button"
               role="tab"
-              id={`autopilot-tab-${t.key}`}
+              id={`autopilot-tab-${tb.key}`}
               aria-selected={active}
-              aria-controls={`autopilot-panel-${t.key}`}
+              aria-controls={`autopilot-panel-${tb.key}`}
               tabIndex={active ? 0 : -1}
-              onClick={() => setTab(t.key)}
+              onClick={() => setTab(tb.key)}
               className={cn(
                 "relative h-11 shrink-0 inline-flex items-center gap-2 text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer",
                 active ? "text-accent" : "text-muted hover:text-fg"
               )}
             >
-              {t.label}
-              {t.key === "tinjau" && data.reviewCount > 0 && (
+              {t(tb.key === "akun" ? "Akun@@jumlah" : tb.label)}
+              {tb.key === "tinjau" && data.reviewCount > 0 && (
                 <span
                   className={cn(
                     "min-w-5 h-5 px-1.5 rounded-full text-[11px] font-bold inline-flex items-center justify-center tabular-nums",
@@ -315,7 +322,7 @@ function AutopilotInner() {
                   )}
                 >
                   {data.reviewCount}
-                  <span className="sr-only"> draf menunggu tinjauan</span>
+                  <span className="sr-only"> {t("draf menunggu tinjauan")}</span>
                 </span>
               )}
               {active && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />}
@@ -365,14 +372,16 @@ function AutopilotInner() {
         busy={pauseBusy}
         error={pauseError}
         variant={paused ? "primary" : "danger"}
-        title={paused ? "Lanjutkan autopilot?" : "Jeda autopilot untuk semua akun?"}
-        confirmLabel={paused ? "Ya, lanjutkan" : "Ya, jeda semua"}
+        title={paused ? t("Lanjutkan autopilot?") : t("Jeda autopilot untuk semua akun?")}
+        confirmLabel={paused ? t("Ya, lanjutkan") : t("Ya, jeda semua")}
         confirmIcon={paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
       >
         <p className="text-sm text-fg leading-relaxed">
           {paused
-            ? "AI kembali menulis dan menjadwalkan posting untuk akun yang modenya Tinjau dulu atau Otomatis."
-            : "AI berhenti menulis dan mengantrekan posting untuk semua akun sampai Anda melanjutkannya. Posting yang sudah masuk antrean tidak ikut dibatalkan."}
+            ? t("AI kembali menulis dan menjadwalkan posting untuk akun yang modenya Tinjau dulu atau Otomatis.")
+            : t(
+                "AI berhenti menulis dan mengantrekan posting untuk semua akun sampai Anda melanjutkannya. Posting yang sudah masuk antrean tidak ikut dibatalkan."
+              )}
         </p>
       </ConfirmModal>
     </div>

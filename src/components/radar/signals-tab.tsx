@@ -13,12 +13,14 @@ import {
   type SignalSource,
 } from "@/lib/radar-types";
 import { ThreadsMark } from "@/components/landing/threads-mark";
-import { formatWibFull } from "@/lib/scheduling";
+import { wibParts } from "@/lib/scheduling";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
 import { ConfirmModal } from "@/components/autopilot/confirm-modal";
 import { Banner, ListSkeleton, LoadMoreButton, accountHandle } from "@/components/autopilot/shared";
 import { usePublishAccounts } from "@/components/content/use-publish-accounts";
 import { FormError, TextAreaField, TextField } from "@/components/settings/fields";
-import { errorDetails, errorStatus, errorText, formatDateWib, toScore100 } from "@/components/settings/format";
+import { MONTH_SHORT, errorDetails, errorStatus, errorText, formatDateWib, pad2, toScore100 } from "@/components/settings/format";
 import { usePaged } from "@/components/settings/use-remote";
 import {
   BTN,
@@ -85,17 +87,26 @@ const EMPTY_COPY: Record<SourceFilter, { title: string; body: string }> = {
   },
 };
 
+/** "14 Okt 2026, 09.30 WIB" dengan nama bulan sesuai bahasa (formatWibFull di scheduling selalu bahasa Indonesia). */
+function formatWibFull(date: Date): string {
+  const p = wibParts(date);
+  return `${p.d} ${tr(MONTH_SHORT[p.m])} ${p.y}, ${pad2(p.h)}.${pad2(p.min)} WIB`;
+}
+
 function lastCaptureText(last: SignalListResponse["lastCapture"], source: SourceFilter): string | null {
   if (source === "MANUAL") return null;
   if (source === "ALL") {
     // ISO UTC berformat sama, jadi urutan teks = urutan waktu.
     const latest = AUTO_SOURCES.map((s) => last[s]).filter((v): v is string => !!v).sort().at(-1);
-    return latest ? `Diperbarui otomatis ${formatWibFull(new Date(latest))}.` : "Tren belum pernah diperbarui.";
+    return latest
+      ? tr("Diperbarui otomatis {date}.", { date: formatWibFull(new Date(latest)) })
+      : tr("Tren belum pernah diperbarui.");
   }
   const at = last[source];
+  const label = tr(SIGNAL_SOURCE_LABEL[source]);
   return at
-    ? `${SIGNAL_SOURCE_LABEL[source]} diperbarui ${formatWibFull(new Date(at))}.`
-    : `${SIGNAL_SOURCE_LABEL[source]} belum pernah diperbarui.`;
+    ? tr("{source} diperbarui {date}.", { source: label, date: formatWibFull(new Date(at)) })
+    : tr("{source} belum pernah diperbarui.", { source: label });
 }
 
 /** Halaman pencarian Threads untuk satu topik (dibuka di peramban pengguna, tidak lewat API). */
@@ -105,7 +116,7 @@ const hostOf = (url: string): string => {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
   } catch {
-    return "Buka tautan";
+    return tr("Buka tautan");
   }
 };
 
@@ -114,12 +125,12 @@ const hostOf = (url: string): string => {
 function urlIssueOf(raw: string): string | null {
   const value = raw.trim();
   if (!value) return null;
-  if (value.length > URL_MAX) return `Tautan maksimal ${URL_MAX} karakter.`;
+  if (value.length > URL_MAX) return tr("Tautan maksimal {n} karakter.", { n: URL_MAX });
   try {
     const parsed = new URL(value);
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? null : "Tautan harus diawali http:// atau https://.";
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? null : tr("Tautan harus diawali http:// atau https://.");
   } catch {
-    return "Tautan tidak valid. Tulis lengkap dengan https://.";
+    return tr("Tautan tidak valid. Tulis lengkap dengan https://.");
   }
 }
 
@@ -131,6 +142,7 @@ interface AddSignalFormProps {
 }
 
 function AddSignalForm({ id, onAdded, onClose, onForbidden }: AddSignalFormProps) {
+  const t = useT();
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
   const [tried, setTried] = useState(false);
@@ -138,7 +150,7 @@ function AddSignalForm({ id, onAdded, onClose, onForbidden }: AddSignalFormProps
   const [error, setError] = useState<{ message: string; details?: string[] } | null>(null);
 
   const clean = text.replace(/\s+/g, " ").trim();
-  const textIssue = clean.length < TEXT_MIN ? `Teks inspirasi minimal ${TEXT_MIN} karakter.` : null;
+  const textIssue = clean.length < TEXT_MIN ? t("Teks inspirasi minimal {n} karakter.", { n: TEXT_MIN }) : null;
   const urlIssue = urlIssueOf(url);
 
   const submit = async (e: React.FormEvent) => {
@@ -165,9 +177,9 @@ function AddSignalForm({ id, onAdded, onClose, onForbidden }: AddSignalFormProps
   };
 
   return (
-    <form id={id} onSubmit={submit} noValidate aria-label="Tambah inspirasi" className="card p-4 space-y-3">
+    <form id={id} onSubmit={submit} noValidate aria-label={t("Tambah inspirasi")} className="card p-4 space-y-3">
       <TextAreaField
-        label="Teks inspirasi"
+        label={t("Teks inspirasi")}
         value={text}
         onChange={(v) => {
           setText(v);
@@ -175,14 +187,14 @@ function AddSignalForm({ id, onAdded, onClose, onForbidden }: AddSignalFormProps
         }}
         maxLength={MANUAL_SIGNAL_MAX}
         rows={3}
-        placeholder="Tempel teks posting atau tulis gagasan yang ingin dijadikan bahan ide"
-        hint="AI memakainya sebagai rujukan saat menyusun ide, bukan untuk disalin apa adanya."
+        placeholder={t("Tempel teks posting atau tulis gagasan yang ingin dijadikan bahan ide")}
+        hint={t("AI memakainya sebagai rujukan saat menyusun ide, bukan untuk disalin apa adanya.")}
         error={tried ? textIssue : null}
         disabled={busy}
         autoFocus
       />
       <TextField
-        label="Tautan (opsional)"
+        label={t("Tautan (opsional)")}
         type="url"
         inputMode="url"
         value={url}
@@ -196,14 +208,14 @@ function AddSignalForm({ id, onAdded, onClose, onForbidden }: AddSignalFormProps
         error={tried ? urlIssue : null}
         disabled={busy}
       />
-      <FormError message={error?.message} details={error?.details} />
+      <FormError message={error?.message ? t(error.message) : error?.message} details={error?.details} />
       <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
         <button type="button" onClick={onClose} disabled={busy} className={cn(BTN, BTN_OUTLINE)}>
-          Tutup
+          {t("Tutup")}
         </button>
         <button type="submit" disabled={busy} className={cn(BTN, BTN_PRIMARY)}>
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-          {busy ? "Menyimpan..." : "Simpan inspirasi"}
+          {busy ? t("Menyimpan...") : t("Simpan inspirasi")}
         </button>
       </div>
     </form>
@@ -213,12 +225,13 @@ function AddSignalForm({ id, onAdded, onClose, onForbidden }: AddSignalFormProps
 /* ------------------------------------------------------------------ kartu posting viral Threads */
 
 const ThreadsViralRow = memo(function ThreadsViralRow({ signal }: { signal: SignalDTO }) {
+  const t = useT();
   const author = threadsAuthorFromUrl(signal.url);
   return (
     <li className="p-4 space-y-2.5">
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
         <SourceChip source="THREADS_SEARCH" />
-        <span className="text-xs font-semibold text-fg">Topik: {signal.title}</span>
+        <span className="text-xs font-semibold text-fg">{t("Topik: {topic}", { topic: signal.title })}</span>
       </div>
       <div className="flex items-start gap-3">
         <span className="w-9 h-9 rounded-full bg-fg text-canvas flex items-center justify-center text-sm font-bold uppercase shrink-0" aria-hidden>
@@ -238,11 +251,11 @@ const ThreadsViralRow = memo(function ThreadsViralRow({ signal }: { signal: Sign
             className="-my-2 h-10 inline-flex items-center gap-1.5 font-semibold text-fg hover:underline"
           >
             <ThreadsMark className="w-3.5 h-3.5" />
-            Lihat di Threads
-            <span className="sr-only"> (tab baru)</span>
+            {t("Lihat di Threads")}
+            <span className="sr-only"> ({t("tab baru")})</span>
           </a>
         )}
-        <span>Diperbarui {formatWibFull(new Date(signal.capturedAt))}</span>
+        <span>{t("Diperbarui {date}", { date: formatWibFull(new Date(signal.capturedAt)) })}</span>
       </div>
     </li>
   );
@@ -259,6 +272,7 @@ interface SignalRowProps {
 }
 
 const SignalRow = memo(function SignalRow({ signal, forAccount, canDelete, onDelete }: SignalRowProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   // Inspirasi manual yang panjang: `title` hanya potongan awal, teks lengkapnya ada di `summary`.
   const full =
@@ -273,13 +287,13 @@ const SignalRow = memo(function SignalRow({ signal, forAccount, canDelete, onDel
           <SourceChip source={signal.source} />
           {signal.rank !== null && (
             <span className="text-xs font-semibold text-fg tabular-nums">
-              {signal.source === "GTRENDS" ? `#${signal.rank} di Indonesia` : `Peringkat ${signal.rank}`}
+              {signal.source === "GTRENDS" ? t("#{n} di Indonesia", { n: signal.rank }) : t("Peringkat {n}", { n: signal.rank })}
             </span>
           )}
-          {forAccount && <span className="min-w-0 truncate text-xs font-semibold text-fg">untuk {forAccount}</span>}
+          {forAccount && <span className="min-w-0 truncate text-xs font-semibold text-fg">{t("untuk {handle}", { handle: forAccount })}</span>}
           <span className="text-xs font-semibold text-muted tabular-nums">
-            Skor viral {toScore100(signal.score)}
-            <span className="sr-only"> dari 100</span>
+            {t("Skor viral {score}", { score: toScore100(signal.score) })}
+            <span className="sr-only"> {t("dari 100")}</span>
           </span>
         </div>
 
@@ -299,7 +313,7 @@ const SignalRow = memo(function SignalRow({ signal, forAccount, canDelete, onDel
               aria-expanded={open}
               className="-mb-2 h-10 inline-flex items-center text-[13px] font-semibold text-accent hover:underline cursor-pointer"
             >
-              {open ? "Ringkas" : "Selengkapnya"}
+              {open ? t("Ringkas") : t("Selengkapnya")}
             </button>
           )}
         </div>
@@ -316,8 +330,8 @@ const SignalRow = memo(function SignalRow({ signal, forAccount, canDelete, onDel
               className="-my-2 h-10 max-w-full inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline"
             >
               <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-              <span className="min-w-0 truncate">{signal.source === "JARINGAN" ? "Lihat posting" : hostOf(href)}</span>
-              <span className="sr-only"> (tab baru)</span>
+              <span className="min-w-0 truncate">{signal.source === "JARINGAN" ? t("Lihat posting") : hostOf(href)}</span>
+              <span className="sr-only"> ({t("tab baru")})</span>
             </a>
           </div>
         )}
@@ -332,14 +346,15 @@ const SignalRow = memo(function SignalRow({ signal, forAccount, canDelete, onDel
               className="-my-2 h-10 inline-flex items-center gap-1.5 text-[13px] font-semibold text-fg hover:underline"
             >
               <ThreadsMark className="w-3.5 h-3.5 shrink-0" />
-              Lihat di Threads
-              <span className="sr-only"> (pencarian &quot;{signal.title}&quot; di Threads, tab baru)</span>
+              {t("Lihat di Threads")}
+              <span className="sr-only"> ({t("pencarian \"{topic}\" di Threads, tab baru", { topic: signal.title })})</span>
             </a>
           </div>
         )}
 
         <p className="text-xs text-muted">
-          Diperbarui {formatWibFull(new Date(signal.capturedAt))} · berlaku sampai {formatDateWib(signal.expiresAt)}
+          {t("Diperbarui {date}", { date: formatWibFull(new Date(signal.capturedAt)) })} ·{" "}
+          {t("berlaku sampai {date}", { date: formatDateWib(signal.expiresAt) })}
         </p>
       </div>
 
@@ -347,7 +362,7 @@ const SignalRow = memo(function SignalRow({ signal, forAccount, canDelete, onDel
         <button
           type="button"
           onClick={() => onDelete(signal)}
-          aria-label="Hapus inspirasi ini"
+          aria-label={t("Hapus inspirasi ini")}
           className={cn(ICON_BTN, "-mr-2 -mt-1.5 hover:text-danger hover:bg-danger-soft")}
         >
           <Trash2 className="w-[18px] h-[18px]" />
@@ -366,6 +381,7 @@ interface SignalsTabProps {
 }
 
 export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
+  const t = useT();
   const [source, setSource] = useState<SourceFilter>("ALL");
   const [formOpen, setFormOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SignalDTO | null>(null);
@@ -396,7 +412,12 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
 
   const onAdded = () => {
     const listed = source === "ALL" || source === "MANUAL";
-    showNotice("success", listed ? "Inspirasi tersimpan." : `Inspirasi tersimpan. Pilih saringan ${SIGNAL_SOURCE_LABEL.MANUAL} untuk melihatnya.`);
+    showNotice(
+      "success",
+      listed
+        ? t("Inspirasi tersimpan.")
+        : t("Inspirasi tersimpan. Pilih saringan {filter} untuk melihatnya.", { filter: t(SIGNAL_SOURCE_LABEL.MANUAL) })
+    );
     // Server tidak mengembalikan baris yang baru dibuat (id, waktu, masa berlaku), jadi halaman pertama
     // daftar ini saja yang diambil ulang, dan hanya bila baris barunya memang tampil di saringan ini.
     if (listed) reload();
@@ -422,13 +443,13 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
       await deleteRadarSignal(target.id);
       remove();
       setDeleteTarget(null);
-      showNotice("success", "Inspirasi dihapus.");
+      showNotice("success", t("Inspirasi dihapus."));
     } catch (e) {
       const status = errorStatus(e);
       if (status === 404) {
         remove();
         setDeleteTarget(null);
-        showNotice("info", "Inspirasi itu sudah dihapus sebelumnya.");
+        showNotice("info", t("Inspirasi itu sudah dihapus sebelumnya."));
       } else {
         if (status === 403) onForbidden();
         setDeleteError(errorText(e, "Gagal menghapus inspirasi. Coba lagi."));
@@ -449,7 +470,7 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
         */}
         <div
           role="group"
-          aria-label="Saring sumber tren"
+          aria-label={t("Saring sumber tren")}
           className="min-w-0 flex gap-2 max-sm:-mx-4 max-sm:px-4 max-sm:-my-1.5 max-sm:py-1.5 max-sm:overflow-x-auto sm:flex-wrap"
         >
           {FILTERS.map((f) => {
@@ -465,7 +486,7 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
                   active ? "bg-fg text-canvas border-fg" : "bg-surface text-muted border-line hover:text-fg hover:border-line-strong"
                 )}
               >
-                {f.label}
+                {t(f.label)}
               </button>
             );
           })}
@@ -482,7 +503,7 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
               className={cn(BTN, formOpen ? BTN_OUTLINE : BTN_PRIMARY)}
             >
               <Plus className={cn("w-4 h-4 transition-transform", formOpen && "rotate-45")} />
-              Tambah inspirasi
+              {t("Tambah inspirasi")}
             </button>
           )}
         </div>
@@ -497,28 +518,28 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
       )}
 
       {list.loading ? (
-        <ListSkeleton label="Memuat tren viral" />
+        <ListSkeleton label={t("Memuat tren viral")} />
       ) : !data ? (
         <LoadFailure status={list.status} message={list.error ?? "Gagal memuat tren viral."} onRetry={reload} />
       ) : !data.installed ? (
         <NotInstalled />
       ) : (
         <>
-          {list.error && <Banner tone="danger">Gagal menyegarkan: {list.error}</Banner>}
+          {list.error && <Banner tone="danger">{t("Gagal menyegarkan: {error}", { error: t(list.error) })}</Banner>}
           {captured && <p className="text-xs text-muted">{captured}</p>}
           {source === "ALL" && !data.lastCapture.THREADS_SEARCH && (
             <p className="flex items-start gap-2 rounded-xl bg-subtle p-3 text-[13px] text-muted leading-relaxed">
               <ThreadsMark className="w-4 h-4 mt-0.5 shrink-0 text-fg" />
               <span>
-                <span className="font-semibold text-fg">Viral di Threads</span> akan muncul di sini setelah izin pencarian Threads untuk aplikasi
-                kami disetujui Meta. Sementara itu tampil topik yang lagi ramai di Indonesia dan posting akun Anda yang sedang viral.
+                <span className="font-semibold text-fg">{t("Viral di Threads")}</span>{" "}
+                {t("akan muncul di sini setelah izin pencarian Threads untuk aplikasi kami disetujui Meta. Sementara itu tampil topik yang lagi ramai di Indonesia dan posting akun Anda yang sedang viral.")}
               </span>
             </p>
           )}
           {items.length === 0 ? (
-            <EmptyState icon={<Radar className="w-6 h-6" />} title={empty.title}>
-              <p>{empty.body}</p>
-              {source === "ALL" && canEdit && <p>Anda juga bisa menambah inspirasi sendiri lewat tombol Tambah inspirasi.</p>}
+            <EmptyState icon={<Radar className="w-6 h-6" />} title={t(empty.title)}>
+              <p>{t(empty.body)}</p>
+              {source === "ALL" && canEdit && <p>{t("Anda juga bisa menambah inspirasi sendiri lewat tombol Tambah inspirasi.")}</p>}
             </EmptyState>
           ) : (
             <ul className="card divide-y divide-line">
@@ -537,7 +558,7 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
               )}
             </ul>
           )}
-          {list.moreError && <Banner tone="danger">{list.moreError}</Banner>}
+          {list.moreError && <Banner tone="danger">{t(list.moreError)}</Banner>}
           {list.nextCursor && <LoadMoreButton onClick={() => void list.loadMore()} loading={list.loadingMore} />}
         </>
       )}
@@ -547,16 +568,16 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void confirmDelete()}
         busy={deleting}
-        error={deleteError}
+        error={deleteError ? t(deleteError) : null}
         variant="danger"
-        title="Hapus inspirasi ini?"
-        confirmLabel="Ya, hapus"
+        title={t("Hapus inspirasi ini?")}
+        confirmLabel={t("Ya, hapus")}
         confirmIcon={<Trash2 className="w-4 h-4" />}
       >
         {deleteTarget && (
           <>
             <p className="text-sm text-fg leading-relaxed">
-              Inspirasi ini dihapus dari radar dan tidak lagi dipakai untuk ide baru. Ide yang sudah dibuat darinya tetap ada.
+              {t("Inspirasi ini dihapus dari radar dan tidak lagi dipakai untuk ide baru. Ide yang sudah dibuat darinya tetap ada.")}
             </p>
             <p className="mt-2.5 rounded-xl bg-subtle p-3 text-[13px] text-muted leading-relaxed break-words line-clamp-3">
               {deleteTarget.title}

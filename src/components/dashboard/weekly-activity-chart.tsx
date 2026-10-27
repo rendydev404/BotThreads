@@ -12,6 +12,8 @@ import {
 } from "recharts";
 import { formatNumber } from "@/lib/utils";
 import { useTheme } from "@/components/theme/theme-provider";
+import { useT } from "@/components/i18n/lang-provider";
+import { translateDateWords } from "@/components/dashboard/period-filter";
 
 interface WeeklyActivityProps {
   data: Array<{
@@ -24,6 +26,7 @@ interface WeeklyActivityProps {
 export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
   const [mounted, setMounted] = useState(false);
   const { resolvedTheme } = useTheme();
+  const t = useT();
 
   useEffect(() => {
     setMounted(true);
@@ -55,6 +58,7 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
             axisLine={false}
             tickLine={false}
             tick={{ fill: axis, fontSize: 13 }}
+            tickFormatter={(v) => translateDateWords(String(v), t)}
           />
           <YAxis
             axisLine={false}
@@ -69,18 +73,18 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
               if (!active || !payload?.length) return null;
               return (
                 <div className="bg-surface p-3 rounded-xl shadow-pop border border-line text-sm">
-                  <p className="font-semibold text-fg mb-1.5">{label}</p>
+                  <p className="font-semibold text-fg mb-1.5">{translateDateWords(String(label ?? ""), t)}</p>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-accent" />
-                      <span className="text-muted">Penayangan</span>
+                      <span className="text-muted">{t("Penayangan")}</span>
                       <span className="ml-auto font-semibold text-fg">
                         {formatNumber(Number(payload[0]?.value) || 0)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-success" />
-                      <span className="text-muted">Interaksi</span>
+                      <span className="text-muted">{t("Interaksi")}</span>
                       <span className="ml-auto font-semibold text-fg">
                         {formatNumber(Number(payload[1]?.value) || 0)}
                       </span>
@@ -92,14 +96,14 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
           />
           <Bar
             dataKey="views"
-            name="Penayangan"
+            name={t("Penayangan")}
             fill={viewsColor}
             radius={[4, 4, 0, 0]}
             maxBarSize={22}
           />
           <Bar
             dataKey="interactions"
-            name="Interaksi"
+            name={t("Interaksi")}
             fill={interactionColor}
             radius={[4, 4, 0, 0]}
             maxBarSize={22}

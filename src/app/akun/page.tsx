@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils";
 import { useMe } from "@/components/layout/use-me";
 import { AccountsTab } from "@/components/settings/accounts-tab";
 import { BTN_PRIMARY, Pill } from "@/components/settings/states";
+import { useT } from "@/components/i18n/lang-provider";
 
 function AccountsSkeleton() {
+  const t = useT();
   return (
-    <div className="space-y-5 animate-pulse" aria-busy="true" aria-label="Memuat akun Threads">
+    <div className="space-y-5 animate-pulse" aria-busy="true" aria-label={t("Memuat akun Threads")}>
       <div className="h-12 w-64 rounded-xl bg-subtle" />
       <div className="card p-5 h-24 bg-subtle" />
       <div className="card p-5 h-40 bg-subtle" />
@@ -22,6 +24,7 @@ function AccountsSkeleton() {
 function AccountsInner() {
   const { me, loading, error, isAdmin, reload } = useMe();
   const router = useRouter();
+  const t = useT();
 
   if (loading) return <AccountsSkeleton />;
 
@@ -29,10 +32,10 @@ function AccountsInner() {
     return (
       <div role="alert" className="card p-8 text-center">
         <AlertTriangle className="w-8 h-8 text-danger mx-auto" />
-        <p className="mt-3 text-sm font-semibold text-fg">{error ?? "Gagal memuat profil."}</p>
+        <p className="mt-3 text-sm font-semibold text-fg">{t(error ?? "Gagal memuat profil.")}</p>
         <button type="button" onClick={() => void reload()} className={cn(BTN_PRIMARY, "mt-4")}>
           <RotateCw className="w-4 h-4" />
-          Coba lagi
+          {t("Coba lagi")}
         </button>
       </div>
     );
@@ -46,15 +49,15 @@ function AccountsInner() {
             <AtSign className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-xl font-bold text-fg leading-tight">Akun Threads</h2>
-            <p className="text-sm text-muted">Tambah, hubungkan ulang, perbarui, dan hapus akun Threads yang dipakai workspace ini.</p>
+            <h2 className="text-xl font-bold text-fg leading-tight">{t("Akun Threads")}</h2>
+            <p className="text-sm text-muted">{t("Tambah, hubungkan ulang, perbarui, dan hapus akun Threads yang dipakai workspace ini.")}</p>
           </div>
         </div>
-        <Pill tone="accent">{me.roleLabel}</Pill>
+        <Pill tone="accent">{t(me.roleLabel)}</Pill>
       </div>
 
       {!isAdmin && (
-        <p className="text-sm text-muted">Hanya Pemilik atau Admin yang bisa menambah, mengubah, atau menghapus akun.</p>
+        <p className="text-sm text-muted">{t("Hanya Pemilik atau Admin yang bisa menambah, mengubah, atau menghapus akun.")}</p>
       )}
 
       <AccountsTab canManage={isAdmin} onAccountConnected={() => void reload()} onOpenSubscription={() => router.push("/billing")} />

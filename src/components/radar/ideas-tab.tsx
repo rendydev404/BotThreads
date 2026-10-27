@@ -2,7 +2,7 @@
 
 import React, { memo, useCallback, useLayoutEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, Ban, CheckCircle2, Clock, Lightbulb, Loader2, Pin, PinOff, Sparkles, Users } from "lucide-react";
+import { AlertCircle, Ban, CheckCircle2, ChevronDown, Clock, Lightbulb, Loader2, Pin, PinOff, Sparkles, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { actOnIdea, listIdeas, type IdeaListItem, type IdeaListWithMedia } from "@/lib/radar-client";
 import {
@@ -29,6 +29,8 @@ import { AccountAvatar } from "@/components/content/post-status-chip";
 import { usePublishAccounts } from "@/components/content/use-publish-accounts";
 import { errorStatus, errorText, formatDateWib, toScore100 } from "@/components/settings/format";
 import { usePaged } from "@/components/settings/use-remote";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
 import {
   BTN,
   BTN_DANGER,
@@ -52,8 +54,8 @@ const ALL_ACCOUNTS = "all";
 
 const VIEW_OPTIONS: SegmentedOption<View>[] = [
   { value: "ready", label: "Siap dipakai" },
-  { value: "used", label: "Terpakai" },
-  { value: "dropped", label: "Tidak dipakai" },
+  { value: "used", label: "Sudah dipakai" },
+  { value: "dropped", label: "Dibuang" },
 ];
 
 const STATUS_STYLE: Record<IdeaStatus, { cls: string; Icon: React.ComponentType<{ className?: string }> }> = {
@@ -86,6 +88,7 @@ interface IdeaCardProps {
 }
 
 const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error, onAct, onReject }: IdeaCardProps) {
+  const t = useT();
   const { cls, Icon } = STATUS_STYLE[idea.status] ?? STATUS_STYLE.KEDALUWARSA;
   const score = toScore100(idea.score);
   const hook = hookLabel(idea.formulaHook);
@@ -104,24 +107,27 @@ const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error,
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             <span className={cn(CHIP, cls)}>
               <Icon className="w-3.5 h-3.5 shrink-0" />
-              {IDEA_STATUS_LABEL[idea.status] ?? idea.status}
+              {IDEA_STATUS_LABEL[idea.status] ? t(IDEA_STATUS_LABEL[idea.status]) : idea.status}
             </span>
             {idea.pinned && idea.status === "BARU" && (
               <span className={cn(CHIP, "bg-warning-soft text-warning")}>
                 <Pin className="w-3.5 h-3.5 shrink-0" />
-                Dipakai berikutnya
+                {t("Diposting duluan")}
               </span>
             )}
           </div>
         </div>
-        <div className="shrink-0 w-12 h-12 rounded-xl bg-accent-soft text-accent flex flex-col items-center justify-center leading-none">
+        <div
+          className="shrink-0 w-12 h-12 rounded-xl bg-accent-soft text-accent flex flex-col items-center justify-center leading-none"
+          title={t("Skor kelayakan 0 sampai 100. Makin tinggi, makin cepat ide ini dipakai autopilot.")}
+        >
           <span className="text-lg font-bold tabular-nums" aria-hidden>
             {score}
           </span>
           <span className="mt-0.5 text-[10px] font-semibold" aria-hidden>
-            skor
+            {t("skor")}
           </span>
-          <span className="sr-only">Skor {score} dari 100</span>
+          <span className="sr-only">{t("Skor {score} dari 100", { score })}</span>
         </div>
       </div>
 
@@ -129,12 +135,12 @@ const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error,
         <p className="text-[15px] font-semibold text-fg leading-snug break-words">{idea.topik}</p>
         {idea.sudut && (
           <p className="mt-1 text-sm text-muted leading-relaxed break-words">
-            <span className="font-semibold text-fg">Sudut:</span> {idea.sudut}
+            <span className="font-semibold text-fg">{t("Sudut pandang:")}</span> {idea.sudut}
           </p>
         )}
         {idea.scoreDetail.alasan && (
           <p className="mt-1 text-sm text-muted leading-relaxed break-words">
-            <span className="font-semibold text-fg">Kenapa bisa ramai:</span> {idea.scoreDetail.alasan}
+            <span className="font-semibold text-fg">{t("Kenapa bisa ramai:")}</span> {idea.scoreDetail.alasan}
           </p>
         )}
       </div>
@@ -143,65 +149,75 @@ const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error,
         <div className="flex flex-wrap gap-1.5">
           {hook && (
             <span className={cn(CHIP, "bg-subtle text-fg")}>
-              <span className="font-medium text-muted">Pembuka:</span>
-              {hook}
+              <span className="font-medium text-muted">{t("Pembuka:")}</span>
+              {t(hook)}
             </span>
           )}
           {idea.pilar && (
             <span className={cn(CHIP, "bg-subtle text-fg max-w-full")}>
-              <span className="shrink-0 font-medium text-muted">Kategori:</span>
+              <span className="shrink-0 font-medium text-muted">{t("Kategori:")}</span>
               <span className="min-w-0 truncate">{idea.pilar}</span>
             </span>
           )}
         </div>
       )}
 
-      {parts.length > 0 && (
-        <div role="group" aria-label="Rincian skor (0 sampai 100)">
-          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5">
-            {parts.map((p) => {
-              const value = toScore100(idea.scoreDetail[p.key]);
-              return (
-                <div key={p.key} title={p.hint}>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <dt className="text-xs font-medium text-muted">{p.label}</dt>
-                    <dd className="text-xs font-bold text-fg tabular-nums">{value}</dd>
-                  </div>
-                  <div className="mt-1 h-1.5 rounded-full bg-subtle overflow-hidden" aria-hidden>
-                    <div className="h-full rounded-full bg-accent" style={{ width: `${value}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </dl>
-        </div>
-      )}
+      {(parts.length > 0 || idea.signals.length > 0) && (
+        <details className="group rounded-xl border border-line">
+          <summary className="flex items-center justify-between gap-2 px-3 h-10 cursor-pointer list-none text-[13px] font-semibold text-fg [&::-webkit-details-marker]:hidden">
+            {t("Kenapa skornya {score}?", { score })}
+            <ChevronDown className="w-4 h-4 text-muted transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="px-3 pb-3 space-y-3">
+          {parts.length > 0 && (
+            <div role="group" aria-label={t("Rincian skor (0 sampai 100)")}>
+              <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5">
+                {parts.map((p) => {
+                  const value = toScore100(idea.scoreDetail[p.key]);
+                  return (
+                    <div key={p.key} title={t(p.hint)}>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <dt className="text-xs font-medium text-muted">{t(p.label)}</dt>
+                        <dd className="text-xs font-bold text-fg tabular-nums">{value}</dd>
+                      </div>
+                      <div className="mt-1 h-1.5 rounded-full bg-subtle overflow-hidden" aria-hidden>
+                        <div className="h-full rounded-full bg-accent" style={{ width: `${value}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </dl>
+            </div>
+          )}
 
-      {idea.signals.length > 0 && (
-        <div className="rounded-xl bg-subtle p-3">
-          <p className="text-xs font-semibold text-muted">Tren rujukan</p>
-          <ul className="mt-2 space-y-2">
-            {idea.signals.map((s) => (
-              <li key={s.id} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-                <SourceChip source={s.source} className="self-start bg-surface" />
-                <span className="min-w-0 text-[13px] text-fg leading-relaxed break-words">{s.title}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+          {idea.signals.length > 0 && (
+            <div className="rounded-xl bg-subtle p-3">
+              <p className="text-xs font-semibold text-muted">{t("Tren rujukan")}</p>
+              <ul className="mt-2 space-y-2">
+                {idea.signals.map((s) => (
+                  <li key={s.id} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
+                    <SourceChip source={s.source} className="self-start bg-surface" />
+                    <span className="min-w-0 text-[13px] text-fg leading-relaxed break-words">{s.title}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          </div>
+        </details>
       )}
 
       <p className="text-xs text-muted">
-        Dibuat {formatDateWib(idea.createdAt)}
-        {idea.status === "BARU" && ` · berlaku sampai ${formatDateWib(idea.expiresAt)}`}
-        {idea.status === "KEDALUWARSA" && ` · kedaluwarsa ${formatDateWib(idea.expiresAt)}`}
-        {idea.status === "DIPAKAI" && " · sudah ditulis autopilot menjadi posting"}
+        {t("Dibuat {date}", { date: formatDateWib(idea.createdAt) })}
+        {idea.status === "BARU" && ` · ${t("berlaku sampai {date}", { date: formatDateWib(idea.expiresAt) })}`}
+        {idea.status === "KEDALUWARSA" && ` · ${t("kedaluwarsa {date}", { date: formatDateWib(idea.expiresAt) })}`}
+        {idea.status === "DIPAKAI" && ` · ${t("sudah ditulis autopilot menjadi posting")}`}
       </p>
 
       {error && (
         <p role="alert" className="flex items-start gap-2 rounded-lg bg-danger-soft text-danger p-2.5 text-[13px] font-medium">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          <span className="min-w-0 break-words">{error}</span>
+          <span className="min-w-0 break-words">{t(error)}</span>
         </p>
       )}
 
@@ -210,17 +226,17 @@ const IdeaCard = memo(function IdeaCard({ idea, avatarUrl, canEdit, busy, error,
           {idea.pinned ? (
             <button type="button" onClick={() => onAct(idea, "unpin")} disabled={working} className={cn(BTN, BTN_OUTLINE)}>
               {busy === "unpin" ? <Loader2 className="w-4 h-4 animate-spin" /> : <PinOff className="w-4 h-4" />}
-              Lepas sematan
+              {t("Batal duluan")}
             </button>
           ) : (
             <button type="button" onClick={() => onAct(idea, "pin")} disabled={working} className={cn(BTN, BTN_PRIMARY)}>
               {busy === "pin" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pin className="w-4 h-4" />}
-              Pakai berikutnya
+              {t("Posting ide ini duluan")}
             </button>
           )}
           <button type="button" onClick={() => onReject(idea)} disabled={working} className={cn(BTN, BTN_DANGER)}>
             {busy === "reject" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
-            Jangan dipakai
+            {t("Buang ide")}
           </button>
         </div>
       )}
@@ -252,6 +268,8 @@ interface IdeasTabProps {
 }
 
 export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
+  const t = useT();
+  const viewOptions = useMemo(() => VIEW_OPTIONS.map((o) => ({ ...o, label: t(o.label) })), [t]);
   const [view, setView] = useState<View>("ready");
   /** "all" atau id akun Threads. */
   const [account, setAccount] = useState(ALL_ACCOUNTS);
@@ -276,10 +294,10 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
 
   const accountOptions = useMemo<DropdownOption<string>[]>(
     () => [
-      { value: ALL_ACCOUNTS, label: "Semua akun" },
+      { value: ALL_ACCOUNTS, label: t("Semua akun") },
       ...accounts.map((a) => ({ value: a.id, label: accountHandle(a), hint: a.outletNama ?? undefined })),
     ],
-    [accounts]
+    [accounts, t]
   );
   const avatarById = useMemo(() => new Map(accounts.map((a) => [a.id, a.avatarUrl])), [accounts]);
 
@@ -294,7 +312,7 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
         // Daftar diperbarui secara lokal; tidak ada fetch ulang setelah tindakan.
         if (action === "reject") {
           drop();
-          showNotice("success", `Ide untuk ${accountHandle(idea.account)} ditandai jangan dipakai.`);
+          showNotice("success", tr("Ide untuk {handle} ditandai jangan dipakai.", { handle: accountHandle(idea.account) }));
         } else {
           const pinned = action === "pin";
           mutate((d) => ({ ...d, items: d.items.map((i) => (i.id === id ? { ...i, pinned } : i)) }));
@@ -340,10 +358,10 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
     <div className="space-y-4">
       <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
         {/* `fit`: lebar segmen mengikuti labelnya, supaya ketiganya muat utuh di layar 360px. */}
-        <Segmented ariaLabel="Status ide" options={VIEW_OPTIONS} value={view} onChange={setView} fit className="w-full lg:w-[24rem]" />
+        <Segmented ariaLabel={t("Status ide")} options={viewOptions} value={view} onChange={setView} fit className="w-full lg:w-[24rem]" />
         <div className="flex items-center gap-2 w-full lg:w-auto lg:ml-auto">
           <Dropdown<string>
-            ariaLabel="Saring akun"
+            ariaLabel={t("Saring akun")}
             value={account}
             options={accountOptions}
             onChange={setAccount}
@@ -354,6 +372,17 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
         </div>
       </div>
 
+      {view === "ready" && (
+        <p className="flex items-start gap-2 text-[13px] text-muted leading-relaxed">
+          <Lightbulb className="w-4 h-4 mt-0.5 text-accent shrink-0" />
+          <span>
+            {t("Anda tidak wajib memilih. Autopilot otomatis memakai ide dengan skor tertinggi, dan teks di kanan adalah contoh posting yang akan terbit. Klik")}{" "}
+            <span className="font-semibold text-fg">{t("Posting ide ini duluan")}</span>{" "}
+            {t("bila ingin ide tertentu dipakai lebih dulu.")}
+          </span>
+        </p>
+      )}
+
       <IdeaAgentProgress accounts={accounts} onDone={onHuntDone} />
 
       {notice && (
@@ -363,40 +392,39 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
       )}
 
       {list.loading ? (
-        <ListSkeleton label="Memuat bank ide" />
+        <ListSkeleton label={t("Memuat bank ide")} />
       ) : !data ? (
         <LoadFailure status={list.status} message={list.error ?? "Gagal memuat bank ide."} onRetry={reload} />
       ) : !data.installed ? (
         <NotInstalled />
       ) : (
         <>
-          {list.error && <Banner tone="danger">Gagal menyegarkan: {list.error}</Banner>}
+          {list.error && <Banner tone="danger">{t("Gagal menyegarkan: {error}", { error: t(list.error) })}</Banner>}
           {items.length === 0 ? (
             <EmptyState
               icon={<Lightbulb className="w-6 h-6" />}
               title={
                 view === "ready"
-                  ? "Belum ada ide yang siap dipakai."
+                  ? t("Belum ada ide yang siap dipakai.")
                   : view === "used"
-                    ? "Belum ada ide yang dipakai."
-                    : "Tidak ada ide yang ditolak atau kedaluwarsa."
+                    ? t("Belum ada ide yang dipakai.")
+                    : t("Tidak ada ide yang ditolak atau kedaluwarsa.")
               }
             >
               {view === "ready" && (
                 <p>
-                  Autopilot memantau apa yang sedang viral, lalu AI menyusun ide untuk akun yang autopilotnya
-                  menyala. Ide baru muncul di sini dengan sendirinya. Mode tiap akun diatur di halaman{" "}
+                  {t("Autopilot memantau apa yang sedang viral, lalu AI menyusun ide untuk akun yang autopilotnya menyala. Ide baru muncul di sini dengan sendirinya. Mode tiap akun diatur di halaman")}{" "}
                   <Link href="/autopilot" className="font-semibold text-accent hover:underline">
                     Autopilot
                   </Link>
                   .
                 </p>
               )}
-              {view === "used" && <p>Ide pindah ke sini setelah autopilot menulis posting darinya.</p>}
+              {view === "used" && <p>{t("Ide pindah ke sini setelah autopilot menulis posting darinya.")}</p>}
               {view === "dropped" && (
-                <p>Ide yang ditandai Jangan dipakai, atau yang lewat masa berlakunya sebelum sempat dipakai, tercatat di sini.</p>
+                <p>{t("Ide yang Anda buang, atau yang lewat masa berlakunya sebelum sempat dipakai, tercatat di sini.")}</p>
               )}
-              {filtered && <p>Saringan akun sedang aktif. Pilih Semua akun untuk melihat ide akun lain.</p>}
+              {filtered && <p>{t("Saringan akun sedang aktif. Pilih Semua akun untuk melihat ide akun lain.")}</p>}
             </EmptyState>
           ) : (
             <ul className="space-y-3">
@@ -414,7 +442,7 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
               ))}
             </ul>
           )}
-          {list.moreError && <Banner tone="danger">{list.moreError}</Banner>}
+          {list.moreError && <Banner tone="danger">{t(list.moreError)}</Banner>}
           {list.nextCursor && <LoadMoreButton onClick={() => void list.loadMore()} loading={list.loadingMore} />}
         </>
       )}
@@ -428,17 +456,18 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
           if (target) void act(target, "reject").then((result) => result !== "error" && setRejectTarget(null));
         }}
         busy={rejecting}
-        error={rejectTarget ? errors[rejectTarget.id] : null}
+        error={rejectTarget && errors[rejectTarget.id] ? t(errors[rejectTarget.id]) : null}
         variant="danger"
-        title="Jangan pakai ide ini?"
-        confirmLabel="Ya, jangan dipakai"
+        title={t("Buang ide ini?")}
+        confirmLabel={t("Ya, buang")}
         confirmIcon={<Ban className="w-4 h-4" />}
       >
         {rejectTarget && (
           <>
             <p className="text-sm text-fg leading-relaxed">
-              Autopilot tidak akan menulis posting dari ide ini untuk {accountHandle(rejectTarget.account)}. Ide yang sudah
-              ditandai tidak bisa dikembalikan.
+              {t("Autopilot tidak akan menulis posting dari ide ini untuk {handle}. Ide yang sudah dibuang tidak bisa dikembalikan.", {
+                handle: accountHandle(rejectTarget.account),
+              })}
             </p>
             <p className="mt-2.5 rounded-xl bg-subtle p-3 text-[13px] text-muted leading-relaxed break-words line-clamp-3">
               {rejectTarget.topik}

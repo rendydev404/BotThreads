@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Globe, Search, Users, X } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import { AccountAvatar } from "@/components/content/post-status-chip";
+import { useT } from "@/components/i18n/lang-provider";
 
 export interface AccountItem {
   id: string;
@@ -39,6 +40,7 @@ export function AccountFilterSelect({
   totalAccounts = 32,
   className,
 }: AccountFilterSelectProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -107,11 +109,11 @@ export function AccountFilterSelect({
 
         <span className="flex-1 min-w-0 leading-tight">
           <span className="block text-[11px] font-bold uppercase tracking-wide text-accent">
-            {isAll ? "Filter per akun" : "Akun terpilih"}
+            {isAll ? t("Filter per akun") : t("Akun terpilih")}
           </span>
           <span className="block text-sm font-semibold text-fg truncate">
             {isAll
-              ? `Semua akun (${totalAccounts})`
+              ? t("Semua akun ({n})", { n: totalAccounts })
               : current?.displayName || `@${selectedAccount}`}
           </span>
         </span>
@@ -137,7 +139,7 @@ export function AccountFilterSelect({
 
           <div
             role="dialog"
-            aria-label="Pilih akun cabang"
+            aria-label={t("Pilih akun cabang")}
             className={cn(
               "z-50 bg-surface border border-line flex flex-col shadow-pop overflow-hidden",
               // Mobile: bottom sheet penuh lebar
@@ -153,15 +155,15 @@ export function AccountFilterSelect({
             </div>
             <div className="flex items-center justify-between px-4 pt-3 pb-2 sm:pt-4">
               <div>
-                <h3 className="text-base font-bold text-fg">Pilih akun cabang</h3>
+                <h3 className="text-base font-bold text-fg">{t("Pilih akun cabang")}</h3>
                 <p className="text-xs text-muted">
-                  Lihat data satu akun saja, atau gabungan semuanya
+                  {t("Lihat data satu akun saja, atau gabungan semuanya")}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={close}
-                aria-label="Tutup"
+                aria-label={t("Tutup")}
                 className="w-9 h-9 rounded-full text-muted hover:text-fg hover:bg-subtle flex items-center justify-center cursor-pointer transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -176,8 +178,8 @@ export function AccountFilterSelect({
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Cari nama cabang atau @username"
-                  aria-label="Cari akun"
+                  placeholder={t("Cari nama cabang atau @username")}
+                  aria-label={t("Cari akun")}
                   className="w-full h-11 pl-10 pr-3 rounded-xl bg-subtle border border-transparent text-sm text-fg placeholder-faint outline-none focus:bg-surface focus:border-accent transition-colors"
                 />
               </div>
@@ -185,7 +187,7 @@ export function AccountFilterSelect({
 
             <ul
               role="listbox"
-              aria-label="Daftar akun"
+              aria-label={t("Daftar akun")}
               className="flex-1 overflow-y-auto overscroll-contain px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-line pt-2"
             >
               {!query.trim() && (
@@ -203,10 +205,10 @@ export function AccountFilterSelect({
                     </span>
                     <span className="flex-1 min-w-0 leading-tight">
                       <span className="block text-sm font-semibold text-fg">
-                        Semua akun ({totalAccounts})
+                        {t("Semua akun ({n})", { n: totalAccounts })}
                       </span>
                       <span className="block text-xs text-muted">
-                        Gabungan performa seluruh jaringan
+                        {t("Gabungan performa seluruh jaringan")}
                       </span>
                     </span>
                     {isAll && <Check className="w-5 h-5 text-accent shrink-0" />}
@@ -241,7 +243,7 @@ export function AccountFilterSelect({
                         {acc.followers !== null && acc.followers !== undefined
                           ? `${formatNumber(acc.followers)} fol · `
                           : ""}
-                        {acc._count ? `${acc._count.postStats} post` : ""}
+                        {acc._count ? t("{n} post", { n: acc._count.postStats }) : ""}
                       </span>
                       {selected && <Check className="w-5 h-5 text-accent shrink-0" />}
                     </button>
@@ -251,7 +253,7 @@ export function AccountFilterSelect({
 
               {filtered.length === 0 && (
                 <li className="py-10 text-center text-sm text-muted">
-                  Tidak ada akun yang cocok dengan “{query}”.
+                  {t("Tidak ada akun yang cocok dengan “{query}”.", { query })}
                 </li>
               )}
             </ul>

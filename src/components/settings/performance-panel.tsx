@@ -11,6 +11,7 @@ import { Banner, ListSkeleton, accountHandle } from "@/components/autopilot/shar
 import { formatDateWib, formatInt, formatMultiplier } from "./format";
 import { EmptyState, LoadError, NotInstalled, RefreshButton } from "./states";
 import { useRemote } from "./use-remote";
+import { useT } from "@/components/i18n/lang-provider";
 
 const LOAD_ERROR = "Gagal memuat hasil belajar autopilot.";
 const DIM_ORDER: PerformanceDimKey[] = ["formulaHook", "pilar", "jam", "jenisSlot"];
@@ -30,17 +31,18 @@ type Dim = PerformanceResponse["dims"][number];
 /** Satu kategori sebagai batang berperingkat. Garis tegak menandai 1x (seperti kebiasaan akun). */
 function DimCard({ dim, rows }: { dim: PerformanceDimKey; rows: Dim[] }) {
   const [all, setAll] = useState(false);
+  const t = useT();
   // Skala minimal 2x supaya garis 1x tidak menempel di ujung kanan.
   const scale = Math.max(2, ...rows.map((r) => r.multiplier));
   const visible = all ? rows : rows.slice(0, TOP_ROWS);
 
   return (
-    <section aria-label={PERFORMANCE_DIM_LABEL[dim]} className="card p-4">
-      <h4 className="text-sm font-bold text-fg">{PERFORMANCE_DIM_LABEL[dim]}</h4>
-      <p className="text-xs text-muted">{DIM_HINT[dim]}</p>
+    <section aria-label={t(PERFORMANCE_DIM_LABEL[dim])} className="card p-4">
+      <h4 className="text-sm font-bold text-fg">{t(PERFORMANCE_DIM_LABEL[dim])}</h4>
+      <p className="text-xs text-muted">{t(DIM_HINT[dim])}</p>
 
       {rows.length === 0 ? (
-        <p className="mt-3 text-[13px] text-muted">Belum ada data untuk kategori ini.</p>
+        <p className="mt-3 text-[13px] text-muted">{t("Belum ada data untuk kategori ini.")}</p>
       ) : (
         <ol className="mt-3 space-y-2.5">
           {visible.map((r, i) => {
@@ -49,14 +51,14 @@ function DimCard({ dim, rows }: { dim: PerformanceDimKey; rows: Dim[] }) {
               <li key={r.val}>
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="min-w-0 text-[13px] font-semibold text-fg truncate">
-                    <span className="text-faint tabular-nums">{i + 1}.</span> {r.label}
+                    <span className="text-faint tabular-nums">{i + 1}.</span> {t(r.label)}
                   </span>
                   <span className="shrink-0 text-xs text-muted tabular-nums">
                     <span className={cn("text-[13px] font-bold", r.multiplier >= 1 ? "text-accent" : "text-fg")}>
                       {formatMultiplier(r.multiplier)}
                     </span>
                     {" · "}
-                    {formatInt(r.n)} posting
+                    {t("{n} posting", { n: formatInt(r.n) })}
                   </span>
                 </div>
                 <div className="relative mt-1 h-2 rounded-full bg-subtle overflow-hidden" aria-hidden>
@@ -67,7 +69,8 @@ function DimCard({ dim, rows }: { dim: PerformanceDimKey; rows: Dim[] }) {
                   <span className="absolute inset-y-0 w-0.5 bg-fg/40" style={{ left: `${(1 / scale) * 100}%` }} />
                 </div>
                 <p className="mt-0.5 text-xs text-faint">
-                  Rata-rata {formatInt(r.avgViews)} views{thin ? " · data masih sedikit" : ""}
+                  {t("Rata-rata {n} views", { n: formatInt(r.avgViews) })}
+                  {thin ? ` · ${t("data masih sedikit")}` : ""}
                 </p>
               </li>
             );
@@ -82,7 +85,7 @@ function DimCard({ dim, rows }: { dim: PerformanceDimKey; rows: Dim[] }) {
           aria-expanded={all}
           className="-mb-2 mt-1 h-10 inline-flex items-center text-[13px] font-semibold text-accent hover:underline cursor-pointer"
         >
-          {all ? "Ringkas" : `Tampilkan semua (${rows.length})`}
+          {all ? t("Ringkas") : t("Tampilkan semua ({n})", { n: rows.length })}
         </button>
       )}
     </section>
@@ -91,6 +94,7 @@ function DimCard({ dim, rows }: { dim: PerformanceDimKey; rows: Dim[] }) {
 
 /** Posting autopilot dibanding posting lain pada akun yang sama (30 hari). */
 function CompareCard({ data }: { data: PerformanceResponse }) {
+  const t = useT();
   const rows = [
     { key: "autopilot", label: "Posting autopilot", ...data.autopilot, bar: "bg-accent" },
     { key: "lainnya", label: "Posting lain", ...data.lainnya, bar: "bg-faint" },
@@ -99,16 +103,16 @@ function CompareCard({ data }: { data: PerformanceResponse }) {
   const ratio = data.autopilot.n > 0 && data.lainnya.n > 0 && data.lainnya.avgViews > 0 ? data.autopilot.avgViews / data.lainnya.avgViews : null;
 
   return (
-    <section aria-label="Autopilot dibanding posting lain" className="card p-4">
-      <h4 className="text-sm font-bold text-fg">Autopilot dibanding posting lain</h4>
-      <p className="text-xs text-muted">Rata-rata views per posting pada akun yang sama, 30 hari terakhir.</p>
+    <section aria-label={t("Autopilot dibanding posting lain")} className="card p-4">
+      <h4 className="text-sm font-bold text-fg">{t("Autopilot dibanding posting lain")}</h4>
+      <p className="text-xs text-muted">{t("Rata-rata views per posting pada akun yang sama, 30 hari terakhir.")}</p>
       <ul className="mt-3 space-y-3">
         {rows.map((r) => (
           <li key={r.key}>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[13px] font-semibold text-fg">{r.label}</span>
+              <span className="text-[13px] font-semibold text-fg">{t(r.label)}</span>
               <span className="text-xs text-muted tabular-nums">
-                <span className="text-[13px] font-bold text-fg">{r.n > 0 ? formatInt(r.avgViews) : "-"}</span> views · {formatInt(r.n)} posting
+                <span className="text-[13px] font-bold text-fg">{r.n > 0 ? formatInt(r.avgViews) : "-"}</span> {t("views")} · {t("{n} posting", { n: formatInt(r.n) })}
               </span>
             </div>
             <div className="mt-1 h-2 rounded-full bg-subtle overflow-hidden" aria-hidden>
@@ -117,16 +121,16 @@ function CompareCard({ data }: { data: PerformanceResponse }) {
                 style={{ width: `${r.n > 0 ? Math.max(2, (r.avgViews / max) * 100) : 0}%` }}
               />
             </div>
-            {r.n > 0 && <p className="mt-0.5 text-xs text-faint">Nilai tengah {formatInt(r.medianViews)} views</p>}
+            {r.n > 0 && <p className="mt-0.5 text-xs text-faint">{t("Nilai tengah {n} views", { n: formatInt(r.medianViews) })}</p>}
           </li>
         ))}
       </ul>
       <p className="mt-3 text-[13px] text-muted">
         {data.autopilot.n === 0
-          ? "Belum ada posting autopilot yang cukup umur (minimal satu hari) untuk dibandingkan."
+          ? t("Belum ada posting autopilot yang cukup umur (minimal satu hari) untuk dibandingkan.")
           : ratio === null
-            ? "Belum ada posting lain pada akun yang sama untuk dibandingkan."
-            : `Posting autopilot mendapat ${formatMultiplier(ratio)} views posting lain.`}
+            ? t("Belum ada posting lain pada akun yang sama untuk dibandingkan.")
+            : t("Posting autopilot mendapat {x} views posting lain.", { x: formatMultiplier(ratio) })}
       </p>
     </section>
   );
@@ -135,6 +139,7 @@ function CompareCard({ data }: { data: PerformanceResponse }) {
 /** Hasil belajar autopilot 60 hari: kategori mana yang berhasil, dengan filter akun opsional. */
 export function PerformancePanel() {
   const accounts = usePublishAccounts();
+  const t = useT();
   /** "" = semua akun dalam lingkup pengguna. */
   const [accountId, setAccountId] = useState("");
   const { data, error, status, loading, refreshing, reload } = useRemote<PerformanceResponse>(
@@ -162,7 +167,7 @@ export function PerformancePanel() {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <p className="text-sm text-muted max-w-xl">
-          Yang dipelajari autopilot dari 60 hari terakhir. 1,0x berarti seperti kebiasaan akun; di atas itu lebih baik.
+          {t("Yang dipelajari autopilot dari 60 hari terakhir. 1,0x berarti seperti kebiasaan akun; di atas itu lebih baik.")}
         </p>
         <div className="flex items-center gap-2 shrink-0">
           <Dropdown
@@ -181,20 +186,20 @@ export function PerformancePanel() {
       {loading ? (
         <ListSkeleton label="Memuat hasil belajar autopilot" rows={3} />
       ) : !data ? (
-        <LoadError message={error ?? LOAD_ERROR} status={status} onRetry={reload} />
+        <LoadError message={error ?? t(LOAD_ERROR)} status={status} onRetry={reload} />
       ) : !data.installed ? (
-        <NotInstalled title="Pembelajaran autopilot belum dipasang." file="sql/007_autopilot_learning.sql" />
+        <NotInstalled title={t("Pembelajaran autopilot belum dipasang.")} file="sql/007_autopilot_learning.sql" />
       ) : data.dims.length === 0 && data.autopilot.n === 0 && data.viral.length === 0 ? (
-        <EmptyState icon={<TrendingUp className="w-6 h-6" />} title="Belum ada yang bisa dipelajari.">
-          Autopilot mulai belajar setelah postingannya berumur minimal satu hari dan statistiknya masuk.
+        <EmptyState icon={<TrendingUp className="w-6 h-6" />} title={t("Belum ada yang bisa dipelajari.")}>
+          {t("Autopilot mulai belajar setelah postingannya berumur minimal satu hari dan statistiknya masuk.")}
         </EmptyState>
       ) : (
         <>
           {error && (
             <Banner tone="danger">
-              Gagal menyegarkan data: {error}{" "}
+              {t("Gagal menyegarkan data: {error}", { error })}{" "}
               <button type="button" onClick={reload} className="underline font-semibold cursor-pointer">
-                Coba lagi
+                {t("Coba lagi")}
               </button>
             </Banner>
           )}
@@ -205,21 +210,21 @@ export function PerformancePanel() {
             ))}
           </div>
           {data.viral.length > 0 && (
-            <section aria-label="Posting viral" className="card p-4">
+            <section aria-label={t("Posting viral")} className="card p-4">
               <h4 className="flex items-center gap-2 text-sm font-bold text-fg">
                 <Flame className="w-4 h-4 text-warning" />
-                Posting viral terbaru
+                {t("Posting viral terbaru")}
               </h4>
-              <p className="text-xs text-muted">Posting autopilot yang views-nya jauh di atas kebiasaan akunnya.</p>
+              <p className="text-xs text-muted">{t("Posting autopilot yang views-nya jauh di atas kebiasaan akunnya.")}</p>
               <ul className="mt-2 divide-y divide-line">
                 {data.viral.map((v) => (
                   <li key={v.postId} className="py-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                     <span className="min-w-0 text-[13px] font-semibold text-fg truncate">
-                      {v.username ? `@${v.username}` : "Satu akun"} <span className="font-normal text-muted">· {formatDateWib(v.postedAt)}</span>
+                      {v.username ? `@${v.username}` : t("Satu akun")} <span className="font-normal text-muted">· {formatDateWib(v.postedAt)}</span>
                     </span>
                     <span className="text-xs text-muted tabular-nums">
-                      <span className="text-[13px] font-bold text-fg">{formatInt(v.views)}</span> views
-                      {v.baseline > 0 ? `, ${formatMultiplier(v.views / v.baseline)} dari biasanya (${formatInt(v.baseline)})` : ""}
+                      <span className="text-[13px] font-bold text-fg">{formatInt(v.views)}</span> {t("views")}
+                      {v.baseline > 0 ? `, ${t("{x} dari biasanya ({n})", { x: formatMultiplier(v.views / v.baseline), n: formatInt(v.baseline) })}` : ""}
                     </span>
                   </li>
                 ))}

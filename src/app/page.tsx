@@ -8,19 +8,22 @@ import { TopPerformingPostCard } from "@/components/dashboard/top-performing-pos
 import { AiInsightPanel, type AiInsightPanelHandle } from "@/components/dashboard/ai-insight-panel";
 import { RecentActivityCard } from "@/components/dashboard/recent-activity-card";
 import { WeeklyActivityChart } from "@/components/dashboard/weekly-activity-chart";
-import { PeriodFilter, type PeriodValue } from "@/components/dashboard/period-filter";
+import { PeriodFilter, periodLabelText, type PeriodValue } from "@/components/dashboard/period-filter";
 import { RefreshCw, Sparkles } from "lucide-react";
+import { useLang } from "@/components/i18n/lang-provider";
+import type { TFunction } from "@/lib/i18n/core";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-const fmtIso = (iso: string) => {
+const fmtIso = (iso: string, t: TFunction) => {
   const [, m, d] = iso.split("-").map(Number);
-  return `${d} ${MONTHS[m - 1]}`;
+  return `${d} ${t(MONTHS[m - 1])}`;
 };
-const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+const fmtTime = (iso: string, locale: string) =>
+  new Date(iso).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 const LIVE_REFRESH_MS = 60_000;
 
 export default function DashboardPage() {
+  const { t, locale } = useLang();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -120,22 +123,23 @@ export default function DashboardPage() {
       }
     | undefined;
   const initialLoad = loading && !data;
+  const periodText = info ? periodLabelText(info.label, t) : "";
   const chartTitle = info
     ? info.days === 1
-      ? `Aktivitas ${info.label.toLowerCase()} & 6 hari sebelumnya`
-      : `Aktivitas ${info.label.charAt(0).toLowerCase()}${info.label.slice(1)}`
-    : "Aktivitas";
+      ? t("Aktivitas {label} & 6 hari sebelumnya", { label: periodText.toLowerCase() })
+      : t("Aktivitas {label}", { label: `${periodText.charAt(0).toLowerCase()}${periodText.slice(1)}` })
+    : t("Aktivitas");
 
   return (
     <div className="space-y-6">
       {/* Toolbar */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-fg">Performa Threads</h2>
+          <h2 className="text-2xl font-bold text-fg">{t("Performa Threads")}</h2>
           <p className="text-sm text-muted mt-1">
             {isAll
-              ? `Gabungan dari ${accountCount} akun yang Anda kelola.`
-              : `Menampilkan satu akun: @${currentAccount.username}.`}
+              ? t("Gabungan dari {n} akun yang Anda kelola.", { n: accountCount })
+              : t("Menampilkan satu akun: @{username}.", { username: currentAccount.username })}
           </p>
         </div>
 
@@ -151,13 +155,13 @@ export default function DashboardPage() {
             type="button"
             onClick={handleRefresh}
             disabled={refreshing}
-            aria-label="Perbarui data"
+            aria-label={t("Perbarui data")}
             className="h-10 px-3.5 inline-flex items-center gap-2 rounded-lg bg-surface border border-line hover:border-line-strong text-sm font-medium text-fg cursor-pointer transition-colors disabled:opacity-60"
           >
             <RefreshCw
               className={`w-4 h-4 text-muted ${refreshing ? "animate-spin" : ""}`}
             />
-            <span className="hidden sm:inline">Perbarui</span>
+            <span className="hidden sm:inline">{t("Perbarui")}</span>
           </button>
 
           <button
@@ -166,7 +170,7 @@ export default function DashboardPage() {
             className="h-10 px-4 inline-flex items-center gap-2 rounded-lg bg-accent hover:bg-accent-hover text-on-accent text-sm font-semibold cursor-pointer transition-colors"
           >
             <Sparkles className="w-4 h-4" />
-            Analisis AI
+            {t("Analisis AI")}
           </button>
         </div>
       </div>
@@ -182,17 +186,17 @@ export default function DashboardPage() {
                   <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-60 animate-ping" />
                   <span className="relative inline-flex w-2 h-2 rounded-full bg-success" />
                 </span>
-                Langsung
+                {t("Langsung")}
               </span>
             )}
-            {info.from === info.to ? fmtIso(info.from) : `${fmtIso(info.from)} – ${fmtIso(info.to)}`}
+            {info.from === info.to ? fmtIso(info.from, t) : `${fmtIso(info.from, t)} – ${fmtIso(info.to, t)}`}
             {info.live
-              ? `${info.updatedAt ? ` · diperbarui ${fmtTime(info.updatedAt)} WIB` : ""}${
-                  info.liveFailed ? ` · ${info.liveFailed} akun belum bisa diambil` : ""
+              ? `${info.updatedAt ? ` · ${t("diperbarui {time} WIB", { time: fmtTime(info.updatedAt, locale) })}` : ""}${
+                  info.liveFailed ? ` · ${t("{n} akun belum bisa diambil", { n: info.liveFailed })}` : ""
                 }`
               : info.hasPrev
-                ? ` · dibanding ${info.days === 1 ? "sehari" : `${info.days} hari`} sebelumnya`
-                : " · belum ada data pembanding"}
+                ? ` · ${info.days === 1 ? t("dibanding sehari sebelumnya") : t("dibanding {n} hari sebelumnya", { n: info.days })}`
+                : ` · ${t("belum ada data pembanding")}`}
           </p>
         )}
       </div>
@@ -221,17 +225,17 @@ export default function DashboardPage() {
             <div>
               <h3 className="text-base font-semibold text-fg">{chartTitle}</h3>
               <p className="text-[13px] text-muted mt-0.5">
-                Penayangan dan interaksi per hari
+                {t("Penayangan dan interaksi per hari")}
               </p>
             </div>
             <div className="flex items-center gap-4 text-[13px] text-muted">
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-accent" />
-                Penayangan
+                {t("Penayangan")}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-success" />
-                Interaksi
+                {t("Interaksi")}
               </span>
             </div>
           </div>
@@ -250,9 +254,9 @@ export default function DashboardPage() {
               ref={insightRef}
               account={selectedAccount}
               period={period}
-              periodLabel={info?.label.toLowerCase()}
+              periodLabel={info ? periodText.toLowerCase() : undefined}
               scopeLabel={
-                isAll ? `Semua akun (${accountCount})` : `@${currentAccount.username}`
+                isAll ? t("Semua akun ({n})", { n: accountCount }) : `@${currentAccount.username}`
               }
             />
           </div>

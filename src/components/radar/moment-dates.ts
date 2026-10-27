@@ -4,6 +4,7 @@
  */
 import { BUILTIN_MOMENT_RULES, momentRuleRange } from "@/lib/moment-rules";
 import { parseDayKey } from "@/components/settings/format";
+import { tr } from "@/lib/i18n/core";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -29,12 +30,12 @@ export type MomentPhase = "berjalan" | "mendatang" | "lewat";
 
 /** Posisi rentang momen terhadap hari ini, dengan label siap tampil. */
 export function momentPhase(today: string, mulai: string, selesai: string): { phase: MomentPhase; label: string } {
-  if (selesai < today) return { phase: "lewat", label: "Sudah lewat" };
-  if (mulai <= today) return { phase: "berjalan", label: "Sedang berlangsung" };
+  if (selesai < today) return { phase: "lewat", label: tr("Sudah lewat") };
+  if (mulai <= today) return { phase: "berjalan", label: tr("Sedang berlangsung") };
   const days = dayDiff(today, mulai);
   return {
     phase: "mendatang",
-    label: days === null ? "Akan datang" : days === 1 ? "Mulai besok" : `Mulai ${days} hari lagi`,
+    label: days === null ? tr("Akan datang") : days === 1 ? tr("Mulai besok") : tr("Mulai {n} hari lagi", { n: days }),
   };
 }
 

@@ -4,9 +4,8 @@ import React from "react";
 import { Dropdown, type DropdownOption } from "@/components/autopilot/dropdown";
 import { ControlLabel } from "@/components/settings/fields";
 import { MONTH_LONG, daysInMonth, formatDayKey, parseDayKey, toDayKey } from "@/components/settings/format";
+import { useT } from "@/components/i18n/lang-provider";
 import { weekdayName } from "./moment-dates";
-
-const MONTH_OPTIONS: DropdownOption<number>[] = MONTH_LONG.map((label, i) => ({ value: i + 1, label }));
 
 interface DayPickerProps {
   label: string;
@@ -23,6 +22,8 @@ interface DayPickerProps {
  * dijepit ke jumlah hari bulan terpilih, jadi hasilnya selalu kunci hari yang valid.
  */
 export function DayPicker({ label, value, onChange, years, disabled }: DayPickerProps) {
+  const t = useT();
+  const monthOptions: DropdownOption<number>[] = MONTH_LONG.map((name, i) => ({ value: i + 1, label: t(name) }));
   const parsed = parseDayKey(value) ?? { y: years[0], m: 1, d: 1 };
   const y = parsed.y;
   const m = parsed.m;
@@ -44,21 +45,21 @@ export function DayPicker({ label, value, onChange, years, disabled }: DayPicker
       <ControlLabel>{label}</ControlLabel>
       <div className="grid grid-cols-[4.75rem_minmax(0,1fr)_5.75rem] gap-2">
         <Dropdown<number>
-          ariaLabel={`${label}, tanggal`}
+          ariaLabel={t("{label}, tanggal", { label })}
           value={d}
           options={dayOptions}
           onChange={(next) => pick(y, m, next)}
           disabled={disabled}
         />
         <Dropdown<number>
-          ariaLabel={`${label}, bulan`}
+          ariaLabel={t("{label}, bulan", { label })}
           value={m}
-          options={MONTH_OPTIONS}
+          options={monthOptions}
           onChange={(next) => pick(y, next, d)}
           disabled={disabled}
         />
         <Dropdown<number>
-          ariaLabel={`${label}, tahun`}
+          ariaLabel={t("{label}, tahun", { label })}
           value={y}
           options={yearOptions}
           onChange={(next) => pick(next, m, d)}
@@ -67,7 +68,7 @@ export function DayPicker({ label, value, onChange, years, disabled }: DayPicker
         />
       </div>
       <p className="mt-1.5 text-xs text-muted">
-        {weekdayName(toDayKey(y, m, d))}, {formatDayKey(toDayKey(y, m, d))}
+        {t(weekdayName(toDayKey(y, m, d)))}, {formatDayKey(toDayKey(y, m, d))}
       </p>
     </div>
   );

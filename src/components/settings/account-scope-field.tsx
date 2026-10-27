@@ -7,6 +7,7 @@ import type { PublishAccountDTO } from "@/lib/content-types";
 import { AccountAvatar } from "@/components/content/post-status-chip";
 import { Segmented, accountHandle, type SegmentedOption } from "@/components/autopilot/shared";
 import { ControlLabel, INPUT_CLS } from "./fields";
+import { useT } from "@/components/i18n/lang-provider";
 
 type ScopeMode = "SEMUA" | "PILIHAN";
 
@@ -33,6 +34,7 @@ interface AccountScopeFieldProps {
 
 /** Lingkup akun seorang anggota atau undangan: semua akun, atau subset yang dicentang. */
 export function AccountScopeField({ accounts, loading, error, onRetry, value, onChange, disabled, invalid }: AccountScopeFieldProps) {
+  const t = useT();
   const [query, setQuery] = useState("");
   // Pilihan terakhir disimpan supaya bolak-balik "Semua akun" tidak menghapus centang.
   const [kept, setKept] = useState<string[]>(value ?? []);
@@ -59,10 +61,10 @@ export function AccountScopeField({ accounts, loading, error, onRetry, value, on
 
   return (
     <div>
-      <ControlLabel hint="Anggota hanya melihat dan mengelola akun dalam lingkupnya.">Akses akun</ControlLabel>
+      <ControlLabel hint={t("Anggota hanya melihat dan mengelola akun dalam lingkupnya.")}>{t("Akses akun")}</ControlLabel>
       <Segmented
-        ariaLabel="Akses akun"
-        options={MODE_OPTIONS}
+        ariaLabel={t("Akses akun")}
+        options={MODE_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))}
         value={value === null ? "SEMUA" : "PILIHAN"}
         onChange={(mode) => onChange(mode === "SEMUA" ? null : kept)}
         disabled={disabled}
@@ -71,16 +73,16 @@ export function AccountScopeField({ accounts, loading, error, onRetry, value, on
       {value !== null && (
         <div className="mt-3">
           {loading ? (
-            <div className="h-24 rounded-xl bg-subtle animate-pulse" aria-busy="true" aria-label="Memuat daftar akun" />
+            <div className="h-24 rounded-xl bg-subtle animate-pulse" aria-busy="true" aria-label={t("Memuat daftar akun")} />
           ) : error ? (
             <p role="alert" className="text-[13px] font-medium text-danger">
-              {error}{" "}
+              {t(error)}{" "}
               <button type="button" onClick={onRetry} className="underline font-semibold cursor-pointer">
-                Coba lagi
+                {t("Coba lagi")}
               </button>
             </p>
           ) : accounts.length === 0 ? (
-            <p className="text-[13px] text-muted">Belum ada akun Threads yang bisa dipilih.</p>
+            <p className="text-[13px] text-muted">{t("Belum ada akun Threads yang bisa dipilih.")}</p>
           ) : (
             <>
               {accounts.length >= SEARCH_FROM && (
@@ -90,15 +92,15 @@ export function AccountScopeField({ accounts, loading, error, onRetry, value, on
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Cari nama cabang atau @username"
-                    aria-label="Cari akun"
+                    placeholder={t("Cari nama cabang atau @username")}
+                    aria-label={t("Cari akun")}
                     className={cn(INPUT_CLS, "pl-10")}
                   />
                 </div>
               )}
               <div className="flex items-center justify-between gap-3 mb-1">
                 <p className="text-xs text-muted tabular-nums" aria-live="polite">
-                  {picked.size} dari {accounts.length} akun dipilih
+                  {t("{picked} dari {n} akun dipilih", { picked: picked.size, n: accounts.length })}
                 </p>
                 <button
                   type="button"
@@ -106,11 +108,11 @@ export function AccountScopeField({ accounts, loading, error, onRetry, value, on
                   disabled={disabled || filtered.length === 0}
                   className="h-10 px-2 -mr-2 text-[13px] font-semibold text-accent hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {allFilteredOn ? "Lepas semua" : "Pilih semua"}
+                  {allFilteredOn ? t("Lepas semua") : t("Pilih semua")}
                 </button>
               </div>
               <ul
-                aria-label="Akun yang boleh diakses"
+                aria-label={t("Akun yang boleh diakses")}
                 className={cn(
                   "max-h-60 overflow-y-auto overscroll-contain rounded-xl border p-1 space-y-0.5",
                   invalid ? "border-danger" : "border-line"
@@ -150,7 +152,7 @@ export function AccountScopeField({ accounts, loading, error, onRetry, value, on
                   );
                 })}
                 {filtered.length === 0 && (
-                  <li className="py-6 text-center text-[13px] text-muted">Tidak ada akun yang cocok dengan pencarian.</li>
+                  <li className="py-6 text-center text-[13px] text-muted">{t("Tidak ada akun yang cocok dengan pencarian.")}</li>
                 )}
               </ul>
             </>

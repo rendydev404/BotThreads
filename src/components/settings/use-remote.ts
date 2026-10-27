@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorStatus, errorText } from "./format";
+import { useT } from "@/components/i18n/lang-provider";
 
 /** Kembali ke tab dalam selang ini tidak memicu fetch ulang (data masih segar). */
 const FRESH_MS = 20_000;
@@ -22,6 +23,8 @@ interface RemoteState<T> {
  * saat tab ditinggalkan atau kuncinya berubah. `key = null` menonaktifkan fetch.
  */
 export function useRemote<T>(key: string | null, fetcher: (signal: AbortSignal) => Promise<T>, fallbackError: string) {
+  // Pesan galat disimpan apa adanya lalu diterjemahkan saat dibaca, jadi ikut berganti bila bahasa diubah.
+  const t = useT();
   const [tick, setTick] = useState(0);
   const [state, setState] = useState<RemoteState<T>>({ key: null, tick: 0, data: null, error: null, status: null, loadedAt: null });
   const fetcherRef = useRef(fetcher);
@@ -73,7 +76,7 @@ export function useRemote<T>(key: string | null, fetcher: (signal: AbortSignal) 
 
   return {
     data,
-    error: current ? state.error : null,
+    error: current && state.error ? t(state.error) : null,
     status: current ? state.status : null,
     loadedAt: current ? state.loadedAt : null,
     loading,
@@ -98,6 +101,7 @@ export function usePaged<T, R extends Page<T>>(
   idOf: (item: T) => string,
   fallbackError: string
 ) {
+  const t = useT();
   const remote = useRemote<R>(key, (signal) => fetchPage(null, signal), fallbackError);
   const [more, setMore] = useState<{ key: string | null; loading: boolean; error: string | null }>({ key: null, loading: false, error: null });
   const fetchRef = useRef(fetchPage);
@@ -152,6 +156,6 @@ export function usePaged<T, R extends Page<T>>(
     nextCursor: cursor,
     loadMore,
     loadingMore: moreNow.loading,
-    moreError: moreNow.error,
+    moreError: moreNow.error ? t(moreNow.error) : null,
   };
 }

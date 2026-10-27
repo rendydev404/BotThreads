@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { BriefExpandButton } from "./brief-editor";
 import { AgentSteps, useStagedSteps } from "./agent-ui";
 import { StyleExamplesPanel } from "./style-examples-panel";
+import { useT } from "@/components/i18n/lang-provider";
 
 const MAX_PILLARS = 8;
 const SOURCE_LABEL: Record<LessonDTO["source"], string> = {
@@ -45,6 +46,7 @@ export function AiProfileModal({ account, onClose }: { account: { id: string; us
 }
 
 function ProfileForm({ account, onClose }: { account: { id: string; username: string }; onClose: () => void }) {
+  const t = useT();
   const [loading, setLoading] = useState(true);
   const [brief, setBrief] = useState("");
   const [voice, setVoice] = useState<VoiceStyle | null>(null);
@@ -57,7 +59,7 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
   const [suggesting, setSuggesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const steps = useStagedSteps(SUGGEST_STEPS, suggesting, 2200);
+  const steps = useStagedSteps(SUGGEST_STEPS, suggesting, 2200).map((s) => ({ ...s, label: t(s.label) }));
 
   useEffect(() => {
     let alive = true;
@@ -150,16 +152,16 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
       onClose={onClose}
       busy={busy}
       size="lg"
-      title="Profil AI"
-      description={`@${account.username} · dipakai Studio AI, edit dengan AI, Autopilot, dan balas komentar`}
+      title={t("Profil AI")}
+      description={t("@{username} · dipakai Studio AI, edit dengan AI, Autopilot, dan balas komentar", { username: account.username })}
       footer={
         <>
           <ModalButton onClick={onClose} disabled={busy}>
-            Tutup
+            {t("Tutup")}
           </ModalButton>
           <ModalButton variant="primary" onClick={save} disabled={busy || !dirty}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Simpan profil
+            {t("Simpan profil")}
           </ModalButton>
         </>
       }
@@ -174,7 +176,7 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
         <div className="space-y-5">
           <div className={cn("ai-aura rounded-2xl bg-surface p-3.5", !suggesting && "ai-aura-idle")}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-muted">Belum yakin menulis apa? Biar AI membaca postingan akun lalu menyusun perannya.</p>
+              <p className="text-xs text-muted">{t("Belum yakin menulis apa? Biar AI membaca postingan akun lalu menyusun perannya.")}</p>
               <button
                 type="button"
                 onClick={() => void suggest()}
@@ -182,7 +184,7 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
                 className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-accent to-violet-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm shadow-accent/30 disabled:opacity-60 cursor-pointer"
               >
                 {suggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                Susun dengan AI
+                {t("Susun dengan AI")}
               </button>
             </div>
             {suggesting && (
@@ -190,25 +192,27 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
                 <AgentSteps steps={steps} compact />
               </div>
             )}
-            {notice && !suggesting && <p className="msg-in mt-2 text-[11px] font-medium text-success">{notice}</p>}
+            {notice && !suggesting && <p className="msg-in mt-2 text-[11px] font-medium text-success">{t(notice)}</p>}
           </div>
 
           <TextAreaField
-            label="Peran & tema akun"
+            label={t("Peran & tema akun")}
             rows={8}
             value={brief}
             maxLength={BRIEF_MAX_CHARS}
             onChange={setBrief}
             disabled={busy || suggesting}
-            placeholder="Contoh: Akun pribadi developer yang bahas AI dan coding sehari-hari, gaya santai agak sarkas, buat programmer muda. Tidak pernah bahas politik."
-            hint="Tulis seperti menjelaskan ke penulis bayangan: akun ini siapa, bahas apa, untuk siapa, nadanya bagaimana."
+            placeholder={t(
+              "Contoh: Akun pribadi developer yang bahas AI dan coding sehari-hari, gaya santai agak sarkas, buat programmer muda. Tidak pernah bahas politik."
+            )}
+            hint={t("Tulis seperti menjelaskan ke penulis bayangan: akun ini siapa, bahas apa, untuk siapa, nadanya bagaimana.")}
           />
           <div className="-mt-2 flex justify-end">
             <BriefExpandButton value={brief} onChange={setBrief} maxLength={BRIEF_MAX_CHARS} disabled={busy || suggesting} />
           </div>
 
           <div>
-            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">Gaya sapaan</p>
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">{t("Gaya sapaan")}</p>
             <div className="flex flex-wrap gap-1.5">
               {([null, ...(Object.keys(VOICE_STYLES) as VoiceStyle[])] as (VoiceStyle | null)[]).map((v) => (
                 <button
@@ -221,21 +225,21 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
                     voice === v ? "bg-fg text-surface" : "bg-subtle text-muted hover:text-fg"
                   )}
                 >
-                  {v ? VOICE_STYLES[v].label : "Otomatis dari postingan"}
+                  {v ? t(VOICE_STYLES[v].label) : t("Otomatis dari postingan")}
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">Kategori topik</p>
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">{t("Kategori topik")}</p>
             <div className="flex flex-wrap items-center gap-1.5">
               {pillars.map((p) => (
                 <span key={p.key} className="inline-flex items-center gap-1 rounded-full bg-accent-soft py-1 pl-3 pr-1.5 text-xs font-semibold text-accent">
                   {p.key}
                   <button
                     type="button"
-                    aria-label={`Hapus kategori ${p.key}`}
+                    aria-label={t("Hapus kategori {name}", { name: p.key })}
                     onClick={() => setPillars(pillars.filter((x) => x.key !== p.key))}
                     className="rounded-full p-0.5 hover:bg-accent hover:text-on-accent cursor-pointer"
                   >
@@ -255,7 +259,7 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
                   }}
                   onBlur={addPillar}
                   disabled={busy}
-                  placeholder="Tambah kategori lalu Enter"
+                  placeholder={t("Tambah kategori lalu Enter")}
                   className="h-8 w-44 rounded-full border border-dashed border-line-strong bg-transparent px-3 text-xs text-fg placeholder-faint focus:border-accent focus:outline-none"
                 />
               )}
@@ -265,12 +269,12 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
           <div className="rounded-2xl border border-line p-3.5">
             <div className="mb-2 flex items-center gap-2">
               <Brain className="h-4 w-4 text-accent" />
-              <p className="text-[13px] font-bold text-fg">Memori gaya</p>
-              <span className="text-[11px] text-muted">AI belajar dari setiap koreksi Anda, makin lama makin mirip tulisan Anda</span>
+              <p className="text-[13px] font-bold text-fg">{t("Memori gaya")}</p>
+              <span className="text-[11px] text-muted">{t("AI belajar dari setiap koreksi Anda, makin lama makin mirip tulisan Anda")}</span>
             </div>
             {lessons.length === 0 ? (
               <p className="rounded-xl bg-subtle p-3 text-xs text-muted">
-                Belum ada. Setiap kali Anda mengubah draf AI lalu menyimpannya, AI mencatat pelajarannya di sini.
+                {t("Belum ada. Setiap kali Anda mengubah draf AI lalu menyimpannya, AI mencatat pelajarannya di sini.")}
               </p>
             ) : (
               <ul className="space-y-1.5">
@@ -279,13 +283,13 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
                     <p className="min-w-0 flex-1 text-xs text-fg">
                       {l.lesson}
                       <span className="ml-1.5 text-[10px] text-faint">
-                        {SOURCE_LABEL[l.source]}
-                        {l.hits > 1 ? ` · terbukti ${l.hits}x` : ""}
+                        {t(SOURCE_LABEL[l.source])}
+                        {l.hits > 1 ? ` · ${t("terbukti {n}x", { n: l.hits })}` : ""}
                       </span>
                     </p>
                     <button
                       type="button"
-                      aria-label="Hapus pelajaran"
+                      aria-label={t("Hapus pelajaran")}
                       onClick={() => void dropLesson(l.id)}
                       className="rounded-md p-1 text-faint opacity-60 hover:bg-danger-soft hover:text-danger group-hover:opacity-100 cursor-pointer"
                     >
@@ -305,12 +309,12 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
               <input
                 value={lessonInput}
                 onChange={(e) => setLessonInput(e.target.value.slice(0, 200))}
-                placeholder='Tambah aturan sendiri, mis. "jangan pakai kata banget"'
+                placeholder={t('Tambah aturan sendiri, mis. "jangan pakai kata banget"')}
                 className="h-9 min-w-0 flex-1 rounded-full border border-line bg-subtle px-3.5 text-xs text-fg placeholder-faint focus:border-accent focus:bg-surface focus:outline-none"
               />
               <button
                 type="submit"
-                aria-label="Tambah aturan gaya"
+                aria-label={t("Tambah aturan gaya")}
                 disabled={lessonInput.trim().length < 3}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent disabled:opacity-40 cursor-pointer"
               >
@@ -321,7 +325,7 @@ function ProfileForm({ account, onClose }: { account: { id: string; username: st
 
           <StyleExamplesPanel account={account} />
 
-          <FormError message={error} />
+          <FormError message={error ? t(error) : error} />
         </div>
       )}
     </ModalShell>

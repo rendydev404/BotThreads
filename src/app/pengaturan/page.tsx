@@ -14,13 +14,13 @@ import { KnowledgeTab } from "@/components/settings/knowledge-tab";
 import { PlanCard } from "@/components/settings/plan-card";
 import { BTN_PRIMARY, Pill } from "@/components/settings/states";
 import { SubscriptionTab } from "@/components/settings/subscription-tab";
-import { TeamTab } from "@/components/settings/team-tab";
 import { useRemote } from "@/components/settings/use-remote";
+import { useT } from "@/components/i18n/lang-provider";
 
-type TabKey = "brand" | "langganan" | "pengetahuan" | "tim" | "audit" | "kesehatan";
+type TabKey = "brand" | "langganan" | "pengetahuan" | "audit" | "kesehatan";
 
 /**
- * Peran minimal tiap tab mengikuti route API-nya: tim dan audit hanya untuk Admin ke atas; brand,
+ * Peran minimal tiap tab mengikuti route API-nya: audit hanya untuk Admin ke atas; brand,
  * pengetahuan, langganan, dan hasil belajar bisa dibaca semua peran (tombol ubah diatur di dalam tab).
  * Akun Threads punya halaman sendiri (/akun); ?tab=akun dari tautan lama dialihkan ke sana.
  */
@@ -28,12 +28,12 @@ const TABS: { key: TabKey; label: string; min: Role }[] = [
   { key: "brand", label: "Brand", min: "VIEWER" },
   { key: "langganan", label: "Langganan & Tagihan", min: "VIEWER" },
   { key: "pengetahuan", label: "Pengetahuan", min: "VIEWER" },
-  { key: "tim", label: "Tim", min: "ADMIN" },
   { key: "audit", label: "Audit", min: "ADMIN" },
   { key: "kesehatan", label: "Kesehatan", min: "VIEWER" },
 ];
 
 function PageHeader({ children }: { children?: React.ReactNode }) {
+  const t = useT();
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="flex items-center gap-3 min-w-0">
@@ -41,8 +41,8 @@ function PageHeader({ children }: { children?: React.ReactNode }) {
           <Settings className="w-5 h-5" />
         </div>
         <div className="min-w-0">
-          <h2 className="text-xl font-bold text-fg leading-tight">Pengaturan</h2>
-          <p className="text-sm text-muted">Brand, akun Threads, paket sewa & tagihan, pengetahuan AI, tim, dan kesehatan autopilot.</p>
+          <h2 className="text-xl font-bold text-fg leading-tight">{t("Pengaturan")}</h2>
+          <p className="text-sm text-muted">{t("Brand, akun Threads, paket sewa & tagihan, pengetahuan AI, dan kesehatan autopilot.")}</p>
         </div>
       </div>
       {children}
@@ -51,8 +51,9 @@ function PageHeader({ children }: { children?: React.ReactNode }) {
 }
 
 function PageSkeleton() {
+  const t = useT();
   return (
-    <div className="space-y-5" aria-busy="true" aria-label="Memuat pengaturan">
+    <div className="space-y-5" aria-busy="true" aria-label={t("Memuat pengaturan")}>
       <PageHeader />
       <div className="flex gap-6 border-b border-line animate-pulse">
         {[12, 20, 10, 12].map((w, i) => (
@@ -75,6 +76,7 @@ function PageSkeleton() {
 
 function SettingsInner() {
   const { me, loading, error, role, canEdit, isAdmin, reload } = useMe();
+  const t = useT();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const rawTab = searchParams.get("tab");
@@ -90,16 +92,16 @@ function SettingsInner() {
   }, [rawTab, searchParams, router]);
 
   // Tab yang tidak boleh dipakai peran ini disembunyikan; ?tab= yang mengarah ke sana jatuh ke Brand.
-  const tabs = TABS.filter((t) => roleAtLeast(role, t.min));
-  const tab: TabKey = tabs.find((t) => t.key === rawTab)?.key ?? "brand";
-  const denied = TABS.find((t) => t.key === rawTab && !roleAtLeast(role, t.min));
+  const tabs = TABS.filter((x) => roleAtLeast(role, x.min));
+  const tab: TabKey = tabs.find((x) => x.key === rawTab)?.key ?? "brand";
+  const denied = TABS.find((x) => x.key === rawTab && !roleAtLeast(role, x.min));
 
-  // Data tim dipakai dua tab: Tim, dan Audit (nama anggota yang menjadi sasaran tindakan). Dimuat saat
-  // tab Tim dibuka, atau saat halaman audit memang memuat tindakan terhadap anggota.
+  // Data anggota hanya dipakai tab Audit (nama anggota yang menjadi sasaran tindakan lama), dan baru
+  // dimuat saat halaman audit memang memuat tindakan terhadap anggota.
   const [auditNeedsTeam, setAuditNeedsTeam] = useState(false);
   const needTeam = useCallback(() => setAuditNeedsTeam(true), []);
   const team = useRemote<TeamResponse>(
-    isAdmin && (tab === "tim" || (tab === "audit" && auditNeedsTeam)) ? "tim" : null,
+    isAdmin && tab === "audit" && auditNeedsTeam ? "tim" : null,
     fetchTeam,
     "Gagal memuat tim."
   );
@@ -129,7 +131,7 @@ function SettingsInner() {
   const onTabKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
-    const at = tabs.findIndex((t) => t.key === tab);
+    const at = tabs.findIndex((x) => x.key === tab);
     const next =
       e.key === "Home"
         ? tabs[0]
@@ -148,10 +150,10 @@ function SettingsInner() {
         <PageHeader />
         <div role="alert" className="card p-8 text-center">
           <AlertTriangle className="w-8 h-8 text-danger mx-auto" />
-          <p className="mt-3 text-sm font-semibold text-fg">{error ?? "Gagal memuat profil."}</p>
+          <p className="mt-3 text-sm font-semibold text-fg">{t(error ?? "Gagal memuat profil.")}</p>
           <button type="button" onClick={() => void reload()} className={cn(BTN_PRIMARY, "mt-4")}>
             <RotateCw className="w-4 h-4" />
-            Coba lagi
+            {t("Coba lagi")}
           </button>
         </div>
       </div>
@@ -166,9 +168,9 @@ function SettingsInner() {
           <div className="mx-auto w-12 h-12 rounded-xl bg-warning-soft text-warning flex items-center justify-center">
             <UserX className="w-6 h-6" />
           </div>
-          <h3 className="mt-4 text-base font-bold text-fg">Anda belum menjadi anggota workspace mana pun.</h3>
+          <h3 className="mt-4 text-base font-bold text-fg">{t("Anda belum menjadi anggota workspace mana pun.")}</h3>
           <p className="mt-1 text-sm text-muted max-w-md mx-auto">
-            Minta Admin atau Pemilik workspace mengirim tautan undangan, lalu buka halaman ini lagi.
+            {t("Minta Admin atau Pemilik workspace mengirim tautan undangan, lalu buka halaman ini lagi.")}
           </p>
         </div>
       </div>
@@ -179,21 +181,20 @@ function SettingsInner() {
     <div className="space-y-5">
       <PageHeader>
         <p className="shrink-0 inline-flex items-center gap-2 text-[13px] text-muted">
-          Peran Anda
-          <Pill tone="accent">{me.roleLabel}</Pill>
+          {t("Peran Anda")}
+          <Pill tone="accent">{t(me.roleLabel)}</Pill>
         </p>
       </PageHeader>
 
       {/* Banner keadaan */}
       {!me.multiUser && (
         <Banner tone="warning">
-          Fitur tim belum dipasang di database (sql/008_multiuser.sql). Sampai dipasang, setiap pengguna diperlakukan sebagai Pemilik
-          dan bagian Brand, Tim, serta Audit belum bisa dipakai.
+          {t("Fitur peran belum dipasang di database (sql/008_multiuser.sql). Sampai dipasang, setiap pengguna diperlakukan sebagai Pemilik dan bagian Brand serta Audit belum bisa dipakai.")}
         </Banner>
       )}
       {denied && (
         <Banner tone="info">
-          Bagian {denied.label} hanya bisa dibuka Admin atau Pemilik. Anda masuk sebagai {me.roleLabel}.
+          {t("Bagian {section} hanya bisa dibuka Admin atau Pemilik. Anda masuk sebagai {role}.", { section: t(denied.label), role: t(me.roleLabel) })}
         </Banner>
       )}
 
@@ -205,28 +206,28 @@ function SettingsInner() {
 
       <div
         role="tablist"
-        aria-label="Bagian pengaturan"
+        aria-label={t("Bagian pengaturan")}
         onKeyDown={onTabKey}
         className="-mx-4 px-4 md:mx-0 md:px-0 flex gap-6 border-b border-line overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        {tabs.map((t) => {
-          const active = tab === t.key;
+        {tabs.map((x) => {
+          const active = tab === x.key;
           return (
             <button
-              key={t.key}
+              key={x.key}
               type="button"
               role="tab"
-              id={`pengaturan-tab-${t.key}`}
+              id={`pengaturan-tab-${x.key}`}
               aria-selected={active}
-              aria-controls={`pengaturan-panel-${t.key}`}
+              aria-controls={`pengaturan-panel-${x.key}`}
               tabIndex={active ? 0 : -1}
-              onClick={() => setTab(t.key)}
+              onClick={() => setTab(x.key)}
               className={cn(
                 "relative shrink-0 h-11 inline-flex items-center text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer rounded-md focus-visible:outline-offset-[-2px]",
                 active ? "text-accent" : "text-muted hover:text-fg"
               )}
             >
-              {t.label}
+              {t(x.label)}
               {active && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />}
             </button>
           );
@@ -251,18 +252,11 @@ function SettingsInner() {
           </div>
         </Activity>
         {isAdmin && (
-          <>
-            <Activity mode={tab === "tim" ? "visible" : "hidden"}>
-              <div role="tabpanel" id="pengaturan-panel-tim" aria-labelledby="pengaturan-tab-tim">
-                <TeamTab team={team} onSelfChanged={() => void reload()} />
-              </div>
-            </Activity>
-            <Activity mode={tab === "audit" ? "visible" : "hidden"}>
-              <div role="tabpanel" id="pengaturan-panel-audit" aria-labelledby="pengaturan-tab-audit">
-                <AuditTab members={team.data?.members ?? null} onNeedMembers={needTeam} />
-              </div>
-            </Activity>
-          </>
+          <Activity mode={tab === "audit" ? "visible" : "hidden"}>
+            <div role="tabpanel" id="pengaturan-panel-audit" aria-labelledby="pengaturan-tab-audit">
+              <AuditTab members={team.data?.members ?? null} onNeedMembers={needTeam} />
+            </div>
+          </Activity>
         )}
         <Activity mode={tab === "kesehatan" ? "visible" : "hidden"}>
           <div role="tabpanel" id="pengaturan-panel-kesehatan" aria-labelledby="pengaturan-tab-kesehatan">

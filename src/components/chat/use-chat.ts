@@ -6,6 +6,7 @@ import type { ContentDraft, QueueResultDTO } from "@/lib/content-types";
 import type { PublishIntent } from "@/lib/content-intent";
 import type { ActionPlan } from "@/lib/action-plan";
 import type { RolePromptProfileDTO } from "./role-prompt-card";
+import { currentLocale, tr } from "@/lib/i18n/core";
 
 export interface ChatMessage {
   id: string;
@@ -35,7 +36,7 @@ export interface ChatMessage {
 }
 
 const nowLabel = () =>
-  new Intl.DateTimeFormat("id-ID", {
+  new Intl.DateTimeFormat(currentLocale(), {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Asia/Jakarta",
@@ -146,7 +147,7 @@ export function useChat(account = "all") {
           const id = cardId;
           update((prev) =>
             prev.map((m) =>
-              m.id === id ? { ...m, content: "Insight AI belum bisa dimuat. Angka di atas tetap akurat.", pending: false } : m
+              m.id === id ? { ...m, content: tr("Insight AI belum bisa dimuat. Angka di atas tetap akurat."), pending: false } : m
             )
           );
         } else {
@@ -155,7 +156,7 @@ export function useChat(account = "all") {
             {
               id: nextId(),
               role: "assistant",
-              content: "Maaf, jawaban belum bisa diambil. Periksa koneksi lalu coba lagi.",
+              content: tr("Maaf, jawaban belum bisa diambil. Periksa koneksi lalu coba lagi."),
               time: nowLabel(),
               isError: true,
             },
@@ -219,8 +220,9 @@ export function useChat(account = "all") {
             m.id === id
               ? {
                   ...m,
-                  content:
-                    "Semua tugas selesai dikerjakan. Ringkasan rincinya belum bisa dimuat; cek kartu tiap tugas di atas atau buka Jadwal Konten.",
+                  content: tr(
+                    "Semua tugas selesai dikerjakan. Ringkasan rincinya belum bisa dimuat; cek kartu tiap tugas di atas atau buka Jadwal Konten."
+                  ),
                   pending: false,
                 }
               : m

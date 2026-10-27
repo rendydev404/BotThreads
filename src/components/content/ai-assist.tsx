@@ -6,6 +6,8 @@ import { AgentSteps, HumanScore, TypeReveal, useStagedSteps } from "@/components
 import { aiEditPost, type EditAction, type EditResult } from "@/lib/ai-client";
 import { ContentApiError } from "@/lib/content-client";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/lang-provider";
+import { tContentMessage } from "./post-text-field";
 
 const QUICK: { action: Exclude<EditAction, "custom">; label: string; icon: React.ElementType }[] = [
   { action: "humanize", label: "Lebih manusiawi", icon: Wand2 },
@@ -42,6 +44,7 @@ interface AiAssistProps {
  * niche akun. AI memakai Profil AI + memori gaya akun; hasil tidak disimpan sampai pengguna menekan Simpan.
  */
 export function AiAssist({ postId, handle, text, disabled, onApply }: AiAssistProps) {
+  const t = useT();
   const [running, setRunning] = useState<EditAction | null>(null);
   const [result, setResult] = useState<EditResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,24 +78,24 @@ export function AiAssist({ postId, handle, text, disabled, onApply }: AiAssistPr
   const used = result?.used;
   const usedLine = used
     ? [
-        used.role ? "Profil AI" : null,
-        used.lessons ? `${used.lessons} pelajaran gaya` : null,
-        used.samples ? `${used.samples} contoh postingan` : null,
-        used.facts ? `${used.facts} fakta brand` : null,
+        used.role ? t("Profil AI") : null,
+        used.lessons ? t("{n} pelajaran gaya", { n: used.lessons }) : null,
+        used.samples ? t("{n} contoh postingan", { n: used.samples }) : null,
+        used.facts ? t("{n} fakta brand", { n: used.facts }) : null,
       ]
         .filter(Boolean)
         .join(" · ")
     : "";
 
   return (
-    <section className={cn("ai-aura rounded-2xl bg-surface p-3.5", !running && "ai-aura-idle")} aria-label="Asisten AI">
+    <section className={cn("ai-aura rounded-2xl bg-surface p-3.5", !running && "ai-aura-idle")} aria-label={t("Asisten AI")}>
       <header className="mb-3 flex items-center gap-2">
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-violet-500 text-white shadow-sm shadow-accent/30">
           <Sparkles className="h-3.5 w-3.5" />
         </span>
         <div className="min-w-0">
-          <p className="text-[13px] font-bold text-fg">Asisten AI</p>
-          <p className="truncate text-[11px] text-muted">Menulis dengan gaya @{handle}, bukan gaya AI</p>
+          <p className="text-[13px] font-bold text-fg">{t("Asisten AI")}</p>
+          <p className="truncate text-[11px] text-muted">{t("Menulis dengan gaya @{handle}, bukan gaya AI", { handle })}</p>
         </div>
       </header>
 
@@ -111,7 +114,7 @@ export function AiAssist({ postId, handle, text, disabled, onApply }: AiAssistPr
             )}
           >
             <Icon className="h-3.5 w-3.5" />
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
@@ -127,12 +130,12 @@ export function AiAssist({ postId, handle, text, disabled, onApply }: AiAssistPr
           value={instruction}
           onChange={(e) => setInstruction(e.target.value.slice(0, 300))}
           disabled={disabled || !!running}
-          placeholder='Atau tulis arahan, mis. "tambahin cerita kecil pas begadang"'
+          placeholder={t('Atau tulis arahan, mis. "tambahin cerita kecil pas begadang"')}
           className="h-9 min-w-0 flex-1 rounded-full border border-line bg-subtle px-3.5 text-xs text-fg placeholder-faint focus:border-accent focus:bg-surface focus:outline-none"
         />
         <button
           type="submit"
-          aria-label="Kirim arahan ke AI"
+          aria-label={t("Kirim arahan ke AI")}
           disabled={disabled || !!running || !instruction.trim()}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent transition-opacity disabled:opacity-40 cursor-pointer"
         >
@@ -148,22 +151,22 @@ export function AiAssist({ postId, handle, text, disabled, onApply }: AiAssistPr
             onClick={() => abort.current?.abort()}
             className="mt-2.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted hover:text-danger cursor-pointer"
           >
-            <Square className="h-3 w-3" /> Hentikan
+            <Square className="h-3 w-3" /> {t("Hentikan")}
           </button>
         </div>
       )}
 
-      {error && <p className="msg-in mt-3 rounded-xl bg-danger-soft p-2.5 text-xs font-medium text-danger">{error}</p>}
+      {error && <p className="msg-in mt-3 rounded-xl bg-danger-soft p-2.5 text-xs font-medium text-danger">{tContentMessage(t, error)}</p>}
 
       {result && !running && (
         <div className="mt-3.5 space-y-2">
           {result.idea && (
             <p className="msg-in rounded-xl bg-warning-soft px-3 py-2 text-[11px] font-medium text-warning">
-              Ide dari bank ide: <span className="font-bold">{result.idea.topik}</span>
+              {t("Ide dari bank ide:")} <span className="font-bold">{result.idea.topik}</span>
             </p>
           )}
           <p className="text-[11px] text-muted">
-            {result.candidates.length} versi{usedLine ? ` · memakai ${usedLine}` : ""}
+            {t("{n} versi", { n: result.candidates.length })}{usedLine ? ` · ${t("memakai {list}", { list: usedLine })}` : ""}
           </p>
           {result.candidates.map((c, i) => {
             const isApplied = applied === c.id;
@@ -196,7 +199,7 @@ export function AiAssist({ postId, handle, text, disabled, onApply }: AiAssistPr
                       isApplied ? "bg-success text-white" : "bg-accent-soft text-accent hover:bg-accent hover:text-on-accent"
                     )}
                   >
-                    {isApplied ? "Dipakai" : "Pakai versi ini"}
+                    {isApplied ? t("Dipakai") : t("Pakai versi ini")}
                   </button>
                 </div>
               </article>
@@ -207,7 +210,7 @@ export function AiAssist({ postId, handle, text, disabled, onApply }: AiAssistPr
             onClick={() => setResult(null)}
             className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted hover:text-fg cursor-pointer"
           >
-            <RotateCcw className="h-3 w-3" /> Tutup saran
+            <RotateCcw className="h-3 w-3" /> {t("Tutup saran")}
           </button>
         </div>
       )}

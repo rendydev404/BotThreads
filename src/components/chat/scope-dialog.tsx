@@ -8,6 +8,8 @@ import { AccountPicker } from "@/components/content/account-picker";
 import { usePublishAccounts } from "@/components/content/use-publish-accounts";
 import { OrchestratorCard, type OrchestratorPreset } from "@/components/orchestrator/orchestrator-card";
 import { useOrchestrator, type PublishMode } from "@/components/orchestrator/orchestrator-store";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
 
 type Action = "draft" | "now" | "schedule";
 
@@ -20,9 +22,9 @@ const ACTIONS: { action: Action; label: string; icon: React.ElementType }[] = [
 type Mode = "all" | "some" | "one";
 
 const OPTIONS: { mode: Mode; title: string; icon: React.ElementType; desc: (ready: number) => string }[] = [
-  { mode: "all", title: "Semua akun", icon: Users, desc: (n) => `${n} akun siap, satu agen per akun` },
-  { mode: "some", title: "Beberapa akun", icon: ListChecks, desc: () => "Pilih sendiri akun mana saja" },
-  { mode: "one", title: "Satu akun", icon: User, desc: () => "Fokus ke satu akun tertentu" },
+  { mode: "all", title: "Semua akun", icon: Users, desc: (n) => tr("{n} akun siap, satu agen per akun", { n }) },
+  { mode: "some", title: "Beberapa akun", icon: ListChecks, desc: () => tr("Pilih sendiri akun mana saja") },
+  { mode: "one", title: "Satu akun", icon: User, desc: () => tr("Fokus ke satu akun tertentu") },
 ];
 
 /**
@@ -41,6 +43,7 @@ export function ScopeDialog({
   publish: PublishMode | null;
 }) {
   const { state } = useOrchestrator(sessionId);
+  const t = useT();
   const { accounts, loading } = usePublishAccounts();
   const [mode, setMode] = useState<Mode>("all");
   const [picked, setPicked] = useState<string[]>([]);
@@ -62,13 +65,13 @@ export function ScopeDialog({
           <Target className="w-4 h-4" />
         </div>
         <div className="min-w-0 leading-tight">
-          <h3 className="text-sm font-semibold text-fg">Untuk akun mana?</h3>
-          <p className="text-xs text-muted">AI menulis satu draf per akun dengan gaya dan jam ramai akunnya sendiri.</p>
+          <h3 className="text-sm font-semibold text-fg">{t("Untuk akun mana?")}</h3>
+          <p className="text-xs text-muted">{t("AI menulis satu draf per akun dengan gaya dan jam ramai akunnya sendiri.")}</p>
         </div>
       </div>
 
       <div className="p-4 space-y-4">
-        <div role="radiogroup" aria-label="Cakupan akun" className="grid gap-2 sm:grid-cols-3">
+        <div role="radiogroup" aria-label={t("Cakupan akun")} className="grid gap-2 sm:grid-cols-3">
           {OPTIONS.map((o) => {
             const active = mode === o.mode;
             const Icon = o.icon;
@@ -95,8 +98,8 @@ export function ScopeDialog({
                 >
                   <Icon className="w-4 h-4" />
                 </span>
-                <span className="mt-2 block text-sm font-semibold text-fg">{o.title}</span>
-                <span className="block text-xs text-muted">{loading && o.mode === "all" ? "Memuat akun…" : o.desc(ready)}</span>
+                <span className="mt-2 block text-sm font-semibold text-fg">{t(o.title)}</span>
+                <span className="block text-xs text-muted">{loading && o.mode === "all" ? t("Memuat akun…") : o.desc(ready)}</span>
               </button>
             );
           })}
@@ -110,13 +113,13 @@ export function ScopeDialog({
             multiple={mode === "some"}
             max={100}
             loading={loading}
-            placeholder={mode === "some" ? "Pilih beberapa akun" : "Pilih satu akun"}
+            placeholder={mode === "some" ? t("Pilih beberapa akun") : t("Pilih satu akun")}
           />
         )}
 
         <div>
           <label htmlFor={`${sessionId}-scope-topic`} className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
-            Topik (opsional)
+            {t("Topik (opsional)")}
           </label>
           <input
             id={`${sessionId}-scope-topic`}
@@ -124,14 +127,14 @@ export function ScopeDialog({
             maxLength={MAX_BRIEF_CHARS}
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder="Kosongkan agar tiap akun memilih topik dari niche-nya sendiri"
+            placeholder={t("Kosongkan agar tiap akun memilih topik dari niche-nya sendiri")}
             className="w-full h-10 px-3 bg-surface border border-line rounded-lg text-sm text-fg placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-accent/20 hover:border-muted transition-colors"
           />
         </div>
 
         <div>
-          <span className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Setelah draf jadi</span>
-          <div role="radiogroup" aria-label="Tindakan" className="flex flex-wrap gap-1.5">
+          <span className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">{t("Setelah draf jadi")}</span>
+          <div role="radiogroup" aria-label={t("Tindakan")} className="flex flex-wrap gap-1.5">
             {ACTIONS.map((a) => {
               const Icon = a.icon;
               const active = action === a.action;
@@ -148,7 +151,7 @@ export function ScopeDialog({
                   )}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  {a.label}
+                  {t(a.label)}
                 </button>
               );
             })}
@@ -158,10 +161,13 @@ export function ScopeDialog({
         <p className="flex items-center gap-1.5 text-xs text-muted">
           <Clock className="w-3.5 h-3.5" />
           {action === "now"
-            ? "Langsung masuk antrean terbit; tiap draf masih bisa dibatalkan."
+            ? t("Langsung masuk antrean terbit; tiap draf masih bisa dibatalkan.")
             : action === "schedule"
-              ? `Dijadwalkan ke ${time ? `${time} WIB` : "jam ramai masing-masing akun"}${publish?.dayOffset === 1 ? " besok" : publish?.dayOffset === 2 ? " lusa" : ""}; bisa dibatalkan.`
-              : `Ditinjau dulu sebelum dijadwalkan. Jam: ${time ? `${time} WIB` : "jam ramai masing-masing akun"}.`}
+              ? t("Dijadwalkan ke {when}{day}; bisa dibatalkan.", {
+                  when: time ? `${time} WIB` : t("jam ramai masing-masing akun"),
+                  day: publish?.dayOffset === 1 ? ` ${t("besok")}` : publish?.dayOffset === 2 ? ` ${t("lusa")}` : "",
+                })
+              : t("Ditinjau dulu sebelum dijadwalkan. Jam: {when}.", { when: time ? `${time} WIB` : t("jam ramai masing-masing akun") })}
         </p>
 
         <button
@@ -182,12 +188,12 @@ export function ScopeDialog({
         >
           <Sparkles className="w-4 h-4" />
           {count === 0
-            ? "Pilih akun dulu"
+            ? t("Pilih akun dulu")
             : action === "now"
-              ? `Tulis & posting ke ${count} akun`
+              ? t("Tulis & posting ke {n} akun", { n: count })
               : action === "schedule"
-                ? `Tulis & jadwalkan ${count} akun`
-                : `Buat draf untuk ${count} akun`}
+                ? t("Tulis & jadwalkan {n} akun", { n: count })
+                : t("Buat draf untuk {n} akun", { n: count })}
         </button>
       </div>
     </div>

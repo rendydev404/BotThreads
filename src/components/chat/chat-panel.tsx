@@ -27,6 +27,7 @@ import { followUpsFor, suggestionGroups } from "./suggestions";
 import { ReportCard } from "./report-card";
 import { DraftCard } from "@/components/content/draft-card";
 import { ActionPlanCard } from "./action-plan-card";
+import { useLang, useT } from "@/components/i18n/lang-provider";
 
 /** Blok ```ide pada jawaban asisten dirender sebagai kartu ide bernomor urut. */
 function ideaRenderer(): CodeRenderer {
@@ -67,9 +68,10 @@ const STAGES = ["Mengambil data akun…", "Menghitung insight jaringan…", "Men
 /** Indikator berpikir: label berganti per tahap supaya terasa bergerak, bukan macet. */
 function Thinking({ stages = STAGES }: { stages?: string[] }) {
   const [i, setI] = useState(0);
+  const t = useT();
   useEffect(() => {
-    const t = setInterval(() => setI((v) => Math.min(v + 1, stages.length - 1)), 2400);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setI((v) => Math.min(v + 1, stages.length - 1)), 2400);
+    return () => clearInterval(timer);
   }, [stages.length]);
 
   return (
@@ -84,7 +86,7 @@ function Thinking({ stages = STAGES }: { stages?: string[] }) {
         ))}
       </span>
       <span key={i} className="msg-in">
-        {stages[i]}
+        {t(stages[i])}
       </span>
     </span>
   );
@@ -99,6 +101,7 @@ interface ChatPanelProps {
 
 export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) {
   const { messages, isLoading, send, retry, regenerate, summarize, reset } = chat;
+  const { t, locale } = useLang();
   const [draft, setDraft] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showJump, setShowJump] = useState(false);
@@ -167,7 +170,7 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
         <div className="px-4 h-11 shrink-0 border-b border-line flex items-center justify-between gap-3">
           <span className="inline-flex items-center gap-1.5 text-xs text-muted min-w-0">
             <Database className="w-3.5 h-3.5 text-success shrink-0" />
-            <span className="truncate">Jawaban dari data real di database</span>
+            <span className="truncate">{t("Jawaban dari data real di database")}</span>
           </span>
           <button
             type="button"
@@ -176,7 +179,7 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
             className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-lg text-[13px] font-medium text-muted hover:text-fg hover:bg-subtle transition-colors cursor-pointer disabled:opacity-40 shrink-0"
           >
             <MessageSquarePlus className="w-4 h-4" />
-            Percakapan baru
+            {t("Percakapan baru")}
           </button>
         </div>
       )}
@@ -191,22 +194,22 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                   <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-accent to-violet-500 text-on-accent flex items-center justify-center shadow-lg shadow-accent/25">
                     <Sparkles className="w-7 h-7" />
                   </div>
-                  <h3 className="mt-4 text-xl font-bold text-fg">Tanya apa saja soal akun Threads</h3>
+                  <h3 className="mt-4 text-xl font-bold text-fg">{t("Tanya apa saja soal akun Threads")}</h3>
                   <p className="mt-1.5 text-sm text-muted">
-                    Analisis performa, cari penyebab, atau minta draf siap posting.
+                    {t("Analisis performa, cari penyebab, atau minta draf siap posting.")}
                   </p>
                   <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs text-muted">
                     <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-subtle">
                       <Database className="w-3.5 h-3.5 text-success" />
-                      Data live semua akun
+                      {t("Data live semua akun")}
                     </span>
                     <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-subtle">
                       <ShieldCheck className="w-3.5 h-3.5 text-accent" />
-                      Angka diverifikasi
+                      {t("Angka diverifikasi")}
                     </span>
                     <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-subtle">
                       <Zap className="w-3.5 h-3.5 text-warning" />
-                      Draf siap jadwalkan
+                      {t("Draf siap jadwalkan")}
                     </span>
                   </div>
                 </div>
@@ -218,7 +221,7 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                       className={cn(!compact && gi === suggestionGroups.length - 1 && "md:col-span-2")}
                     >
                       <h4 className="px-1 mb-2 text-[11px] font-semibold uppercase tracking-wider text-faint">
-                        {g.title}
+                        {t(g.title)}
                       </h4>
                       <div
                         className={cn(
@@ -242,8 +245,8 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                               <s.icon className="w-[18px] h-[18px]" />
                             </span>
                             <span className="min-w-0 flex-1">
-                              <span className="block text-sm font-semibold text-fg truncate">{s.label}</span>
-                              <span className="block text-xs text-muted truncate">{s.hint}</span>
+                              <span className="block text-sm font-semibold text-fg truncate">{t(s.label)}</span>
+                              <span className="block text-xs text-muted truncate">{t(s.hint)}</span>
                             </span>
                             <ChevronRight className="w-4 h-4 text-faint shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:text-accent" />
                           </button>
@@ -254,8 +257,8 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                 </div>
 
                 <p className="mt-6 text-center text-xs text-faint">
-                  Tips: sebut <span className="font-semibold text-muted">@akun</span> untuk analisis satu akun, atau
-                  tulis sendiri pertanyaannya di bawah.
+                  {t("Tips: sebut")} <span className="font-semibold text-muted">@akun</span>{" "}
+                  {t("untuk analisis satu akun, atau tulis sendiri pertanyaannya di bawah.")}
                 </p>
               </div>
             ) : (
@@ -344,7 +347,7 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                                 className="h-7 px-2 inline-flex items-center gap-1 rounded-md font-medium text-accent hover:bg-accent-soft cursor-pointer disabled:opacity-40"
                               >
                                 <RotateCw className="w-3 h-3" />
-                                Coba lagi
+                                {t("Coba lagi")}
                               </button>
                             )
                           ) : (
@@ -357,12 +360,12 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                                 {copiedId === m.id ? (
                                   <>
                                     <Check className="w-3 h-3 text-success" />
-                                    Tersalin
+                                    {t("Tersalin")}
                                   </>
                                 ) : (
                                   <>
                                     <Copy className="w-3 h-3" />
-                                    Salin
+                                    {t("Salin")}
                                   </>
                                 )}
                               </button>
@@ -374,7 +377,7 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                                   className="h-7 px-2 inline-flex items-center gap-1 rounded-md hover:text-fg hover:bg-subtle cursor-pointer transition-colors disabled:opacity-40"
                                 >
                                   <RotateCw className="w-3 h-3" />
-                                  Buat ulang
+                                  {t("Buat ulang")}
                                 </button>
                               )}
                             </>
@@ -404,11 +407,11 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
             onClick={() =>
               scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
             }
-            aria-label="Ke pesan terbaru"
+            aria-label={t("Ke pesan terbaru")}
             className="absolute bottom-3 left-1/2 -translate-x-1/2 h-9 px-3.5 inline-flex items-center gap-1.5 rounded-full bg-surface border border-line-strong text-xs font-medium text-fg shadow-pop hover:border-accent hover:text-accent transition-colors cursor-pointer msg-in"
           >
             <ArrowDown className="w-3.5 h-3.5" />
-            Pesan terbaru
+            {t("Pesan terbaru")}
           </button>
         )}
       </div>
@@ -430,7 +433,7 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                 className="shrink-0 h-8 px-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface hover:border-accent hover:bg-accent-soft hover:text-accent text-[13px] font-medium text-muted transition-colors cursor-pointer"
               >
                 <Sparkles className="w-3 h-3" />
-                {f.label}
+                {t(f.label)}
               </button>
             ))}
           </div>
@@ -463,15 +466,15 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
                 }
               }}
               placeholder={
-                isEmpty ? "Tanya apa saja soal performa akun…" : "Tulis pertanyaan lanjutan…"
+                isEmpty ? t("Tanya apa saja soal performa akun…") : t("Tulis pertanyaan lanjutan…")
               }
-              aria-label="Pertanyaan untuk asisten AI"
+              aria-label={t("Pertanyaan untuk asisten AI")}
               className="flex-1 resize-none bg-transparent border-0 py-2.5 text-sm leading-relaxed text-fg placeholder-faint outline-none focus:outline-none focus-visible:outline-none focus:ring-0 max-h-40"
             />
             <button
               type="submit"
               disabled={isLoading || !draft.trim()}
-              aria-label="Kirim"
+              aria-label={t("Kirim")}
               className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center transition-all cursor-pointer bg-accent text-on-accent shadow-md shadow-accent/30 hover:bg-accent-hover hover:scale-105 active:scale-95 disabled:bg-subtle disabled:text-faint disabled:shadow-none disabled:hover:scale-100 disabled:cursor-not-allowed"
             >
               <ArrowUp className="w-[18px] h-[18px]" strokeWidth={2.4} />
@@ -480,13 +483,13 @@ export function ChatPanel({ chat, compact = false, className }: ChatPanelProps) 
           <p className="mt-2 flex items-center justify-center gap-2 text-center text-xs text-faint">
             {draft.length > MAX_INPUT * 0.8 ? (
               <span className={draft.length >= MAX_INPUT ? "text-danger" : "text-warning"}>
-                {draft.length.toLocaleString("id-ID")} / {MAX_INPUT.toLocaleString("id-ID")} karakter
+                {t("{count} / {max} karakter", { count: draft.length.toLocaleString(locale), max: MAX_INPUT.toLocaleString(locale) })}
               </span>
             ) : compact ? (
-              <span>AI bisa keliru, cek angka penting di dasbor.</span>
+              <span>{t("AI bisa keliru, cek angka penting di dasbor.")}</span>
             ) : (
               <span>
-                Enter untuk kirim · Shift + Enter untuk baris baru · AI bisa keliru, cek angka penting di dasbor.
+                {t("Enter untuk kirim · Shift + Enter untuk baris baru · AI bisa keliru, cek angka penting di dasbor.")}
               </span>
             )}
           </p>

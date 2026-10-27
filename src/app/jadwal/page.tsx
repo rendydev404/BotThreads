@@ -22,7 +22,9 @@ import { cn } from "@/lib/utils";
 import { ContentApiError, cancelPost, cancelPosts, listPosts, publishPostNow, retryPost } from "@/lib/content-client";
 import type { PostItemDTO, PostStatusKey, PostsSummaryDTO } from "@/lib/content-types";
 import { clipChars } from "@/lib/threads-text";
-import { formatWibFull, wibDayKey, wibParts } from "@/lib/scheduling";
+import { wibDayKey, wibParts } from "@/lib/scheduling";
+import type { TFunction } from "@/lib/i18n/core";
+import { useLang } from "@/components/i18n/lang-provider";
 import { AccountFilterSelect } from "@/components/dashboard/account-filter-select";
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 import { ComposerModal } from "@/components/content/composer-modal";
@@ -30,6 +32,8 @@ import { EditPostModal } from "@/components/content/edit-post-modal";
 import { AccountAvatar, PostStatusChip } from "@/components/content/post-status-chip";
 import { usePostStatusPoll } from "@/components/content/use-post-status-poll";
 import { usePublishAccounts } from "@/components/content/use-publish-accounts";
+import { tContentMessage } from "@/components/content/post-text-field";
+import { useWibFormat } from "@/components/content/schedule-picker";
 
 type Scope = "upcoming" | "history";
 
@@ -59,27 +63,27 @@ interface Loaded {
 
 const EMPTY: Loaded = { key: "", items: [], nextCursor: null, summary: null, error: null, loadedAt: "1970-01-01T00:00:00.000Z" };
 
-const dayHeading = (iso: string, todayKey: string): string => {
+const dayHeading = (iso: string, todayKey: string, t: TFunction, locale: string): string => {
   const d = new Date(iso);
   const key = wibDayKey(d);
   const today = new Date(todayKey + "T00:00:00Z").getTime();
   const diff = Math.round((new Date(key + "T00:00:00Z").getTime() - today) / 86_400_000);
-  const base = new Intl.DateTimeFormat("id-ID", {
+  const base = new Intl.DateTimeFormat(locale, {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
     timeZone: "Asia/Jakarta",
   }).format(d);
-  if (diff === 0) return `Hari ini, ${base}`;
-  if (diff === 1) return `Besok, ${base}`;
-  if (diff === -1) return `Kemarin, ${base}`;
+  if (diff === 0) return `${t("Hari ini")}, ${base}`;
+  if (diff === 1) return `${t("Besok")}, ${base}`;
+  if (diff === -1) return `${t("Kemarin")}, ${base}`;
   return base;
 };
 
-const timeOf = (iso: string): string => {
+const timeOf = (iso: string, sep = "."): string => {
   const p = wibParts(new Date(iso));
-  return `${String(p.h).padStart(2, "0")}.${String(p.min).padStart(2, "0")}`;
+  return `${String(p.h).padStart(2, "0")}${sep}${String(p.min).padStart(2, "0")}`;
 };
 
 function SummaryCard({ label, value, tone }: { label: string; value: number | string; tone?: "danger" | "success" | "accent" }) {
@@ -102,6 +106,8 @@ const ICON_BTN =
   "h-8 px-2.5 rounded-lg inline-flex items-center gap-1.5 text-[13px] font-medium text-muted hover:text-fg hover:bg-subtle transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted";
 
 export default function JadwalPage() {
+  const { t, lang, locale } = useLang();
+  const wib = useWibFormat();
   const { accounts, publishEnabled, limits, loading: accountsLoading, error: accountsError } = usePublishAccounts();
 
   const [scope, setScope] = useState<Scope>("upcoming");
@@ -234,7 +240,7 @@ export default function JadwalPage() {
       setSelectedIds(new Set());
       setTick((t) => t + 1);
       setShowBulkConfirm(false);
-      showNotice("success", `${idsArray.length} postingan dibatalkan dan dihapus dari antrean.`);
+      showNotice("success", t("{n} postingan dibatalkan dan dihapus dari antrean.", { n: idsArray.length }));
     } catch (e) {
       setShowBulkConfirm(false);
       showNotice("error", e instanceof ContentApiError ? e.message : "Gagal membatalkan postingan yang dipilih.");
@@ -301,8 +307,8 @@ export default function JadwalPage() {
       {/* Judul halaman + aksi */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-fg">Jadwal Konten</h2>
-          <p className="text-sm text-muted">Kelola postingan Threads yang dibuat dari dashboard. Semua waktu dalam WIB.</p>
+          <h2 className="text-xl font-bold text-fg">{t("Jadwal Konten")}</h2>
+          <p className="text-sm text-muted">{t("Kelola postingan Threads yang dibuat dari dashboard. Semua waktu dalam WIB.")}</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2.5">
           <AccountFilterSelect
@@ -318,7 +324,7 @@ export default function JadwalPage() {
             className="h-14 px-5 rounded-xl bg-accent text-on-accent text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-[18px] h-[18px]" />
-            Buat postingan
+            {t("Buat postingan")}
           </button>
         </div>
       </div>
@@ -333,8 +339,8 @@ export default function JadwalPage() {
           )}
         >
           {notice.tone === "success" ? <CheckCircle2 className="w-[18px] h-[18px] mt-0.5 shrink-0" /> : <AlertTriangle className="w-[18px] h-[18px] mt-0.5 shrink-0" />}
-          <span className="flex-1">{notice.text}</span>
-          <button type="button" onClick={() => setNotice(null)} aria-label="Tutup pemberitahuan" className="shrink-0 cursor-pointer opacity-70 hover:opacity-100">
+          <span className="flex-1">{tContentMessage(t, notice.text)}</span>
+          <button type="button" onClick={() => setNotice(null)} aria-label={t("Tutup pemberitahuan")} className="shrink-0 cursor-pointer opacity-70 hover:opacity-100">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -342,53 +348,53 @@ export default function JadwalPage() {
       {!accountsLoading && !publishEnabled && !accountsError && (
         <div className="flex items-start gap-2.5 rounded-xl bg-subtle text-muted p-3.5 text-sm font-medium">
           <Info className="w-[18px] h-[18px] mt-0.5 shrink-0" />
-          Fitur posting belum diaktifkan oleh pemilik dashboard. Anda masih bisa melihat jadwal yang ada.
+          {t("Fitur posting belum diaktifkan oleh pemilik dashboard. Anda masih bisa melihat jadwal yang ada.")}
         </div>
       )}
       {accountsError && (
         <div role="alert" className="flex items-start gap-2.5 rounded-xl bg-danger-soft text-danger p-3.5 text-sm font-medium">
           <AlertTriangle className="w-[18px] h-[18px] mt-0.5 shrink-0" />
-          {accountsError}
+          {tContentMessage(t, accountsError)}
         </div>
       )}
       {summary && summary.queuedLate > 0 && (
         <div role="alert" className="flex items-start gap-2.5 rounded-xl bg-warning-soft text-warning p-3.5 text-sm font-medium">
           <AlertTriangle className="w-[18px] h-[18px] mt-0.5 shrink-0" />
-          Penerbit belum memproses {summary.queuedLate} postingan. Periksa worker Threads di SukaPost.
+          {t("Penerbit belum memproses {n} postingan. Periksa worker Threads di SukaPost.", { n: summary.queuedLate })}
         </div>
       )}
 
       {/* Ringkasan */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <SummaryCard label="Terjadwal hari ini" value={summary ? summary.scheduledToday : "-"} tone="accent" />
-        <SummaryCard label="Terbit 7 hari" value={summary ? summary.published7d : "-"} tone="success" />
-        <SummaryCard label="Gagal 7 hari" value={summary ? summary.failed7d : "-"} tone={summary && summary.failed7d > 0 ? "danger" : undefined} />
-        <SummaryCard label="Akun siap diposting" value={accountsLoading ? "-" : `${readyCount}/${accounts.length}`} />
+        <SummaryCard label={t("Terjadwal hari ini")} value={summary ? summary.scheduledToday : "-"} tone="accent" />
+        <SummaryCard label={t("Terbit 7 hari")} value={summary ? summary.published7d : "-"} tone="success" />
+        <SummaryCard label={t("Gagal 7 hari")} value={summary ? summary.failed7d : "-"} tone={summary && summary.failed7d > 0 ? "danger" : undefined} />
+        <SummaryCard label={t("Akun siap diposting")} value={accountsLoading ? "-" : `${readyCount}/${accounts.length}`} />
       </div>
 
       {/* Tab + filter */}
       <div className="flex flex-col gap-3">
         <div className="flex items-end justify-between gap-4 border-b border-line">
-          <div role="tablist" aria-label="Jenis jadwal" className="flex gap-6">
+          <div role="tablist" aria-label={t("Jenis jadwal")} className="flex gap-6">
             {(
               [
                 { key: "upcoming", label: "Terjadwal" },
                 { key: "history", label: "Riwayat" },
               ] as const
-            ).map((t) => (
+            ).map((tab) => (
               <button
-                key={t.key}
+                key={tab.key}
                 type="button"
                 role="tab"
-                aria-selected={scope === t.key}
-                onClick={() => changeScope(t.key)}
+                aria-selected={scope === tab.key}
+                onClick={() => changeScope(tab.key)}
                 className={cn(
                   "relative pb-3 text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer",
-                  scope === t.key ? "text-accent" : "text-muted hover:text-fg"
+                  scope === tab.key ? "text-accent" : "text-muted hover:text-fg"
                 )}
               >
-                {t.label}
-                {scope === t.key && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />}
+                {t(tab.label)}
+                {scope === tab.key && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />}
               </button>
             ))}
           </div>
@@ -402,7 +408,7 @@ export default function JadwalPage() {
             <span className={cn("relative w-9 h-5 rounded-full transition-colors", includeAll ? "bg-accent" : "bg-line-strong")} aria-hidden>
               <span className={cn("absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-surface transition-transform", includeAll && "translate-x-4")} />
             </span>
-            <span className="hidden sm:inline">Tampilkan juga dari SukaPost</span>
+            <span className="hidden sm:inline">{t("Tampilkan juga dari SukaPost")}</span>
             <span className="sm:hidden">SukaPost</span>
           </button>
         </div>
@@ -422,7 +428,7 @@ export default function JadwalPage() {
                 status === f.key ? "bg-accent text-on-accent border-accent" : "bg-surface text-muted border-line-strong hover:border-accent hover:text-accent"
               )}
             >
-              {f.label}
+              {t(f.label)}
             </button>
           ))}
         </div>
@@ -430,7 +436,7 @@ export default function JadwalPage() {
 
       {/* Daftar */}
       {loading ? (
-        <div className="space-y-3" aria-busy="true" aria-label="Memuat jadwal">
+        <div className="space-y-3" aria-busy="true" aria-label={t("Memuat jadwal")}>
           {[0, 1, 2].map((i) => (
             <div key={i} className="card p-4 animate-pulse">
               <div className="h-4 w-1/3 rounded bg-subtle" />
@@ -442,14 +448,14 @@ export default function JadwalPage() {
       ) : loaded.error && items.length === 0 ? (
         <div role="alert" className="card p-8 text-center">
           <AlertTriangle className="w-8 h-8 text-danger mx-auto" />
-          <p className="mt-3 text-sm font-semibold text-fg">{loaded.error}</p>
+          <p className="mt-3 text-sm font-semibold text-fg">{tContentMessage(t, loaded.error)}</p>
           <button
             type="button"
             onClick={() => setTick((t) => t + 1)}
             className="mt-4 h-10 px-5 rounded-full bg-accent text-on-accent text-sm font-semibold inline-flex items-center gap-2 cursor-pointer hover:bg-accent-hover"
           >
             <RotateCw className="w-4 h-4" />
-            Coba lagi
+            {t("Coba lagi")}
           </button>
         </div>
       ) : items.length === 0 ? (
@@ -457,11 +463,11 @@ export default function JadwalPage() {
           <div className="mx-auto w-12 h-12 rounded-xl bg-accent-soft text-accent flex items-center justify-center">
             <CalendarClock className="w-6 h-6" />
           </div>
-          <h3 className="mt-4 text-base font-bold text-fg">{scope === "upcoming" ? "Belum ada jadwal" : "Belum ada riwayat"}</h3>
+          <h3 className="mt-4 text-base font-bold text-fg">{scope === "upcoming" ? t("Belum ada jadwal") : t("Belum ada riwayat")}</h3>
           <p className="mt-1 text-sm text-muted max-w-sm mx-auto">
             {scope === "upcoming"
-              ? "Minta asisten AI menyusun draf berdasarkan performa akun, atau tulis postingan sendiri."
-              : "Postingan yang sudah terbit atau gagal akan muncul di sini."}
+              ? t("Minta asisten AI menyusun draf berdasarkan performa akun, atau tulis postingan sendiri.")
+              : t("Postingan yang sudah terbit atau gagal akan muncul di sini.")}
           </p>
           {scope === "upcoming" && (
             <div className="mt-5 flex flex-col sm:flex-row gap-2 justify-center">
@@ -470,7 +476,7 @@ export default function JadwalPage() {
                 className="h-10 px-5 rounded-full bg-accent text-on-accent text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-accent-hover transition-colors"
               >
                 <Sparkles className="w-4 h-4" />
-                Minta draf dari AI
+                {t("Minta draf dari AI")}
               </Link>
               <button
                 type="button"
@@ -479,7 +485,7 @@ export default function JadwalPage() {
                 className="h-10 px-5 rounded-full border border-line-strong text-sm font-semibold text-fg inline-flex items-center justify-center gap-2 hover:border-accent hover:text-accent transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Plus className="w-4 h-4" />
-                Tulis sendiri
+                {t("Tulis sendiri")}
               </button>
             </div>
           )}
@@ -505,7 +511,7 @@ export default function JadwalPage() {
                   }}
                 />
                 <span className="text-sm font-semibold text-fg">
-                  {selectedIds.size > 0 ? `${selectedIds.size} dipilih` : "Pilih semua"}
+                  {selectedIds.size > 0 ? t("{n} dipilih", { n: selectedIds.size }) : t("Pilih semua")}
                 </span>
               </div>
               {selectedIds.size > 0 && (
@@ -515,14 +521,14 @@ export default function JadwalPage() {
                   className="h-8 px-3 rounded-lg bg-danger-soft text-danger text-[13px] font-semibold inline-flex items-center gap-1.5 hover:bg-danger hover:text-white transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  Batalkan ({selectedIds.size})
+                  {t("Batalkan ({n})", { n: selectedIds.size })}
                 </button>
               )}
             </div>
           )}
           {groups.map(([key, list]) => (
-            <section key={key} aria-label={dayHeading(list[0].tayangPada, todayKey)}>
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">{dayHeading(list[0].tayangPada, todayKey)}</h3>
+            <section key={key} aria-label={dayHeading(list[0].tayangPada, todayKey, t, locale)}>
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">{dayHeading(list[0].tayangPada, todayKey, t, locale)}</h3>
               <ul className="card divide-y divide-line overflow-hidden">
                 {list.map((it) => (
                   <li key={it.dispatchId} className="p-4 flex items-start gap-3 relative">
@@ -541,7 +547,7 @@ export default function JadwalPage() {
                         />
                       </div>
                     )}
-                    <div className="w-12 shrink-0 pt-0.5 text-sm font-bold text-fg tabular-nums">{timeOf(it.tayangPada)}</div>
+                    <div className="w-12 shrink-0 pt-0.5 text-sm font-bold text-fg tabular-nums">{timeOf(it.tayangPada, lang === "en" ? ":" : ".")}</div>
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
                         <AccountAvatar name={it.account.displayName} src={it.account.avatarUrl} size="w-6 h-6" />
@@ -564,7 +570,7 @@ export default function JadwalPage() {
                       {it.status === "FAILED" && it.pesanError && (
                         <p className="flex items-start gap-2 rounded-lg bg-danger-soft text-danger p-2.5 text-[13px] font-medium">
                           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                          {it.pesanError}
+                          {tContentMessage(t, it.pesanError)}
                         </p>
                       )}
                       <div className="flex flex-wrap items-center gap-1 -ml-2.5">
@@ -576,31 +582,31 @@ export default function JadwalPage() {
                             className={cn(ICON_BTN, "text-accent hover:text-accent")}
                           >
                             {publishingId === it.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                            Posting sekarang
+                            {t("Posting sekarang")}
                           </button>
                         )}
                         {it.editable && (
                           <button type="button" onClick={() => setEditing(it)} disabled={!publishEnabled} className={ICON_BTN}>
                             <Pencil className="w-3.5 h-3.5" />
-                            Ubah
+                            {t("Ubah")}
                           </button>
                         )}
                         {it.cancellable && (
                           <button type="button" onClick={() => setCancelTarget(it)} disabled={!publishEnabled} className={cn(ICON_BTN, "hover:text-danger")}>
                             <Trash2 className="w-3.5 h-3.5" />
-                            Batalkan
+                            {t("Batalkan")}
                           </button>
                         )}
                         {it.retryable && (
                           <button type="button" onClick={() => retry(it)} disabled={!publishEnabled || retryingId === it.id} className={ICON_BTN}>
                             {retryingId === it.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
-                            Kirim ulang
+                            {t("Kirim ulang")}
                           </button>
                         )}
                         {it.releaseUrl && (
                           <a href={it.releaseUrl} target="_blank" rel="noopener noreferrer" className={cn(ICON_BTN, "text-accent hover:text-accent")}>
                             <ExternalLink className="w-3.5 h-3.5" />
-                            Lihat di Threads
+                            {t("Lihat di Threads")}
                           </a>
                         )}
                       </div>
@@ -620,7 +626,7 @@ export default function JadwalPage() {
                 className="h-10 px-6 rounded-full border border-line-strong text-sm font-semibold text-fg hover:border-accent hover:text-accent transition-colors cursor-pointer inline-flex items-center gap-2 disabled:opacity-60"
               >
                 {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
-                Muat lebih banyak
+                {t("Muat lebih banyak")}
               </button>
             </div>
           )}
@@ -641,8 +647,8 @@ export default function JadwalPage() {
           showNotice(
             "success",
             mode === "now"
-              ? `${count} postingan masuk antrean dan akan tayang dalam sekitar 30 detik.`
-              : `${count} postingan dijadwalkan.`
+              ? t("{n} postingan masuk antrean dan akan tayang dalam sekitar 30 detik.", { n: count })
+              : t("{n} postingan dijadwalkan.", { n: count })
           );
         }}
       />
@@ -663,9 +669,13 @@ export default function JadwalPage() {
         onClose={() => !cancelling && setCancelTarget(null)}
         onConfirm={confirmCancel}
         isDeleting={cancelling}
-        tableName='ScheduledPost + PostDispatch (antrean Threads)'
-        recordIdentifier={cancelTarget ? `@${cancelTarget.account.username ?? cancelTarget.account.displayName} | ${formatWibFull(new Date(cancelTarget.tayangPada))}` : ""}
-        description={cancelTarget ? `Postingan "${clipChars(cancelTarget.text, 90)}" dibatalkan dan baris antreannya dihapus. Tidak ada yang diposting.` : undefined}
+        tableName={t("ScheduledPost + PostDispatch (antrean Threads)")}
+        recordIdentifier={cancelTarget ? `@${cancelTarget.account.username ?? cancelTarget.account.displayName} | ${wib.full(new Date(cancelTarget.tayangPada))}` : ""}
+        description={
+          cancelTarget
+            ? t('Postingan "{text}" dibatalkan dan baris antreannya dihapus. Tidak ada yang diposting.', { text: clipChars(cancelTarget.text, 90) })
+            : undefined
+        }
       />
 
       <DeleteConfirmModal
@@ -673,9 +683,9 @@ export default function JadwalPage() {
         onClose={() => !bulkCancelling && setShowBulkConfirm(false)}
         onConfirm={confirmBulkCancel}
         isDeleting={bulkCancelling}
-        tableName='ScheduledPost + PostDispatch (antrean Threads)'
-        recordIdentifier={`${selectedIds.size} Postingan Terpilih`}
-        description={`Anda yakin ingin membatalkan ${selectedIds.size} postingan sekaligus? Postingan akan dihapus dari antrean dan tidak akan diposting ke Threads.`}
+        tableName={t("ScheduledPost + PostDispatch (antrean Threads)")}
+        recordIdentifier={t("{n} Postingan Terpilih", { n: selectedIds.size })}
+        description={t("Anda yakin ingin membatalkan {n} postingan sekaligus? Postingan akan dihapus dari antrean dan tidak akan diposting ke Threads.", { n: selectedIds.size })}
       />
     </div>
   );

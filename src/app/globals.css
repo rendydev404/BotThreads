@@ -257,3 +257,8 @@ body {
 .ai-step-in {
   animation: ai-step-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* Pengguna EN: halaman disembunyikan sesaat sampai kamus EN termuat (lihat skrip <head> di layout). */
+html.i18n-wait body {
+  visibility: hidden;
+}

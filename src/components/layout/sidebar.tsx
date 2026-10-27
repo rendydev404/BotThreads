@@ -4,9 +4,10 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, CalendarClock, Bot, CreditCard, Radar, Settings, ShieldCheck, Sparkles, AtSign, TrendingUp, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, FileText, CalendarClock, Bot, CreditCard, Radar, Settings, ShieldCheck, Sparkles, AtSign, TrendingUp, Route, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "./use-me";
+import { useT } from "@/components/i18n/lang-provider";
 
 /**
  * `mobile: false` = di layar kecil masuk menu "Lainnya" (bilah bawah hanya muat lima tombol).
@@ -20,27 +21,33 @@ export interface NavItem {
   mobileOrder?: number;
   mobileName?: string;
   mobileIcon?: LucideIcon;
+  /** Judul kelompok di menu samping; urutannya mengikuti alur kerja (lihat lib/system-flow). */
+  group?: string;
+  /** Penjelasan singkat saat kursor diarahkan ke menu. */
+  hint?: string;
 }
 
 export const navigationItems: NavItem[] = [
-  { name: "Ringkasan", href: "/", icon: LayoutDashboard, mobile: true, mobileOrder: 1 },
-  { name: "Postingan", href: "/posts", icon: FileText, mobile: false },
-  { name: "Jadwal", href: "/jadwal", icon: CalendarClock, mobile: false },
-  { name: "Autopilot", href: "/autopilot", icon: Bot, mobile: true, mobileOrder: 3 },
-  { name: "Radar", href: "/radar", icon: Radar, mobile: true, mobileOrder: 2, mobileName: "Trend", mobileIcon: TrendingUp },
-  { name: "Studio AI", href: "/prompt-studio", icon: Sparkles, mobile: true, mobileOrder: 4 },
-  { name: "Akun Threads", href: "/akun", icon: AtSign, mobile: false },
-  { name: "Billing & Paket", href: "/billing", icon: CreditCard, mobile: false },
-  { name: "Pengaturan", href: "/pengaturan", icon: Settings, mobile: false },
+  { name: "Ringkasan", href: "/", icon: LayoutDashboard, mobile: true, mobileOrder: 1, hint: "Views, interaksi, dan akun terbaik" },
+  { name: "Cara Kerja", href: "/cara-kerja", icon: Route, mobile: false, hint: "Peta alur BotThreads, langkah demi langkah" },
+  { name: "Akun Threads", href: "/akun", icon: AtSign, mobile: false, group: "1 · Siapkan", hint: "Hubungkan akun dan isi Profil AI" },
+  { name: "Radar", href: "/radar", icon: Radar, mobile: true, mobileOrder: 2, mobileName: "Trend", mobileIcon: TrendingUp, group: "2 · Berjalan otomatis", hint: "Bank ide dari tren, momen, dan posting terbaik" },
+  { name: "Autopilot", href: "/autopilot", icon: Bot, mobile: true, mobileOrder: 3, group: "2 · Berjalan otomatis", hint: "AI menulis, memeriksa, dan mengantre posting" },
+  { name: "Jadwal", href: "/jadwal", icon: CalendarClock, mobile: false, group: "2 · Berjalan otomatis", hint: "Antrean posting yang akan terbit" },
+  { name: "Postingan", href: "/posts", icon: FileText, mobile: false, group: "3 · Lihat hasil", hint: "Semua posting beserta angkanya" },
+  { name: "Studio AI", href: "/prompt-studio", icon: Sparkles, mobile: true, mobileOrder: 4, group: "3 · Lihat hasil", hint: "Tanya AI soal performa akun" },
+  { name: "Billing & Paket", href: "/billing", icon: CreditCard, mobile: false, group: "Lainnya" },
+  { name: "Pengaturan", href: "/pengaturan", icon: Settings, mobile: false, group: "Lainnya", hint: "Brand, pengetahuan AI, tagihan, kesehatan autopilot" },
 ];
 
 /** Konsol admin platform (aplikasi terpisah di /admin): hanya tampil untuk staf platform. */
-export const adminNavItem = { name: "Konsol Admin", href: "/admin", icon: ShieldCheck, mobile: false };
+export const adminNavItem: NavItem = { name: "Konsol Admin", href: "/admin", icon: ShieldCheck, mobile: false, group: "Lainnya" };
 
 export const isActivePath = (pathname: string, href: string): boolean =>
   href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 
 export function Sidebar() {
+  const t = useT();
   const pathname = usePathname();
   const { me, error } = useMe();
 
@@ -67,27 +74,31 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {items.map((item) => {
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {items.map((item, i) => {
           const isActive = isActivePath(pathname, item.href);
           const Icon = item.icon;
+          const groupStart = item.group && item.group !== items[i - 1]?.group;
 
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              data-tour={`nav:${item.href}`}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "flex items-center gap-3 px-3 h-10 rounded-lg text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-accent-soft text-accent font-semibold"
-                  : "text-muted hover:text-fg hover:bg-subtle"
-              )}
-            >
-              <Icon className="w-[18px] h-[18px] shrink-0" />
-              <span>{item.name}</span>
-            </Link>
+            <React.Fragment key={item.name}>
+              {groupStart && <p className="px-3 pt-4 pb-1 text-[11px] font-bold tracking-wider text-faint uppercase">{t(item.group as string)}</p>}
+              <Link
+                href={item.href}
+                data-tour={`nav:${item.href}`}
+                aria-current={isActive ? "page" : undefined}
+                title={item.hint ? t(item.hint) : undefined}
+                className={cn(
+                  "flex items-center gap-3 px-3 h-10 rounded-lg text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-accent-soft text-accent font-semibold"
+                    : "text-muted hover:text-fg hover:bg-subtle"
+                )}
+              >
+                <Icon className="w-[18px] h-[18px] shrink-0" />
+                <span>{t(item.name)}</span>
+              </Link>
+            </React.Fragment>
           );
         })}
       </nav>
@@ -98,9 +109,9 @@ export function Sidebar() {
           <span className={cn("relative inline-flex h-2 w-2 rounded-full", offline ? "bg-warning" : "bg-success")} />
         </span>
         <div className="text-xs leading-relaxed min-w-0">
-          <p className="font-semibold text-fg truncate">{offline ? "Profil belum termuat" : workspace ?? "Terhubung"}</p>
+          <p className="font-semibold text-fg truncate">{offline ? t("Profil belum termuat") : workspace ?? t("Terhubung")}</p>
           <p className="text-muted">
-            {offline ? "Periksa koneksi Anda" : count === null ? "Memuat akun..." : `${count} akun Threads`}
+            {offline ? t("Periksa koneksi Anda") : count === null ? t("Memuat akun...") : t("{n} akun Threads", { n: count })}
           </p>
         </div>
       </div>

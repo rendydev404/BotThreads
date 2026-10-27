@@ -10,6 +10,7 @@ import { THREADS_MAX_TEXT } from "@/lib/threads-text";
 import { DraftCard } from "@/components/content/draft-card";
 import { AccountAvatar } from "@/components/content/post-status-chip";
 import { usePublishAccounts } from "@/components/content/use-publish-accounts";
+import { useT } from "@/components/i18n/lang-provider";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -35,10 +36,11 @@ function useCopy() {
 
 /** Indikator panjang teks terhadap batas Threads. */
 function CharMeter({ chars }: { chars: number }) {
+  const t = useT();
   const ratio = Math.min(1, chars / THREADS_MAX_TEXT);
   const tone = chars > THREADS_MAX_TEXT ? "bg-danger" : chars > THREADS_MAX_TEXT * 0.9 ? "bg-warning" : "bg-success";
   return (
-    <div className="flex items-center gap-2 text-xs text-muted" title="Batas Threads 500 karakter">
+    <div className="flex items-center gap-2 text-xs text-muted" title={t("Batas Threads 500 karakter")}>
       <div className="w-16 h-1.5 rounded-full bg-subtle overflow-hidden">
         <div className={cn("h-full rounded-full", tone)} style={{ width: `${ratio * 100}%` }} />
       </div>
@@ -57,6 +59,7 @@ function CharMeter({ chars }: { chars: number }) {
 export function IdeaCard({ idea, index }: { idea: PostIdea; index: number }) {
   const { accounts } = usePublishAccounts();
   const { copied, copy } = useCopy();
+  const t = useT();
   const [draft, setDraft] = useState<ContentDraft | null>(null);
 
   const account = useMemo(
@@ -66,7 +69,7 @@ export function IdeaCard({ idea, index }: { idea: PostIdea; index: number }) {
   const segments = useMemo(() => ideaSegments(idea.body), [idea.body]);
   const postText = useMemo(() => ideaPostText(idea.body), [idea.body]);
   const chars = [...postText].length;
-  const handle = idea.account ? `@${idea.account}` : "Semua akun";
+  const handle = idea.account ? `@${idea.account}` : t("Semua akun");
 
   if (draft) return <DraftCard draft={draft} index={index} />;
 
@@ -101,7 +104,7 @@ export function IdeaCard({ idea, index }: { idea: PostIdea; index: number }) {
         />
         <div className="min-w-0 flex-1 leading-tight">
           <p className="text-sm font-semibold text-fg truncate">{handle}</p>
-          <p className="text-xs text-muted truncate">{account?.outletNama ?? account?.displayName ?? "Ide postingan"}</p>
+          <p className="text-xs text-muted truncate">{account?.outletNama ?? account?.displayName ?? t("Ide postingan")}</p>
         </div>
         {idea.time && (
           <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-accent-soft text-accent text-xs font-semibold shrink-0">
@@ -113,7 +116,7 @@ export function IdeaCard({ idea, index }: { idea: PostIdea; index: number }) {
 
       <div className="px-4 mt-3 flex flex-wrap items-center gap-1.5">
         <span className="inline-flex items-center rounded-md bg-accent px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-on-accent">
-          Ide {index}
+          {t("Ide {n}", { n: index })}
         </span>
         {idea.angle && (
           <span className="inline-flex items-center gap-1 rounded-md bg-subtle px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -130,7 +133,7 @@ export function IdeaCard({ idea, index }: { idea: PostIdea; index: number }) {
               <div className="flex items-center justify-between gap-2 px-3 h-9 border-b border-line bg-accent-soft/60">
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent">
                   <TerminalSquare className="w-3.5 h-3.5" />
-                  Prompt siap pakai
+                  {t("Prompt siap pakai")}
                 </span>
                 <button
                   type="button"
@@ -138,7 +141,7 @@ export function IdeaCard({ idea, index }: { idea: PostIdea; index: number }) {
                   className="inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-fg cursor-pointer"
                 >
                   {copied === `p${i}` ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied === `p${i}` ? "Tersalin" : "Salin prompt"}
+                  {copied === `p${i}` ? t("Tersalin") : t("Salin prompt")}
                 </button>
               </div>
               <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap break-words text-fg">
@@ -157,7 +160,7 @@ export function IdeaCard({ idea, index }: { idea: PostIdea; index: number }) {
         <div className="mx-4 mt-3 flex items-start gap-2 rounded-xl bg-success-soft/70 px-3 py-2 text-[13px] leading-relaxed text-fg">
           <TrendingUp className="w-4 h-4 mt-0.5 text-success shrink-0" />
           <p>
-            <span className="font-semibold">Kenapa: </span>
+            <span className="font-semibold">{t("Kenapa:")} </span>
             {idea.reason}
           </p>
         </div>
@@ -172,11 +175,11 @@ export function IdeaCard({ idea, index }: { idea: PostIdea; index: number }) {
             className={cn(BTN, "border border-line-strong bg-surface text-fg hover:border-accent hover:text-accent")}
           >
             {copied === "text" ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
-            {copied === "text" ? "Tersalin" : "Salin teks"}
+            {copied === "text" ? t("Tersalin") : t("Salin teks")}
           </button>
           <button type="button" onClick={prepare} className={cn(BTN, "bg-accent text-on-accent hover:bg-accent-hover")}>
             <CalendarClock className="w-4 h-4" />
-            Siapkan posting
+            {t("Siapkan posting")}
           </button>
         </div>
       </footer>

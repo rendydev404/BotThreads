@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { CalendarClock, ChevronLeft, ChevronRight, Send, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BestHourDTO } from "@/lib/content-types";
 import { SCHEDULE_MAX_LEAD_MS, SCHEDULE_MIN_LEAD_MS, SLOT_MIN_LEAD_MS } from "@/lib/content-config";
 import { WIB_OFFSET_MS, formatWibFull, formatWibLabel, wibAt, wibParts } from "@/lib/scheduling";
+import { useLang, useT } from "@/components/i18n/lang-provider";
 import { ModalButton, ModalShell } from "./modal-shell";
 
 /** `now` = langsung diposting; `at` = jadwal (ISO UTC) atau belum dipilih. */
@@ -25,7 +26,34 @@ interface SchedulePickerProps {
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const DOW = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 const pad2 = (n: number) => String(n).padStart(2, "0");
-const fmtMult = (x: number) => `${x.toFixed(1).replace(".", ",")}x`;
+const fmtMult = (x: number, en = false) => `${en ? x.toFixed(1) : x.toFixed(1).replace(".", ",")}x`;
+const DAY_NAMES = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+
+/**
+ * Format waktu WIB sesuai bahasa: ID memakai formatWibFull/formatWibLabel apa adanya,
+ * EN menjadi "Oct 13, 2026, 12:00 WIB" / "Monday 12:00 WIB".
+ */
+export function useWibFormat() {
+  const { lang, t } = useLang();
+  const full = useCallback(
+    (date: Date): string => {
+      if (lang !== "en") return formatWibFull(date);
+      const p = wibParts(date);
+      return `${t(MONTH_SHORT[p.m])} ${p.d}, ${p.y}, ${pad2(p.h)}:${pad2(p.min)} WIB`;
+    },
+    [lang, t]
+  );
+  const label = useCallback(
+    (date: Date): string => {
+      if (lang !== "en") return formatWibLabel(date);
+      const p = wibParts(date);
+      return `${t(DAY_NAMES[p.dow])} ${pad2(p.h)}:${pad2(p.min)} WIB`;
+    },
+    [lang, t]
+  );
+  return { full, label };
+}
 
 /** Waktu WIB (y, m 0-11, d, h, min) -> Date UTC. */
 const fromWib = (y: number, m: number, d: number, h: number, min: number) =>
@@ -39,6 +67,10 @@ export function SchedulePicker({
   allowNow = true,
   disabled,
 }: SchedulePickerProps) {
+  const { lang } = useLang();
+  const t = useT();
+  const wib = useWibFormat();
+  const en = lang === "en";
   const [open, setOpen] = useState(false);
   // Keadaan dialog kalender: dihitung saat dibuka (bukan saat render) agar tidak memakai waktu saat prerender.
   const [cal, setCal] = useState({ y: 2026, m: 0, d: 1, h: 12, min: 0, todayKey: 0, maxKey: 0 });
@@ -105,7 +137,7 @@ export function SchedulePicker({
   return (
     <div className="space-y-2.5">
       {allowNow && (
-        <div role="tablist" aria-label="Waktu posting" className="inline-flex p-1 rounded-full bg-subtle">
+        <div role="tablist" aria-label={t("Waktu posting")} className="inline-flex p-1 rounded-full bg-subtle">
           {(
             [
               { key: "now", label: "Sekarang", Icon: Send },
@@ -127,7 +159,7 @@ export function SchedulePicker({
                 )}
               >
                 <Icon className="w-3.5 h-3.5" />
-                {label}
+                {t(label)}
               </button>
             );
           })}
@@ -145,24 +177,24 @@ export function SchedulePicker({
                 className={chip(value.at === suggestedAt)}
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                Saran AI · {formatWibLabel(new Date(suggestedAt))}
+                {t("Saran AI")} · {wib.label(new Date(suggestedAt))}
               </button>
             )}
             {bestHours.map((b) => {
               const active = selectedAt ? wibParts(selectedAt).h === b.hour && wibParts(selectedAt).min === 0 : false;
               return (
                 <button key={b.hour} type="button" disabled={disabled} onClick={() => pickHour(b.hour)} className={chip(active)}>
-                  {pad2(b.hour)}.00{b.multiplier ? ` · ${fmtMult(b.multiplier)}` : ""}
+                  {pad2(b.hour)}{en ? ":" : "."}00{b.multiplier ? ` · ${fmtMult(b.multiplier, en)}` : ""}
                 </button>
               );
             })}
             <button type="button" disabled={disabled} onClick={openCalendar} className={chip(false)}>
               <CalendarClock className="w-3.5 h-3.5" />
-              Pilih tanggal dan jam
+              {t("Pilih tanggal dan jam")}
             </button>
           </div>
           <p className={cn("text-[13px]", selectedAt ? "text-fg font-medium" : "text-muted")}>
-            {selectedAt ? `Tayang ${formatWibFull(selectedAt)}` : "Pilih jam terbaik atau tentukan tanggal dan jam sendiri."}
+            {selectedAt ? t("Tayang {when}", { when: wib.full(selectedAt) }) : t("Pilih jam terbaik atau tentukan tanggal dan jam sendiri.")}
           </p>
         </div>
       )}
@@ -170,13 +202,13 @@ export function SchedulePicker({
       <ModalShell
         open={open}
         onClose={() => setOpen(false)}
-        title="Pilih tanggal dan jam"
-        description="Semua waktu dalam WIB (Asia/Jakarta)."
+        title={t("Pilih tanggal dan jam")}
+        description={t("Semua waktu dalam WIB (Asia/Jakarta).")}
         footer={
           <>
-            <ModalButton onClick={() => setOpen(false)}>Batal</ModalButton>
+            <ModalButton onClick={() => setOpen(false)}>{t("Batal")}</ModalButton>
             <ModalButton variant="primary" onClick={confirm}>
-              Pakai jadwal ini
+              {t("Pakai jadwal ini")}
             </ModalButton>
           </>
         }
@@ -185,18 +217,18 @@ export function SchedulePicker({
           <button
             type="button"
             onClick={() => shiftMonth(-1)}
-            aria-label="Bulan sebelumnya"
+            aria-label={t("Bulan sebelumnya")}
             className="w-9 h-9 rounded-full flex items-center justify-center text-muted hover:text-fg hover:bg-subtle cursor-pointer"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <span className="text-sm font-bold text-fg">
-            {MONTHS[view.m]} {view.y}
+            {t(MONTHS[view.m])} {view.y}
           </span>
           <button
             type="button"
             onClick={() => shiftMonth(1)}
-            aria-label="Bulan berikutnya"
+            aria-label={t("Bulan berikutnya")}
             className="w-9 h-9 rounded-full flex items-center justify-center text-muted hover:text-fg hover:bg-subtle cursor-pointer"
           >
             <ChevronRight className="w-5 h-5" />
@@ -205,7 +237,7 @@ export function SchedulePicker({
         <div className="grid grid-cols-7 gap-1 text-center">
           {DOW.map((d) => (
             <span key={d} className="text-[11px] font-semibold text-faint py-1">
-              {d}
+              {t(d)}
             </span>
           ))}
           {cells.map((day, i) => {
@@ -221,7 +253,7 @@ export function SchedulePicker({
                 disabled={out}
                 onClick={() => setCal((c) => ({ ...c, y: view.y, m: view.m, d: day }))}
                 aria-pressed={sel}
-                aria-label={`${day} ${MONTHS[view.m]} ${view.y}`}
+                aria-label={en ? `${t(MONTHS[view.m])} ${day}, ${view.y}` : `${day} ${MONTHS[view.m]} ${view.y}`}
                 className={cn(
                   "h-10 rounded-xl text-sm font-medium transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed",
                   sel ? "bg-accent text-on-accent font-bold" : "text-fg hover:bg-subtle",
@@ -234,7 +266,7 @@ export function SchedulePicker({
           })}
         </div>
 
-        <p className="mt-4 mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">Jam</p>
+        <p className="mt-4 mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">{t("Jam")}</p>
         <div className="grid grid-cols-6 gap-1.5">
           {Array.from({ length: 24 }, (_, h) => (
             <button
@@ -251,7 +283,7 @@ export function SchedulePicker({
             </button>
           ))}
         </div>
-        <p className="mt-3 mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">Menit</p>
+        <p className="mt-3 mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">{t("Menit")}</p>
         <div className="grid grid-cols-6 gap-1.5">
           {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
             <button
@@ -269,11 +301,11 @@ export function SchedulePicker({
           ))}
         </div>
         <p className="mt-4 text-sm font-semibold text-fg">
-          {formatWibFull(fromWib(cal.y, cal.m, cal.d, cal.h, cal.min))}
+          {wib.full(fromWib(cal.y, cal.m, cal.d, cal.h, cal.min))}
         </p>
         {error && (
           <p role="alert" className="mt-2 text-[13px] font-medium text-danger">
-            {error}
+            {t(error)}
           </p>
         )}
       </ModalShell>

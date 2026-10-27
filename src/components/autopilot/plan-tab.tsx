@@ -24,7 +24,9 @@ import { charLength, clipChars } from "@/lib/threads-text";
 import { AccountFilterSelect } from "@/components/dashboard/account-filter-select";
 import { AccountAvatar } from "@/components/content/post-status-chip";
 import { SourceChip } from "@/components/radar/shared";
-import { Banner, ListSkeleton, Segmented, SlotKindChip, SlotStatusChip, accountHandle, timeOf, type SegmentedOption } from "./shared";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
+import { Banner, ListSkeleton, Segmented, SlotKindChip, SlotStatusChip, accountHandle, apiErrorText, timeOf, type SegmentedOption } from "./shared";
 
 type DayKey = "today" | "tomorrow";
 
@@ -65,6 +67,7 @@ interface PlanRowProps {
 }
 
 const PlanRow = memo(function PlanRow({ slot, item, account, publishEnabled, publishing, onPublishNow }: PlanRowProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const badge = KIND_BADGE[item.kind];
   const text = item.text ?? "";
@@ -98,7 +101,7 @@ const PlanRow = memo(function PlanRow({ slot, item, account, publishEnabled, pub
               className="ml-auto h-7 px-3 rounded-full border border-line-strong text-xs font-semibold text-accent inline-flex items-center gap-1.5 hover:border-accent hover:bg-accent-soft transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {publishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              Posting sekarang
+              {t("Posting sekarang")}
             </button>
           )}
         </div>
@@ -106,17 +109,17 @@ const PlanRow = memo(function PlanRow({ slot, item, account, publishEnabled, pub
         <div className="flex flex-wrap items-center gap-1.5">
           <span className={cn(CHIP, badge.cls)}>
             <badge.Icon className="w-3.5 h-3.5 shrink-0" />
-            {badge.label}
+            {t(badge.label)}
           </span>
           {trending && (
             <span className={cn(CHIP, "bg-danger-soft text-danger")}>
               <Flame className="w-3.5 h-3.5 shrink-0" />
-              Menumpang tren
+              {t("Menumpang tren")}
             </span>
           )}
           {item.viral !== null && (
-            <span className={cn(CHIP, "bg-subtle text-fg")} title="Peluang memancing balasan dan repost di Threads menurut perencana AI">
-              <span className="font-medium text-muted">Potensi viral</span>
+            <span className={cn(CHIP, "bg-subtle text-fg")} title={t("Peluang memancing balasan dan repost di Threads menurut perencana AI")}>
+              <span className="font-medium text-muted">{t("Potensi viral")}</span>
               <span className="tabular-nums">{item.viral}</span>
             </span>
           )}
@@ -127,8 +130,8 @@ const PlanRow = memo(function PlanRow({ slot, item, account, publishEnabled, pub
         ) : item.kind === "BEBAS" && !text ? (
           <p className="text-sm text-muted">
             {item.tentative
-              ? "Bank ide akun ini sedang kosong. AI memilih topik dari gaya akun dan tren terbaru saat menulis."
-              : "Slot ini tidak sempat ditulis."}
+              ? t("Bank ide akun ini sedang kosong. AI memilih topik dari gaya akun dan tren terbaru saat menulis.")
+              : t("Slot ini tidak sempat ditulis.")}
           </p>
         ) : null}
 
@@ -144,7 +147,7 @@ const PlanRow = memo(function PlanRow({ slot, item, account, publishEnabled, pub
                 aria-expanded={open}
                 className="-mb-2 h-10 inline-flex items-center text-[13px] font-semibold text-accent hover:underline cursor-pointer"
               >
-                {open ? "Ringkas" : "Selengkapnya"}
+                {open ? t("Ringkas") : t("Selengkapnya")}
               </button>
             )}
           </div>
@@ -154,12 +157,12 @@ const PlanRow = memo(function PlanRow({ slot, item, account, publishEnabled, pub
           <div className="space-y-1">
             {item.alasan && (
               <p className="text-sm text-muted leading-relaxed break-words">
-                <span className="font-semibold text-fg">Kenapa bisa ramai:</span> {item.alasan}
+                <span className="font-semibold text-fg">{t("Kenapa bisa ramai:")}</span> {item.alasan}
               </p>
             )}
             {item.sudut && (
               <p className="text-sm text-muted leading-relaxed break-words">
-                <span className="font-semibold text-fg">Sudut:</span> {item.sudut}
+                <span className="font-semibold text-fg">{t("Sudut:")}</span> {item.sudut}
               </p>
             )}
           </div>
@@ -169,13 +172,13 @@ const PlanRow = memo(function PlanRow({ slot, item, account, publishEnabled, pub
           <div className="flex flex-wrap gap-1.5">
             {item.hook && (
               <span className={cn(CHIP, "bg-subtle text-fg")}>
-                <span className="font-medium text-muted">Pembuka:</span>
+                <span className="font-medium text-muted">{t("Pembuka:")}</span>
                 {item.hook}
               </span>
             )}
             {item.pilar && (
               <span className={cn(CHIP, "bg-subtle text-fg max-w-full")}>
-                <span className="shrink-0 font-medium text-muted">Kategori:</span>
+                <span className="shrink-0 font-medium text-muted">{t("Kategori:")}</span>
                 <span className="min-w-0 truncate">{item.pilar}</span>
               </span>
             )}
@@ -183,7 +186,7 @@ const PlanRow = memo(function PlanRow({ slot, item, account, publishEnabled, pub
         )}
 
         {item.signals.length > 0 && (
-          <ul className="space-y-1.5" aria-label="Tren rujukan">
+          <ul className="space-y-1.5" aria-label={t("Tren rujukan")}>
             {item.signals.map((s, i) => (
               <li key={`${s.source}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
                 <SourceChip source={s.source} />
@@ -226,6 +229,7 @@ interface PlanTabProps {
  * status slot hari itu di ringkasan (yang sudah dipolling halaman) berubah, jadi tidak ada polling sendiri.
  */
 export function PlanTab({ data, active, onRefresh }: PlanTabProps) {
+  const t = useT();
   const [day, setDay] = useState<DayKey>("today");
   /** "all" atau username (format AccountFilterSelect). */
   const [account, setAccount] = useState("all");
@@ -285,7 +289,7 @@ export function PlanTab({ data, active, onRefresh }: PlanTabProps) {
       })
       .catch((e: unknown) => {
         if (ctrl.signal.aborted) return;
-        setState((prev) => ({ ...prev, key, error: e instanceof Error ? e.message : "Gagal memuat rencana.", loading: false }));
+        setState((prev) => ({ ...prev, key, error: e instanceof Error ? apiErrorText(e.message) : tr("Gagal memuat rencana."), loading: false }));
       });
     return () => ctrl.abort();
   }, [active, key, sig, day, accountId, tick]);
@@ -301,20 +305,20 @@ export function PlanTab({ data, active, onRefresh }: PlanTabProps) {
             tone: "info",
             text:
               res.post?.status === "PUBLISHED"
-                ? "Postingan langsung diterbitkan ke Threads."
-                : "Postingan dimajukan dan sedang diterbitkan ke Threads.",
+                ? tr("Postingan langsung diterbitkan ke Threads.")
+                : tr("Postingan dimajukan dan sedang diterbitkan ke Threads."),
           });
         } else {
           await actOnSlot(slot.id, "publish_now");
-          setNotice({ tone: "info", text: "Draf disetujui dan langsung diterbitkan ke Threads." });
+          setNotice({ tone: "info", text: tr("Draf disetujui dan langsung diterbitkan ke Threads.") });
         }
         cache.current.delete(key);
-        setTick((t) => t + 1);
+        setTick((n) => n + 1);
         onRefresh?.();
       } catch (e) {
         setNotice({
           tone: "danger",
-          text: e instanceof ContentApiError ? e.message : "Gagal menerbitkan postingan sekarang.",
+          text: e instanceof ContentApiError ? apiErrorText(e.message) : tr("Gagal menerbitkan postingan sekarang."),
         });
       } finally {
         setPublishingSlotId(null);
@@ -347,15 +351,15 @@ export function PlanTab({ data, active, onRefresh }: PlanTabProps) {
           />
         </div>
         <div className="flex items-center gap-2.5">
-          <Segmented ariaLabel="Hari rencana" options={DAY_OPTIONS} value={day} onChange={setDay} className="w-full lg:w-52" />
+          <Segmented ariaLabel={t("Hari rencana")} options={DAY_OPTIONS} value={day} onChange={setDay} className="w-full lg:w-52" />
           <button
             type="button"
-            onClick={() => setTick((t) => t + 1)}
+            onClick={() => setTick((n) => n + 1)}
             disabled={state.loading}
             className="shrink-0 h-10 px-3.5 rounded-full border border-line-strong text-[13px] font-semibold text-fg inline-flex items-center gap-1.5 hover:border-accent hover:text-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw className={cn("w-3.5 h-3.5", state.loading && items && "animate-spin")} />
-            Segarkan
+            {t("Segarkan")}
           </button>
         </div>
       </div>
@@ -363,8 +367,9 @@ export function PlanTab({ data, active, onRefresh }: PlanTabProps) {
       {notice && <Banner tone={notice.tone}>{notice.text}</Banner>}
 
       <Banner tone="info">
-        Slot yang belum ditulis menampilkan perkiraan topik dari bank ide; ide yang menumpang tren didahulukan. Teksnya ditulis AI sekitar 90
-        menit sebelum tayang (6 jam untuk mode Tinjau dulu) supaya tetap mengikuti tren terbaru.
+        {t(
+          "Slot yang belum ditulis menampilkan perkiraan topik dari bank ide; ide yang menumpang tren didahulukan. Teksnya ditulis AI sekitar 90 menit sebelum tayang (6 jam untuk mode Tinjau dulu) supaya tetap mengikuti tren terbaru."
+        )}
       </Banner>
 
       {firstLoad ? (
@@ -375,11 +380,11 @@ export function PlanTab({ data, active, onRefresh }: PlanTabProps) {
           <p className="mt-3 text-sm font-semibold text-fg">{state.error}</p>
           <button
             type="button"
-            onClick={() => setTick((t) => t + 1)}
+            onClick={() => setTick((n) => n + 1)}
             className="mt-4 h-10 px-5 rounded-full bg-accent text-on-accent text-sm font-semibold inline-flex items-center gap-2 cursor-pointer hover:bg-accent-hover"
           >
             <RotateCw className="w-4 h-4" />
-            Coba lagi
+            {t("Coba lagi")}
           </button>
         </div>
       ) : rows.length === 0 ? (
@@ -387,18 +392,18 @@ export function PlanTab({ data, active, onRefresh }: PlanTabProps) {
           <div className="mx-auto w-12 h-12 rounded-xl bg-accent-soft text-accent flex items-center justify-center">
             <CalendarRange className="w-6 h-6" />
           </div>
-          <p className="mt-4 text-sm font-semibold text-fg">Belum ada slot {day === "today" ? "hari ini" : "besok"}.</p>
+          <p className="mt-4 text-sm font-semibold text-fg">{day === "today" ? t("Belum ada slot hari ini.") : t("Belum ada slot besok.")}</p>
           <p className="mt-1 text-sm text-muted">
-            Nyalakan autopilot di tab Akun. Jadwal hari ini dan besok disusun otomatis dalam beberapa menit.
+            {t("Nyalakan autopilot di tab Akun. Jadwal hari ini dan besok disusun otomatis dalam beberapa menit.")}
           </p>
         </div>
       ) : (
         <>
           {state.error && <Banner tone="danger">{state.error}</Banner>}
           <p className="text-sm text-muted">
-            <span className="font-semibold text-fg tabular-nums">{rows.length}</span> slot ·{" "}
-            <span className="font-semibold text-fg tabular-nums">{stats.written}</span> sudah ditulis ·{" "}
-            <span className="font-semibold text-fg tabular-nums">{stats.trending}</span> menumpang tren
+            <span className="font-semibold text-fg tabular-nums">{rows.length}</span> {t("slot")} ·{" "}
+            <span className="font-semibold text-fg tabular-nums">{stats.written}</span> {t("sudah ditulis")} ·{" "}
+            <span className="font-semibold text-fg tabular-nums">{stats.trending}</span> {t("menumpang tren")}
           </p>
           <ul className="card divide-y divide-line">
             {rows.map((s) => (

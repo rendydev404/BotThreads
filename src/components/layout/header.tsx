@@ -14,9 +14,13 @@ import { NotificationBell } from "./notification-bell";
 import { logout } from "./session-nav";
 import { useMe } from "./use-me";
 import { usePopover } from "./use-popover";
+import { useT } from "@/components/i18n/lang-provider";
+import { LangToggle } from "@/components/i18n/lang-toggle";
 
 const TITLES: [prefix: string, title: string][] = [
-  ["/posts", "Postingan Cabang"],
+  ["/posts", "Postingan"],
+  ["/akun", "Akun Threads"],
+  ["/cara-kerja", "Panduan Cara Kerja"],
   ["/jadwal", "Jadwal Konten"],
   ["/autopilot", "Autopilot Konten"],
   ["/radar", "Radar dan Ide"],
@@ -43,13 +47,14 @@ const MENU_ITEM_CLS =
   "w-full flex items-center gap-3 px-3 h-10 rounded-lg text-sm font-medium text-fg hover:bg-subtle transition-colors cursor-pointer text-left";
 
 function UserMenu() {
+  const t = useT();
   const { me, loading } = useMe();
   const { open, setOpen, rootRef, triggerRef } = usePopover<HTMLDivElement>();
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
   const [switchError, setSwitchError] = useState<string | null>(null);
 
-  const displayName = me?.user.name || me?.user.username || (loading ? "Memuat..." : "Akun");
+  const displayName = me?.user.name || me?.user.username || (loading ? t("Memuat...") : t("Akun"));
   const workspaces = me?.workspaces ?? [];
 
   const pickWorkspace = async (workspaceId: string) => {
@@ -61,7 +66,7 @@ function UserMenu() {
       // Muat ulang penuh: semua data di layar milik workspace sebelumnya.
       window.location.reload();
     } catch (err) {
-      setSwitchError(err instanceof Error ? err.message : "Gagal pindah workspace.");
+      setSwitchError(t(err instanceof Error ? err.message : "Gagal pindah workspace."));
       setSwitching(null);
     }
   };
@@ -74,7 +79,7 @@ function UserMenu() {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Menu akun ${displayName}`}
+        aria-label={t("Menu akun {name}", { name: displayName })}
         className="flex items-center gap-2 h-10 pl-1 pr-1.5 rounded-lg hover:bg-subtle transition-colors cursor-pointer"
       >
         <span
@@ -87,7 +92,7 @@ function UserMenu() {
         </span>
         <span className="hidden lg:block leading-tight text-left min-w-0 max-w-[140px]">
           <span className="block text-sm font-semibold text-fg truncate">{displayName}</span>
-          {me && <span className="block text-[11px] text-muted truncate">{ROLE_LABELS[me.role]}</span>}
+          {me && <span className="block text-[11px] text-muted truncate">{t(ROLE_LABELS[me.role])}</span>}
         </span>
         <ChevronDown className={cn("hidden sm:block w-4 h-4 text-muted transition-transform", open && "rotate-180")} />
       </button>
@@ -95,14 +100,14 @@ function UserMenu() {
       {open && (
         <div
           role="menu"
-          aria-label="Menu akun"
+          aria-label={t("Menu akun")}
           className="fixed inset-x-4 top-[4.5rem] sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-72 bg-surface rounded-xl p-1.5 shadow-pop border border-line z-50 animate-[pop-in_140ms_ease-out]"
         >
           <div className="px-3 py-2.5">
             <p className="text-sm font-semibold text-fg truncate">{displayName}</p>
             {me && (
               <p className="text-xs text-muted truncate">
-                {me.user.email ?? `@${me.user.username}`} · {ROLE_LABELS[me.role]}
+                {me.user.email ?? `@${me.user.username}`} · {t(ROLE_LABELS[me.role])}
               </p>
             )}
           </div>
@@ -125,7 +130,7 @@ function UserMenu() {
                     <Building2 className="w-[18px] h-[18px] text-muted shrink-0" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">{w.nama}</span>
-                      <span className="block text-[11px] font-normal text-muted">{ROLE_LABELS[w.role]}</span>
+                      <span className="block text-[11px] font-normal text-muted">{t(ROLE_LABELS[w.role])}</span>
                     </span>
                     {switching === w.workspaceId ? (
                       <Loader2 className="w-4 h-4 text-muted animate-spin shrink-0" />
@@ -154,7 +159,7 @@ function UserMenu() {
               className={MENU_ITEM_CLS}
             >
               <KeyRound className="w-[18px] h-[18px] text-muted shrink-0" />
-              Ganti password
+              {t("Ganti password")}
             </button>
             <button
               type="button"
@@ -166,15 +171,15 @@ function UserMenu() {
               className={MENU_ITEM_CLS}
             >
               <Compass className="w-[18px] h-[18px] text-muted shrink-0" />
-              Tur pengenalan
+              {t("Tur pengenalan")}
             </button>
             <Link href="/pengaturan" role="menuitem" onClick={() => setOpen(false)} className={MENU_ITEM_CLS}>
               <Settings className="w-[18px] h-[18px] text-muted shrink-0" />
-              Pengaturan
+              {t("Pengaturan")}
             </Link>
             <button type="button" role="menuitem" onClick={logout} className={cn(MENU_ITEM_CLS, "text-danger hover:bg-danger-soft")}>
               <LogOut className="w-[18px] h-[18px] shrink-0" />
-              Keluar
+              {t("Keluar")}
             </button>
           </div>
         </div>
@@ -186,8 +191,9 @@ function UserMenu() {
 }
 
 export function Header() {
+  const t = useT();
   const pathname = usePathname();
-  const title = titleOf(pathname);
+  const title = t(titleOf(pathname));
   // Di layar kecil cukup kata pertama agar tidak terpotong ("Ringkasan Perfo…")
   const shortTitle = title.split(" ")[0];
 
@@ -208,6 +214,7 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-1.5 shrink-0">
+        <LangToggle />
         <ThemeToggle />
         <NotificationBell />
         <UserMenu />

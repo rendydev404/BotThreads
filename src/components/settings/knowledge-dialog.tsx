@@ -20,6 +20,7 @@ import { DayField, addDays, dayDiff } from "./day-field";
 import { ControlLabel, FormError, TextAreaField, TextField } from "./fields";
 import { errorDetails, errorText, formatDayKey } from "./format";
 import type { PillTone } from "./states";
+import { useT } from "@/components/i18n/lang-provider";
 
 export const KNOWLEDGE_KINDS: KnowledgeKind[] = ["FAKTA", "PRODUK", "PROMO", "LARANGAN"];
 
@@ -77,6 +78,7 @@ interface KnowledgeDialogProps {
 
 /** Tambah atau ubah satu butir pengetahuan. Dipasang ulang (key) tiap kali dibuka, jadi isian selalu segar. */
 export function KnowledgeDialog({ item, defaultKind, today, accounts, accountsLoading, accountScoped, onClose, onSaved }: KnowledgeDialogProps) {
+  const t = useT();
   const [jenis, setJenis] = useState<KnowledgeKind>(item?.jenis ?? defaultKind);
   const [accountId, setAccountId] = useState(item?.accountId ?? "");
   const [judul, setJudul] = useState(item?.judul ?? "");
@@ -93,10 +95,10 @@ export function KnowledgeDialog({ item, defaultKind, today, accounts, accountsLo
 
   const title = cleanTitle(judul);
   const body = cleanBody(jenis, isi);
-  const titleError = title.length < 2 || title.length > KNOWLEDGE_TITLE_MAX ? `Judul harus 2-${KNOWLEDGE_TITLE_MAX} karakter.` : null;
-  const bodyError = body.length < 2 || body.length > KNOWLEDGE_BODY_MAX ? `Isi harus 2-${KNOWLEDGE_BODY_MAX} karakter.` : null;
-  const dateError = jenis === "PROMO" && !until ? "Promo wajib punya tanggal berakhir." : null;
-  const accountError = accountScoped && !accountId ? SCOPED_ACCOUNT : null;
+  const titleError = title.length < 2 || title.length > KNOWLEDGE_TITLE_MAX ? t("Judul harus 2-{max} karakter.", { max: KNOWLEDGE_TITLE_MAX }) : null;
+  const bodyError = body.length < 2 || body.length > KNOWLEDGE_BODY_MAX ? t("Isi harus 2-{max} karakter.", { max: KNOWLEDGE_BODY_MAX }) : null;
+  const dateError = jenis === "PROMO" && !until ? t("Promo wajib punya tanggal berakhir.") : null;
+  const accountError = accountScoped && !accountId ? t(SCOPED_ACCOUNT) : null;
   const invalid = !!(titleError || bodyError || dateError || accountError);
   const daysLeft = until ? dayDiff(today, until) : null;
 
@@ -142,16 +144,16 @@ export function KnowledgeDialog({ item, defaultKind, today, accounts, accountsLo
       open
       onClose={onClose}
       busy={saving}
-      title={item ? "Ubah butir pengetahuan" : "Tambah butir pengetahuan"}
-      description="AI wajib mengikuti butir yang masih berlaku saat menulis posting."
+      title={item ? t("Ubah butir pengetahuan") : t("Tambah butir pengetahuan")}
+      description={t("AI wajib mengikuti butir yang masih berlaku saat menulis posting.")}
       footer={
         <>
           <ModalButton onClick={onClose} disabled={saving}>
-            Batal
+            {t("Batal")}
           </ModalButton>
           <ModalButton variant="primary" type="submit" form={formId} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {saving ? "Menyimpan..." : "Simpan"}
+            {saving ? t("Menyimpan...") : t("Simpan")}
           </ModalButton>
         </>
       }
@@ -166,8 +168,8 @@ export function KnowledgeDialog({ item, defaultKind, today, accounts, accountsLo
         className="space-y-5"
       >
         <div>
-          <ControlLabel>Jenis</ControlLabel>
-          <div role="group" aria-label="Jenis butir" className="grid grid-cols-2 gap-2">
+          <ControlLabel>{t("Jenis")}</ControlLabel>
+          <div role="group" aria-label={t("Jenis butir")} className="grid grid-cols-2 gap-2">
             {KNOWLEDGE_KINDS.map((k) => {
               const { Icon } = KIND_STYLE[k];
               const active = jenis === k;
@@ -184,16 +186,16 @@ export function KnowledgeDialog({ item, defaultKind, today, accounts, accountsLo
                   )}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
-                  <span className="min-w-0">{KNOWLEDGE_KIND_LABEL[k]}</span>
+                  <span className="min-w-0">{t(KNOWLEDGE_KIND_LABEL[k])}</span>
                 </button>
               );
             })}
           </div>
-          <p className="mt-1.5 text-xs text-muted leading-relaxed">{KNOWLEDGE_KIND_HINT[jenis]}</p>
+          <p className="mt-1.5 text-xs text-muted leading-relaxed">{t(KNOWLEDGE_KIND_HINT[jenis])}</p>
         </div>
 
         <TextField
-          label="Judul"
+          label={t("Judul")}
           data-autofocus
           value={judul}
           onChange={(v) => {
@@ -203,13 +205,13 @@ export function KnowledgeDialog({ item, defaultKind, today, accounts, accountsLo
           maxLength={KNOWLEDGE_TITLE_MAX}
           showCount
           autoComplete="off"
-          placeholder={`Contoh: ${EXAMPLE[jenis].judul}`}
+          placeholder={t("Contoh: {example}", { example: t(EXAMPLE[jenis].judul) })}
           error={submitted ? titleError : null}
           disabled={saving}
         />
 
         <TextAreaField
-          label={jenis === "LARANGAN" ? "Kata atau frasa terlarang" : "Isi"}
+          label={jenis === "LARANGAN" ? t("Kata atau frasa terlarang") : t("Isi")}
           value={isi}
           onChange={(v) => {
             setIsi(v);
@@ -217,14 +219,14 @@ export function KnowledgeDialog({ item, defaultKind, today, accounts, accountsLo
           }}
           maxLength={KNOWLEDGE_BODY_MAX}
           rows={jenis === "LARANGAN" ? 5 : 4}
-          placeholder={EXAMPLE[jenis].isi}
+          placeholder={t(EXAMPLE[jenis].isi)}
           error={submitted ? bodyError : null}
-          hint={jenis === "LARANGAN" ? "Satu kata atau frasa per baris." : "Tulis apa adanya; disimpan sebagai satu paragraf."}
+          hint={jenis === "LARANGAN" ? t("Satu kata atau frasa per baris.") : t("Tulis apa adanya; disimpan sebagai satu paragraf.")}
           disabled={saving}
         />
 
         <div>
-          <ControlLabel hint="Butir untuk satu akun hanya dipakai saat AI menulis untuk akun itu.">Berlaku untuk</ControlLabel>
+          <ControlLabel hint={t("Butir untuk satu akun hanya dipakai saat AI menulis untuk akun itu.")}>{t("Berlaku untuk")}</ControlLabel>
           <Dropdown
             ariaLabel="Berlaku untuk"
             value={accountId}
@@ -246,16 +248,16 @@ export function KnowledgeDialog({ item, defaultKind, today, accounts, accountsLo
           <ControlLabel
             hint={
               jenis === "PROMO"
-                ? "Wajib untuk promo. Setelah lewat tanggal ini AI berhenti menulis promonya."
-                : "Opsional. Butir yang sudah lewat tanggalnya tidak dipakai AI lagi."
+                ? t("Wajib untuk promo. Setelah lewat tanggal ini AI berhenti menulis promonya.")
+                : t("Opsional. Butir yang sudah lewat tanggalnya tidak dipakai AI lagi.")
             }
           >
-            {jenis === "PROMO" ? "Promo berakhir" : "Masa berlaku"}
+            {jenis === "PROMO" ? t("Promo berakhir") : t("Masa berlaku")}
           </ControlLabel>
           {jenis !== "PROMO" && (
             <Segmented
-              ariaLabel="Masa berlaku"
-              options={LIFETIME_OPTIONS}
+              ariaLabel={t("Masa berlaku")}
+              options={LIFETIME_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))}
               value={until ? "dated" : "none"}
               onChange={(mode) => pickDay(mode === "none" ? null : (keptUntil ?? addDays(today, DATED_DEFAULT_DAYS)))}
               disabled={saving}
@@ -267,8 +269,12 @@ export function KnowledgeDialog({ item, defaultKind, today, accounts, accountsLo
               <DayField label="Tanggal berakhir" value={until} onChange={pickDay} today={today} disabled={saving} />
               <p className={cn("mt-1.5 text-xs", daysLeft !== null && daysLeft < 0 ? "font-medium text-warning" : "text-muted")} aria-live="polite">
                 {daysLeft !== null && daysLeft < 0
-                  ? `${formatDayKey(until)} sudah lewat: butir langsung dianggap berakhir dan tidak dipakai AI.`
-                  : `Berlaku sampai ${formatDayKey(until)}${daysLeft === 0 ? " (hari ini)" : daysLeft ? ` (${daysLeft} hari lagi)` : ""}.`}
+                  ? t("{date} sudah lewat: butir langsung dianggap berakhir dan tidak dipakai AI.", { date: formatDayKey(until) })
+                  : daysLeft === 0
+                    ? t("Berlaku sampai {date} (hari ini).", { date: formatDayKey(until) })
+                    : daysLeft
+                      ? t("Berlaku sampai {date} ({n} hari lagi).", { date: formatDayKey(until), n: daysLeft })
+                      : t("Berlaku sampai {date}.", { date: formatDayKey(until) })}
               </p>
             </>
           )}

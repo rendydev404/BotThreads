@@ -10,6 +10,8 @@ import { ConfirmModal } from "@/components/autopilot/confirm-modal";
 import { Banner, ListSkeleton } from "@/components/autopilot/shared";
 import { errorStatus, errorText, formatDayRange } from "@/components/settings/format";
 import { useRemote } from "@/components/settings/use-remote";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
 import { builtinMoments, dayDiff, momentPhase, type MomentPhase } from "./moment-dates";
 import { MomentModal, type MomentEditor } from "./moment-modal";
 import { BTN, BTN_PRIMARY, EmptyState, ICON_BTN, LoadFailure, NotInstalled, RefreshButton, useNotice } from "./shared";
@@ -21,6 +23,7 @@ const PHASE_CLASS: Record<MomentPhase, string> = {
 };
 
 function PhaseChip({ today, mulai, selesai }: { today: string; mulai: string; selesai: string }) {
+  useT(); // label fase memakai tr(); ikut dirender ulang saat bahasa berganti.
   const { phase, label } = momentPhase(today, mulai, selesai);
   return (
     <span className={cn("inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold whitespace-nowrap", PHASE_CLASS[phase])}>
@@ -32,7 +35,7 @@ function PhaseChip({ today, mulai, selesai }: { today: string; mulai: string; se
 /** "14 - 20 Okt 2026 · 7 hari" */
 function rangeText(mulai: string, selesai: string): string {
   const span = dayDiff(mulai, selesai);
-  return span === null ? formatDayRange(mulai, selesai) : `${formatDayRange(mulai, selesai)} · ${span + 1} hari`;
+  return span === null ? formatDayRange(mulai, selesai) : `${formatDayRange(mulai, selesai)} · ${tr("{n} hari", { n: span + 1 })}`;
 }
 
 /** Urutan yang sama dengan server: tanggal mulai, lalu id. */
@@ -45,6 +48,7 @@ interface MomentsTabProps {
 }
 
 export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
+  const t = useT();
   const remote = useRemote<MomentListResponse>("moments", (signal) => listMoments(signal), "Gagal memuat kalender momen.");
   const { data, mutate, reload } = remote;
   const [editor, setEditor] = useState<MomentEditor | null>(null);
@@ -80,13 +84,16 @@ export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
   const onSaved = (saved: MomentDTO, created: boolean) => {
     mutate((d) => ({ ...d, items: [...d.items.filter((m) => m.id !== saved.id), saved].sort(byStart) }));
     setEditor(null);
-    showNotice("success", created ? `Momen "${saved.nama}" ditambahkan.` : `Momen "${saved.nama}" diperbarui.`);
+    showNotice(
+      "success",
+      created ? t("Momen \"{name}\" ditambahkan.", { name: saved.nama }) : t("Momen \"{name}\" diperbarui.", { name: saved.nama })
+    );
   };
 
   const onGone = (moment: MomentDTO) => {
     removeLocal(moment.id);
     setEditor(null);
-    showNotice("info", `Momen "${moment.nama}" sudah dihapus sebelumnya.`);
+    showNotice("info", t("Momen \"{name}\" sudah dihapus sebelumnya.", { name: moment.nama }));
   };
 
   const confirmDelete = async () => {
@@ -98,13 +105,13 @@ export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
       await deleteMoment(target.id);
       removeLocal(target.id);
       setDeleteTarget(null);
-      showNotice("success", `Momen "${target.nama}" dihapus.`);
+      showNotice("success", t("Momen \"{name}\" dihapus.", { name: target.nama }));
     } catch (e) {
       const status = errorStatus(e);
       if (status === 404) {
         removeLocal(target.id);
         setDeleteTarget(null);
-        showNotice("info", `Momen "${target.nama}" sudah dihapus sebelumnya.`);
+        showNotice("info", t("Momen \"{name}\" sudah dihapus sebelumnya.", { name: target.nama }));
       } else {
         if (status === 403) onForbidden();
         setDeleteError(errorText(e, "Gagal menghapus momen. Coba lagi."));
@@ -118,14 +125,14 @@ export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <p className="text-sm text-muted">
-          Tanggal penting yang ikut dipertimbangkan AI. Momen yang sedang berjalan atau segera dimulai ikut tampil di Tren Viral.
+          {t("Tanggal penting yang ikut dipertimbangkan AI. Momen yang sedang berjalan atau segera dimulai ikut tampil di Tren Viral.")}
         </p>
         <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
           <RefreshButton onClick={reload} busy={remote.refreshing} disabled={remote.loading} />
           {editable && (
             <button type="button" onClick={() => openEditor(null)} className={cn(BTN, BTN_PRIMARY)}>
               <CalendarPlus className="w-4 h-4" />
-              Tambah momen
+              {t("Tambah momen")}
             </button>
           )}
         </div>
@@ -138,27 +145,26 @@ export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
       )}
 
       {remote.loading ? (
-        <ListSkeleton label="Memuat kalender momen" />
+        <ListSkeleton label={t("Memuat kalender momen")} />
       ) : !data ? (
         <LoadFailure status={remote.status} message={remote.error ?? "Gagal memuat kalender momen."} onRetry={reload} />
       ) : !data.installed ? (
         <NotInstalled />
       ) : (
         <>
-          {remote.error && <Banner tone="danger">Gagal menyegarkan: {remote.error}</Banner>}
+          {remote.error && <Banner tone="danger">{t("Gagal menyegarkan: {error}", { error: t(remote.error) })}</Banner>}
 
           <section aria-labelledby={customId} className="space-y-2.5">
             <h3 id={customId} className="text-sm font-bold text-fg">
-              Momen Anda
+              {t("Momen Anda")}
               {data.items.length > 0 && <span className="ml-1.5 font-semibold text-muted tabular-nums">{data.items.length}</span>}
             </h3>
             {data.items.length === 0 ? (
-              <EmptyState icon={<CalendarDays className="w-6 h-6" />} title="Belum ada momen khusus.">
+              <EmptyState icon={<CalendarDays className="w-6 h-6" />} title={t("Belum ada momen khusus.")}>
                 <p>
-                  Tambahkan tanggal penting brand Anda, misalnya ulang tahun outlet, promo musiman, atau hari besar. AI
-                  ikut memakainya sebagai bahan ide saat momennya dekat.
+                  {t("Tambahkan tanggal penting brand Anda, misalnya ulang tahun outlet, promo musiman, atau hari besar. AI ikut memakainya sebagai bahan ide saat momennya dekat.")}
                 </p>
-                {!canEdit && <p>Menambah momen butuh peran Editor ke atas.</p>}
+                {!canEdit && <p>{t("Menambah momen butuh peran Editor ke atas.")}</p>}
               </EmptyState>
             ) : (
               <ul className="card divide-y divide-line">
@@ -180,7 +186,7 @@ export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
                         <button
                           type="button"
                           onClick={() => openEditor(m)}
-                          aria-label={`Ubah momen ${m.nama}`}
+                          aria-label={t("Ubah momen {name}", { name: m.nama })}
                           className={cn(ICON_BTN, "hover:text-accent hover:bg-accent-soft")}
                         >
                           <Pencil className="w-[18px] h-[18px]" />
@@ -191,7 +197,7 @@ export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
                             setDeleteError(null);
                             setDeleteTarget(m);
                           }}
-                          aria-label={`Hapus momen ${m.nama}`}
+                          aria-label={t("Hapus momen {name}", { name: m.nama })}
                           className={cn(ICON_BTN, "hover:text-danger hover:bg-danger-soft")}
                         >
                           <Trash2 className="w-[18px] h-[18px]" />
@@ -207,25 +213,25 @@ export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
           <section aria-labelledby={builtinId} className="space-y-2.5">
             <div>
               <h3 id={builtinId} className="text-sm font-bold text-fg">
-                Momen bawaan
+                {t("Momen bawaan")}
               </h3>
               <p className="mt-0.5 text-[13px] text-muted">
-                Berulang otomatis dan tidak bisa diubah. Ikut tampil di Tren Viral pada hari-hari berlakunya.
+                {t("Berulang otomatis dan tidak bisa diubah. Ikut tampil di Tren Viral pada hari-hari berlakunya.")}
               </p>
             </div>
             <ul className="grid gap-3 sm:grid-cols-2">
               {builtin.map((b) => (
                 <li key={b.key} className="card p-4">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <p className="text-sm font-semibold text-fg">{b.nama}</p>
+                    <p className="text-sm font-semibold text-fg">{t(b.nama)}</p>
                     {today && <PhaseChip today={today} mulai={b.mulai} selesai={b.selesai} />}
                   </div>
                   <p className="mt-1 flex items-center gap-1.5 text-[13px] font-medium text-muted">
                     <Repeat className="w-3.5 h-3.5 shrink-0" />
-                    {b.aturan}
+                    {t(b.aturan)}
                   </p>
                   <p className="mt-0.5 text-[13px] font-medium text-muted tabular-nums">{rangeText(b.mulai, b.selesai)}</p>
-                  <p className="mt-1.5 text-[13px] text-muted leading-relaxed">{b.catatan}</p>
+                  <p className="mt-1.5 text-[13px] text-muted leading-relaxed">{t(b.catatan)}</p>
                 </li>
               ))}
             </ul>
@@ -240,16 +246,16 @@ export function MomentsTab({ canEdit, onForbidden }: MomentsTabProps) {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void confirmDelete()}
         busy={deleting}
-        error={deleteError}
+        error={deleteError ? t(deleteError) : null}
         variant="danger"
-        title="Hapus momen ini?"
-        confirmLabel="Ya, hapus"
+        title={t("Hapus momen ini?")}
+        confirmLabel={t("Ya, hapus")}
         confirmIcon={<Trash2 className="w-4 h-4" />}
       >
         {deleteTarget && (
           <p className="text-sm text-fg leading-relaxed">
-            Momen <span className="font-semibold break-words">{deleteTarget.nama}</span> ({formatDayRange(deleteTarget.mulai, deleteTarget.selesai)})
-            dihapus dari kalender, dan ikut hilang dari Tren Viral.
+            {t("Momen")} <span className="font-semibold break-words">{deleteTarget.nama}</span> ({formatDayRange(deleteTarget.mulai, deleteTarget.selesai)}){" "}
+            {t("dihapus dari kalender, dan ikut hilang dari Tren Viral.")}
           </p>
         )}
       </ConfirmModal>

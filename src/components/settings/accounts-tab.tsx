@@ -22,6 +22,34 @@ import { errorText, formatDateWib, formatInt } from "./format";
 import { BTN_PRIMARY, EmptyState, LoadError, Pill, RefreshButton } from "./states";
 import { ThreadsAndroidHelp, ThreadsConnectButton } from "./threads-connect-button";
 import { useRemote } from "./use-remote";
+import { useT } from "@/components/i18n/lang-provider";
+import type { TFunction } from "@/lib/i18n/core";
+
+/** Pesan API/OAuth yang memuat nilai dinamis: cocokkan polanya supaya bisa diterjemahkan; selain itu t(msg) biasa. */
+const DYNAMIC_MESSAGES: [RegExp, (m: RegExpExecArray, t: TFunction) => string][] = [
+  [
+    /^Kuota akun (?:Threads )?paket (.+) sudah penuh \((\d+)\/(\d+)\)\. Naikkan paket untuk menambah akun\.$/,
+    (m, t) =>
+      m[1] === "Anda"
+        ? t("Kuota akun paket Anda sudah penuh ({used}/{max}). Naikkan paket untuk menambah akun.", { used: m[2], max: m[3] })
+        : t("Kuota akun paket {plan} sudah penuh ({used}/{max}). Naikkan paket untuk menambah akun.", { plan: m[1], used: m[2], max: m[3] }),
+  ],
+  [/^Akun @(\S+) sudah terhubung ke workspace lain\.$/, (m, t) => t("Akun @{username} sudah terhubung ke workspace lain.", { username: m[1] })],
+  [
+    /^Akun @(\S+) baru saja dihubungkan\. Muat ulang halaman\.$/,
+    (m, t) => t("Akun @{username} baru saja dihubungkan. Muat ulang halaman.", { username: m[1] }),
+  ],
+  [/^Threads API menolak permintaan \(HTTP (\d+)\)\.$/, (m, t) => t("Threads API menolak permintaan (HTTP {status}).", { status: m[1] })],
+  [/^Gagal memperbarui profil: ([\s\S]*)$/,(m, t) => t("Gagal memperbarui profil: {error}", { error: m[1] })],
+];
+
+function localizeMessage(t: TFunction, msg: string): string {
+  for (const [re, fmt] of DYNAMIC_MESSAGES) {
+    const m = re.exec(msg);
+    if (m) return fmt(m, t);
+  }
+  return t(msg);
+}
 
 const BTN_SM =
   "h-9 px-3 rounded-full border border-line-strong text-xs font-semibold text-fg inline-flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors hover:border-accent hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed";
@@ -43,6 +71,7 @@ function AccountRow({
   onRemove: () => void;
   onProfile: () => void;
 }) {
+  const t = useT();
   return (
     <li className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
       <div className="flex items-start gap-3 min-w-0">
@@ -57,18 +86,19 @@ function AccountRow({
               tone={acc.needsReconnect ? "danger" : "success"}
               icon={acc.needsReconnect ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
             >
-              {acc.needsReconnect ? "Perlu Hubungkan Ulang" : "Terhubung & Siap"}
+              {acc.needsReconnect ? t("Perlu Hubungkan Ulang") : t("Terhubung & Siap")}
             </Pill>
             {acc.overQuota && (
               <Pill tone="warning" icon={<AlertTriangle className="w-3 h-3" />}>
-                Di luar kuota paket
+                {t("Di luar kuota paket")}
               </Pill>
             )}
-            <Pill tone={acc.autopilotMode !== "MATI" ? "accent" : "neutral"}>Autopilot: {acc.autopilotMode}</Pill>
+            <Pill tone={acc.autopilotMode !== "MATI" ? "accent" : "neutral"}>Autopilot: {t(acc.autopilotMode)}</Pill>
           </div>
           <p className="text-xs text-muted">
-            {acc.connectedAt ? `Terhubung ${formatDateWib(acc.connectedAt)} · ` : ""}Token berlaku s/d {formatDateWib(acc.accessExpiresAt)} · Target{" "}
-            {acc.postsPerDay} posting/hari
+            {acc.connectedAt ? `${t("Terhubung {date}", { date: formatDateWib(acc.connectedAt) })} · ` : ""}
+            {t("Token berlaku s/d {date}", { date: formatDateWib(acc.accessExpiresAt) })} ·{" "}
+            {t("Target {n} posting/hari", { n: acc.postsPerDay })}
           </p>
         </div>
       </div>
@@ -79,22 +109,22 @@ function AccountRow({
           onClick={onProfile}
           data-tour="profil-ai"
           className={cn(BTN_SM, "border-accent/40 text-accent hover:bg-accent-soft")}
-          title="Peran, gaya, dan memori gaya akun untuk semua fitur AI"
+          title={t("Peran, gaya, dan memori gaya akun untuk semua fitur AI")}
         >
           <Sparkles className="w-3.5 h-3.5" />
-          Profil AI
+          {t("Profil AI")}
         </button>
         <Link href="/autopilot" className={BTN_SM}>
           <Bot className="w-3.5 h-3.5" />
-          Atur Autopilot
+          {t("Atur Autopilot")}
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
         {canManage && (
           <>
             {oneClickReady && <ThreadsConnectButton label="Hubungkan ulang" size="sm" reconnect />}
-            <button type="button" onClick={onSync} disabled={busy} className={BTN_SM} title="Ambil ulang nama, username, dan foto dari Threads">
+            <button type="button" onClick={onSync} disabled={busy} className={BTN_SM} title={t("Ambil ulang nama, username, dan foto dari Threads")}>
               {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-              Sinkronkan
+              {t("Sinkronkan")}
             </button>
             {acc.owned && (
               <button
@@ -102,10 +132,10 @@ function AccountRow({
                 onClick={onRemove}
                 disabled={busy}
                 className={cn(BTN_SM, "hover:border-danger hover:text-danger")}
-                aria-label={`Hapus akun @${acc.username}`}
+                aria-label={t("Hapus akun @{username}", { username: acc.username })}
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Hapus
+                {t("Hapus")}
               </button>
             )}
           </>
@@ -124,6 +154,7 @@ export function AccountsTab({
   onAccountConnected?: () => void;
   onOpenSubscription?: () => void;
 }) {
+  const t = useT();
   const searchParams = useSearchParams();
   const oauthConnected = searchParams.get("threads_connected");
   const oauthError = searchParams.get("threads_error");
@@ -141,8 +172,11 @@ export function AccountsTab({
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<ConnectedThreadsAccountDTO | null>(null);
-  const [notice, setNotice] = useState<string | null>(() =>
-    oauthConnected ? `Akun Threads @${oauthConnected} berhasil dihubungkan. Agen AI langsung mempelajarinya.` : null
+  // Disimpan sebagai kunci + variabel (bukan teks jadi) supaya ikut bahasa aktif, termasuk saat kamus EN baru termuat.
+  const [notice, setNotice] = useState<{ key: string; vars: Record<string, string> } | null>(() =>
+    oauthConnected
+      ? { key: "Akun Threads @{username} berhasil dihubungkan. Agen AI langsung mempelajarinya.", vars: { username: oauthConnected } }
+      : null
   );
   const [profileFor, setProfileFor] = useState<{ id: string; username: string } | null>(null);
   /** Naik setiap akun baru dihubungkan, supaya panel agen mulai memantau walau agennya belum tercatat. */
@@ -168,7 +202,7 @@ export function AccountsTab({
   }
 
   if (error && !data) {
-    return <LoadError message={error} status={status} onRetry={reload} />;
+    return <LoadError message={localizeMessage(t, error)} status={status} onRetry={reload} />;
   }
 
   const accounts = data?.accounts ?? [];
@@ -206,7 +240,10 @@ export function AccountsTab({
       });
       setModalOpen(false);
       setAccessToken("");
-      setNotice(`Akun Threads @${res.account.username} berhasil dihubungkan. Agen AI langsung mempelajarinya.`);
+      setNotice({
+        key: "Akun Threads @{username} berhasil dihubungkan. Agen AI langsung mempelajarinya.",
+        vars: { username: res.account.username },
+      });
       setExpectSignal((n) => n + 1);
       onAccountConnected?.();
     } catch (e) {
@@ -223,7 +260,7 @@ export function AccountsTab({
     try {
       const res = await syncWorkspaceThreadsAccount(acc.id);
       mutate((prev) => ({ ...prev, accounts: prev.accounts.map((a) => (a.id === acc.id ? { ...a, ...res.account } : a)) }));
-      setNotice(`Profil @${res.account.username} diperbarui dari Threads.`);
+      setNotice({ key: "Profil @{username} diperbarui dari Threads.", vars: { username: res.account.username } });
     } catch (e) {
       setRowError(errorText(e, "Gagal menyinkronkan profil."));
       reload();
@@ -244,7 +281,10 @@ export function AccountsTab({
         return { ...prev, accounts: nextAccounts, quota: { ...prev.quota, used: nextAccounts.length } };
       });
       setRemoving(null);
-      setNotice(`Akun @${acc.username} dihapus dari workspace. Slot kuotanya bisa dipakai untuk akun lain.`);
+      setNotice({
+        key: "Akun @{username} dihapus dari workspace. Slot kuotanya bisa dipakai untuk akun lain.",
+        vars: { username: acc.username },
+      });
       onAccountConnected?.();
     } catch (e) {
       setRowError(errorText(e, "Gagal menghapus akun."));
@@ -258,35 +298,37 @@ export function AccountsTab({
     <div className="space-y-5">
       {rowError && (
         <Banner tone="danger" onClose={() => setRowError(null)}>
-          {rowError}
+          {localizeMessage(t, rowError)}
         </Banner>
       )}
       {notice && (
         <Banner tone="success" onClose={() => setNotice(null)}>
-          {notice}
+          {t(notice.key, notice.vars)}
         </Banner>
       )}
       {oauthError && (
         <Banner tone="warning">
           {oauthError === "threads_oauth_off" || oauthError === "threads_key_off"
-            ? "Fitur hubungkan akun Threads belum diaktifkan oleh pengelola platform. Silakan coba lagi nanti atau hubungi admin."
+            ? t("Fitur hubungkan akun Threads belum diaktifkan oleh pengelola platform. Silakan coba lagi nanti atau hubungi admin.")
             : oauthError === "threads_insecure"
-              ? "Login Threads hanya bisa dari alamat https. Buka dashboard lewat domain https-nya, lalu klik Hubungkan Akun Threads lagi."
-              : oauthError}
+              ? t("Login Threads hanya bisa dari alamat https. Buka dashboard lewat domain https-nya, lalu klik Hubungkan Akun Threads lagi.")
+              : localizeMessage(t, oauthError)}
         </Banner>
       )}
       {insecure && !oauthError && oneClickReady && canManage && (
         <Banner tone="info">
-          Halaman ini dibuka lewat http, sedangkan Threads hanya mengizinkan login dari https. Di produksi (https) cukup satu klik.
-          Untuk uji di komputer sendiri, jalankan <code className="font-mono">npm run dev:https</code> lalu buka https://localhost:3000.
+          {t("Halaman ini dibuka lewat http, sedangkan Threads hanya mengizinkan login dari https. Di produksi (https) cukup satu klik.")}{" "}
+          {t("Untuk uji di komputer sendiri, jalankan")} <code className="font-mono">npm run dev:https</code>{" "}
+          {t("lalu buka https://localhost:3000.")}
         </Banner>
       )}
       {data && !oneClickReady && canManage && (
         <Banner tone="info">
-          Hubungkan akun Threads sekali klik belum diaktifkan oleh pengelola platform.{" "}
+          {t("Hubungkan akun Threads sekali klik belum diaktifkan oleh pengelola platform.")}{" "}
           <span className="text-muted">
-            (Pengelola: isi Threads App ID &amp; App Secret di Super Admin &gt; Integrasi
-            {data.connectReady ? "" : ", dan TOKEN_ENCRYPTION_KEY di server"}.)
+            {data.connectReady
+              ? t("(Pengelola: isi Threads App ID & App Secret di Super Admin > Integrasi.)")
+              : t("(Pengelola: isi Threads App ID & App Secret di Super Admin > Integrasi, dan TOKEN_ENCRYPTION_KEY di server.)")}
           </span>
         </Banner>
       )}
@@ -295,15 +337,17 @@ export function AccountsTab({
       <div className="card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-fg">Akun Threads Terhubung</h3>
+            <h3 className="text-base font-bold text-fg">{t("Akun Threads Terhubung")}</h3>
             <Pill tone={quotaFull ? "warning" : "accent"}>
-              {formatInt(quota.used)} / {quota.max !== null ? formatInt(quota.max) : "Tanpa batas"} Akun
+              {quota.max !== null
+                ? t("{used} / {max} Akun", { used: formatInt(quota.used), max: formatInt(quota.max), n: quota.max })
+                : t("{used} / Tanpa batas Akun", { used: formatInt(quota.used) })}
             </Pill>
           </div>
           <p className="text-xs text-muted">
             {quota.planNama
-              ? `Paket aktif: ${quota.planNama}. Setiap akun yang terhubung dapat dijadwalkan dan dijalankan otomatis oleh AI.`
-              : "Hubungkan akun Threads Anda untuk mulai menulis dan menerbitkan posting otomatis."}
+              ? t("Paket aktif: {plan}. Setiap akun yang terhubung dapat dijadwalkan dan dijalankan otomatis oleh AI.", { plan: quota.planNama })
+              : t("Hubungkan akun Threads Anda untuk mulai menulis dan menerbitkan posting otomatis.")}
           </p>
         </div>
 
@@ -314,7 +358,7 @@ export function AccountsTab({
               {quotaFull || quota.expired ? (
                 <button type="button" onClick={onOpenSubscription} className={BTN_PRIMARY}>
                   <Sparkles className="w-4 h-4" />
-                  {quota.expired ? "Perpanjang Paket" : "Upgrade Kuota Akun"}
+                  {quota.expired ? t("Perpanjang Paket") : t("Upgrade Kuota Akun")}
                 </button>
               ) : (
                 accounts.length > 0 && connectButton("Tambah Akun Threads")
@@ -326,14 +370,26 @@ export function AccountsTab({
 
       {quota.max !== null && quota.used > quota.max && !quota.expired && (
         <Banner tone="warning">
-          Paket {quota.planNama ?? "Anda"} sekarang maksimal {formatInt(quota.max)} akun, sedangkan ada {formatInt(quota.used)} akun terhubung.{" "}
-          {formatInt(quota.used - quota.max)} akun terbaru (bertanda &quot;Di luar kuota paket&quot;) dihentikan sementara: tidak bisa posting,
-          Autopilot dijeda, dan komentar tidak dibalas. Hapus akun yang tidak dipakai atau upgrade paket, dan akun itu otomatis aktif lagi.
+          {quota.planNama
+            ? t("Paket {plan} sekarang maksimal {max} akun, sedangkan ada {used} akun terhubung.", {
+                plan: quota.planNama,
+                max: formatInt(quota.max),
+                used: formatInt(quota.used),
+              })
+            : t("Paket Anda sekarang maksimal {max} akun, sedangkan ada {used} akun terhubung.", {
+                max: formatInt(quota.max),
+                used: formatInt(quota.used),
+              })}{" "}
+          {t(
+            "{n} akun terbaru (bertanda \"Di luar kuota paket\") dihentikan sementara: tidak bisa posting, Autopilot dijeda, dan komentar tidak dibalas.",
+            { n: formatInt(quota.used - quota.max) }
+          )}{" "}
+          {t("Hapus akun yang tidak dipakai atau upgrade paket, dan akun itu otomatis aktif lagi.")}
         </Banner>
       )}
       {canManage && quotaFull && quota.used === quota.max && !quota.expired && accounts.some((a) => a.owned) && (
         <Banner tone="info">
-          Kuota akun paket sudah penuh. Hapus akun yang tidak dipakai untuk mengosongkan slot, atau upgrade paket untuk menambah kuota.
+          {t("Kuota akun paket sudah penuh. Hapus akun yang tidak dipakai untuk mengosongkan slot, atau upgrade paket untuk menambah kuota.")}
         </Banner>
       )}
 
@@ -353,25 +409,25 @@ export function AccountsTab({
       {accounts.length === 0 ? (
         <EmptyState
           icon={<Link2 className="w-6 h-6" />}
-          title="Belum ada akun Threads yang terhubung"
+          title={t("Belum ada akun Threads yang terhubung")}
           action={
             canManage && !quota.expired ? (
               <div className="flex flex-col items-center gap-3">
                 {connectButton("Hubungkan Akun Threads")}
                 {manualAllowed && (
                   <button type="button" onClick={openManual} className="text-xs text-muted underline hover:text-fg cursor-pointer">
-                    Untuk developer: hubungkan dengan Access Token
+                    {t("Untuk developer: hubungkan dengan Access Token")}
                   </button>
                 )}
               </div>
             ) : undefined
           }
         >
-          <span className="block">Hubungkan akun Threads brand Anda untuk mengaktifkan penjadwalan dan Autopilot AI.</span>
+          <span className="block">{t("Hubungkan akun Threads brand Anda untuk mengaktifkan penjadwalan dan Autopilot AI.")}</span>
           <span className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted">
-            <span>1. Klik tombol di bawah</span>
-            <span>2. Masuk ke akun Threads Anda</span>
-            <span>3. Tekan &quot;Izinkan&quot;, selesai</span>
+            <span>{t("1. Klik tombol di bawah")}</span>
+            <span>{t("2. Masuk ke akun Threads Anda")}</span>
+            <span>{t("3. Tekan \"Izinkan\", selesai")}</span>
           </span>
         </EmptyState>
       ) : (
@@ -399,25 +455,25 @@ export function AccountsTab({
           open
           onClose={() => !rowBusy && setRemoving(null)}
           busy={!!rowBusy}
-          title={`Hapus akun @${removing.username}?`}
-          description="Akun dilepas dari workspace ini dan slot kuotanya bisa dipakai akun lain."
+          title={t("Hapus akun @{username}?", { username: removing.username })}
+          description={t("Akun dilepas dari workspace ini dan slot kuotanya bisa dipakai akun lain.")}
           footer={
             <>
               <ModalButton onClick={() => setRemoving(null)} disabled={!!rowBusy}>
-                Batal
+                {t("Batal")}
               </ModalButton>
               <ModalButton variant="danger" onClick={() => void confirmRemove()} disabled={!!rowBusy}>
                 {rowBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                {rowBusy ? "Menghapus..." : "Hapus akun"}
+                {rowBusy ? t("Menghapus...") : t("Hapus akun")}
               </ModalButton>
             </>
           }
         >
           <ul className="space-y-1.5 text-sm text-fg list-disc pl-5">
-            <li>Posting terjadwal dan Autopilot akun ini dihentikan.</li>
-            <li>Balas komentar otomatis untuk akun ini dimatikan.</li>
-            <li>Riwayat posting yang sudah terbit tetap tersimpan.</li>
-            <li>Postingan di Threads tidak ikut terhapus. Akun bisa dihubungkan lagi kapan saja.</li>
+            <li>{t("Posting terjadwal dan Autopilot akun ini dihentikan.")}</li>
+            <li>{t("Balas komentar otomatis untuk akun ini dimatikan.")}</li>
+            <li>{t("Riwayat posting yang sudah terbit tetap tersimpan.")}</li>
+            <li>{t("Postingan di Threads tidak ikut terhapus. Akun bisa dihubungkan lagi kapan saja.")}</li>
           </ul>
         </ModalShell>
       )}
@@ -428,16 +484,16 @@ export function AccountsTab({
           open
           onClose={() => !busy && setModalOpen(false)}
           busy={busy}
-          title="Hubungkan dengan Access Token"
-          description="Cara manual untuk developer. Pengguna biasa cukup memakai tombol Hubungkan Akun Threads."
+          title={t("Hubungkan dengan Access Token")}
+          description={t("Cara manual untuk developer. Pengguna biasa cukup memakai tombol Hubungkan Akun Threads.")}
           footer={
             <>
               <ModalButton onClick={() => setModalOpen(false)} disabled={busy}>
-                Batal
+                {t("Batal")}
               </ModalButton>
               <ModalButton variant="primary" type="submit" form={formId} disabled={busy}>
                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
-                {busy ? "Menghubungkan..." : "Verifikasi & Hubungkan"}
+                {busy ? t("Menghubungkan...") : t("Verifikasi & Hubungkan")}
               </ModalButton>
             </>
           }
@@ -452,18 +508,20 @@ export function AccountsTab({
             className="space-y-4"
           >
             <TextAreaField
-              label="Access Token Threads"
+              label={t("Access Token Threads")}
               rows={3}
               value={accessToken}
               onChange={(v) => {
                 setAccessToken(v);
                 setFormError(null);
               }}
-              placeholder="Tempel token akses Threads Anda (diawali TH...)"
-              hint="Buat token di Meta for Developers > aplikasi Anda > Threads > Access Token (izin threads_basic dan threads_content_publish). Token dicek ke Threads lalu disimpan terenkripsi."
+              placeholder={t("Tempel token akses Threads Anda (diawali TH...)")}
+              hint={t(
+                "Buat token di Meta for Developers > aplikasi Anda > Threads > Access Token (izin threads_basic dan threads_content_publish). Token dicek ke Threads lalu disimpan terenkripsi."
+              )}
               disabled={busy}
             />
-            <FormError message={formError} />
+            <FormError message={formError ? localizeMessage(t, formError) : formError} />
           </form>
         </ModalShell>
       )}

@@ -5,6 +5,7 @@ import { CheckCircle2, KeyRound, Loader2 } from "lucide-react";
 import { changePassword } from "@/lib/team-client";
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { FormError, PasswordField } from "@/components/settings/fields";
+import { useT } from "@/components/i18n/lang-provider";
 
 export const PASSWORD_MIN = 10;
 
@@ -15,6 +16,7 @@ interface ChangePasswordModalProps {
 
 /** Ganti password sendiri: password saat ini + password baru (minimal 10 karakter) + konfirmasi. */
 export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps) {
+  const t = useT();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -35,9 +37,9 @@ export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps)
     onClose();
   };
 
-  const nextError = touched && next.length < PASSWORD_MIN ? `Password minimal ${PASSWORD_MIN} karakter.` : null;
-  const confirmError = touched && confirm !== next ? "Konfirmasi tidak sama dengan password baru." : null;
-  const sameError = touched && next.length >= PASSWORD_MIN && next === current ? "Password baru harus berbeda dari password saat ini." : null;
+  const nextError = touched && next.length < PASSWORD_MIN ? t("Password minimal {n} karakter.", { n: PASSWORD_MIN }) : null;
+  const confirmError = touched && confirm !== next ? t("Konfirmasi tidak sama dengan password baru.") : null;
+  const sameError = touched && next.length >= PASSWORD_MIN && next === current ? t("Password baru harus berbeda dari password saat ini.") : null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +56,7 @@ export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps)
       setTouched(false);
       setDone(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengganti password. Coba lagi.");
+      setError(t(err instanceof Error ? err.message : "Gagal mengganti password. Coba lagi."));
     } finally {
       setBusy(false);
     }
@@ -65,21 +67,21 @@ export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps)
       open={open}
       onClose={close}
       busy={busy}
-      title="Ganti password"
-      description={done ? undefined : "Lupa password saat ini? Minta admin membuat tautan reset password untuk Anda."}
+      title={t("Ganti password")}
+      description={done ? undefined : t("Lupa password saat ini? Minta admin membuat tautan reset password untuk Anda.")}
       footer={
         done ? (
           <ModalButton variant="primary" onClick={close} data-autofocus>
-            Selesai
+            {t("Selesai")}
           </ModalButton>
         ) : (
           <>
             <ModalButton onClick={close} disabled={busy}>
-              Batal
+              {t("Batal")}
             </ModalButton>
             <ModalButton variant="primary" type="submit" form={formId} disabled={busy || !current || !next || !confirm}>
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-              {busy ? "Menyimpan..." : "Simpan password"}
+              {busy ? t("Menyimpan...") : t("Simpan password")}
             </ModalButton>
           </>
         )
@@ -88,31 +90,31 @@ export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps)
       {done ? (
         <div role="status" className="flex items-start gap-2.5 rounded-xl bg-success-soft text-success p-3.5 text-sm font-medium">
           <CheckCircle2 className="w-[18px] h-[18px] mt-0.5 shrink-0" />
-          Password berhasil diganti. Perangkat lain yang masih masuk perlu masuk lagi dengan password baru.
+          {t("Password berhasil diganti. Perangkat lain yang masih masuk perlu masuk lagi dengan password baru.")}
         </div>
       ) : (
         <form id={formId} onSubmit={submit} noValidate className="space-y-4">
           <PasswordField
-            label="Password saat ini"
+            label={t("Password saat ini")}
             value={current}
             onChange={setCurrent}
             autoComplete="current-password"
             disabled={busy}
             data-autofocus
-            error={touched && !current ? "Password saat ini wajib diisi." : null}
+            error={touched && !current ? t("Password saat ini wajib diisi.") : null}
           />
           <PasswordField
-            label="Password baru"
+            label={t("Password baru")}
             value={next}
             onChange={setNext}
             autoComplete="new-password"
             disabled={busy}
             maxLength={200}
-            hint={`Minimal ${PASSWORD_MIN} karakter.`}
+            hint={t("Minimal {n} karakter.", { n: PASSWORD_MIN })}
             error={nextError ?? sameError}
           />
           <PasswordField
-            label="Ulangi password baru"
+            label={t("Ulangi password baru")}
             value={confirm}
             onChange={setConfirm}
             autoComplete="new-password"

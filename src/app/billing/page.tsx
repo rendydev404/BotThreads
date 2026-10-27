@@ -9,10 +9,12 @@ import { PlanCard } from "@/components/settings/plan-card";
 import { BTN_OUTLINE, BTN_PRIMARY, Pill } from "@/components/settings/states";
 import { ThreadsConnectButton } from "@/components/settings/threads-connect-button";
 import { SubscriptionTab } from "@/components/settings/subscription-tab";
+import { useT } from "@/components/i18n/lang-provider";
 
 function BillingSkeleton() {
+  const t = useT();
   return (
-    <div className="space-y-5 animate-pulse" aria-busy="true" aria-label="Memuat halaman billing">
+    <div className="space-y-5 animate-pulse" aria-busy="true" aria-label={t("Memuat halaman billing")}>
       <div className="h-12 w-64 rounded-xl bg-subtle" />
       <div className="card p-5 h-32 bg-subtle" />
       <div className="grid md:grid-cols-3 gap-4">
@@ -26,6 +28,7 @@ function BillingSkeleton() {
 
 function BillingInner() {
   const { me, loading, error, isAdmin, reload } = useMe();
+  const t = useT();
 
   if (loading) return <BillingSkeleton />;
 
@@ -33,10 +36,10 @@ function BillingInner() {
     return (
       <div role="alert" className="card p-8 text-center">
         <AlertTriangle className="w-8 h-8 text-danger mx-auto" />
-        <p className="mt-3 text-sm font-semibold text-fg">{error ?? "Gagal memuat profil."}</p>
+        <p className="mt-3 text-sm font-semibold text-fg">{t(error ?? "Gagal memuat profil.")}</p>
         <button type="button" onClick={() => void reload()} className={cn(BTN_PRIMARY, "mt-4")}>
           <RotateCw className="w-4 h-4" />
-          Coba lagi
+          {t("Coba lagi")}
         </button>
       </div>
     );
@@ -50,9 +53,9 @@ function BillingInner() {
             <CreditCard className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-xl font-bold text-fg leading-tight">Billing & Paket Sewa</h2>
+            <h2 className="text-xl font-bold text-fg leading-tight">{t("Billing & Paket Sewa")}</h2>
             <p className="text-sm text-muted">
-              Pilih atau upgrade paket langganan, bayar lewat Payment Gateway, dan pantau riwayat invoice workspace Anda.
+              {t("Pilih atau upgrade paket langganan, bayar lewat Payment Gateway, dan pantau riwayat invoice workspace Anda.")}
             </p>
           </div>
         </div>
@@ -62,10 +65,10 @@ function BillingInner() {
           {me.superadmin && (
             <Link href="/admin?tab=transaksi" className={BTN_OUTLINE}>
               <ShieldCheck className="w-3.5 h-3.5" />
-              Kelola di Super Admin
+              {t("Kelola di Super Admin")}
             </Link>
           )}
-          <Pill tone="accent">{me.roleLabel}</Pill>
+          <Pill tone="accent">{t(me.roleLabel)}</Pill>
         </div>
       </div>
 

@@ -3,6 +3,7 @@
 import React from "react";
 import { AlertTriangle, Database, Lock, RefreshCw, RotateCw, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/lang-provider";
 
 /* ------------------------------------------------------------------ kelas tombol bersama */
 
@@ -69,6 +70,7 @@ const ERROR_TITLE: Record<number, string> = {
  * dan 403 tampil sebagai pemberitahuan tenang berisi pesan server; galat lain tampil sebagai galat.
  */
 export function LoadError({ message, status, onRetry }: { message: string; status: number | null; onRetry: () => void }) {
+  const t = useT();
   const calm = status === 503 || status === 409 || status === 403;
   const Icon = status === 503 ? Database : status === 403 ? Lock : status === 0 ? WifiOff : AlertTriangle;
   return (
@@ -81,11 +83,11 @@ export function LoadError({ message, status, onRetry }: { message: string; statu
       >
         <Icon className="w-6 h-6" />
       </div>
-      <h3 className="mt-4 text-base font-bold text-fg">{(status !== null && ERROR_TITLE[status]) || "Gagal memuat data."}</h3>
-      <p className="mt-1 text-sm text-muted max-w-md mx-auto break-words">{message}</p>
+      <h3 className="mt-4 text-base font-bold text-fg">{t((status !== null && ERROR_TITLE[status]) || "Gagal memuat data.")}</h3>
+      <p className="mt-1 text-sm text-muted max-w-md mx-auto break-words">{t(message)}</p>
       <button type="button" onClick={onRetry} className={cn(BTN_PRIMARY, "mt-4")}>
         <RotateCw className="w-4 h-4" />
-        Coba lagi
+        {t("Coba lagi")}
       </button>
     </div>
   );
@@ -93,15 +95,16 @@ export function LoadError({ message, status, onRetry }: { message: string; statu
 
 /** Balasan `installed: false`: tabel fiturnya belum dibuat di database. */
 export function NotInstalled({ title, file }: { title: string; file: string }) {
+  const t = useT();
   return (
     <div className="card p-8 text-center">
       <div className="mx-auto w-12 h-12 rounded-xl bg-warning-soft text-warning flex items-center justify-center">
         <Database className="w-6 h-6" />
       </div>
-      <h3 className="mt-4 text-base font-bold text-fg">{title}</h3>
+      <h3 className="mt-4 text-base font-bold text-fg">{t(title)}</h3>
       <p className="mt-1 text-sm text-muted max-w-md mx-auto">
-        Pemilik dashboard perlu menjalankan{" "}
-        <code className="px-1.5 py-0.5 rounded-md bg-subtle text-fg text-[13px] font-semibold break-all">{file}</code> di Supabase.
+        {t("Pemilik dashboard perlu menjalankan")}{" "}
+        <code className="px-1.5 py-0.5 rounded-md bg-subtle text-fg text-[13px] font-semibold break-all">{file}</code> {t("di Supabase.")}
       </p>
     </div>
   );
@@ -118,10 +121,11 @@ export function EmptyState({
   children?: React.ReactNode;
   action?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="card p-10 text-center">
       <div className="mx-auto w-12 h-12 rounded-xl bg-accent-soft text-accent flex items-center justify-center">{icon}</div>
-      <p className="mt-4 text-sm font-semibold text-fg">{title}</p>
+      <p className="mt-4 text-sm font-semibold text-fg">{t(title)}</p>
       {children && <p className="mt-1 text-sm text-muted max-w-md mx-auto">{children}</p>}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
@@ -129,10 +133,11 @@ export function EmptyState({
 }
 
 export function RefreshButton({ onClick, busy, disabled }: { onClick: () => void; busy: boolean; disabled?: boolean }) {
+  const t = useT();
   return (
     <button type="button" onClick={onClick} disabled={busy || disabled} className={cn(BTN_OUTLINE, "shrink-0 px-3.5")}>
       <RefreshCw className={cn("w-3.5 h-3.5", busy && "animate-spin")} />
-      Segarkan
+      {t("Segarkan")}
     </button>
   );
 }

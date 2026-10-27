@@ -17,6 +17,7 @@
     "@remotion/player": "4.0.537",
     "@remotion/transitions": "4.0.537",
     "@supabase/supabase-js": "^2.117.3",
+    "@xyflow/react": "^12.12.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
     "next": "16.4.2",

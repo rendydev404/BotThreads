@@ -3,7 +3,9 @@
 import React from "react";
 import { AlertCircle, CalendarClock, Loader2, Send } from "lucide-react";
 import { clipChars } from "@/lib/threads-text";
+import { useT } from "@/components/i18n/lang-provider";
 import { ModalButton, ModalShell } from "./modal-shell";
+import { tContentMessage } from "./post-text-field";
 
 export interface ConfirmTarget {
   username: string;
@@ -34,6 +36,7 @@ export function PublishConfirmModal({
   error,
   details,
 }: PublishConfirmModalProps) {
+  const t = useT();
   const now = mode === "now";
   const many = targets.length > 1;
   return (
@@ -41,20 +44,28 @@ export function PublishConfirmModal({
       open={open}
       onClose={onClose}
       busy={busy}
-      title={now ? (many ? `Posting sekarang ke ${targets.length} akun?` : "Posting sekarang?") : many ? `Jadwalkan ${targets.length} postingan?` : "Jadwalkan postingan?"}
+      title={
+        now
+          ? many
+            ? t("Posting sekarang ke {n} akun?", { n: targets.length })
+            : t("Posting sekarang?")
+          : many
+            ? t("Jadwalkan {n} postingan?", { n: targets.length })
+            : t("Jadwalkan postingan?")
+      }
       description={
         now
-          ? "Postingan masuk antrean penerbit dan tayang dalam kurang lebih 30 detik. Setelah diproses tidak bisa dibatalkan."
-          : "Postingan akan tayang otomatis pada jam yang dipilih. Sebelum waktunya Anda masih bisa mengubah atau membatalkannya."
+          ? t("Postingan masuk antrean penerbit dan tayang dalam kurang lebih 30 detik. Setelah diproses tidak bisa dibatalkan.")
+          : t("Postingan akan tayang otomatis pada jam yang dipilih. Sebelum waktunya Anda masih bisa mengubah atau membatalkannya.")
       }
       footer={
         <>
           <ModalButton onClick={onClose} disabled={busy}>
-            Batal
+            {t("Batal")}
           </ModalButton>
           <ModalButton variant="primary" onClick={onConfirm} disabled={busy} data-autofocus>
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : now ? <Send className="w-4 h-4" /> : <CalendarClock className="w-4 h-4" />}
-            {busy ? "Memproses..." : now ? "Ya, posting sekarang" : "Ya, jadwalkan"}
+            {busy ? t("Memproses...") : now ? t("Ya, posting sekarang") : t("Ya, jadwalkan")}
           </ModalButton>
         </>
       }
@@ -74,11 +85,11 @@ export function PublishConfirmModal({
         <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl bg-danger-soft text-danger p-3 text-[13px] font-medium">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
           <div className="min-w-0">
-            <p>{error}</p>
+            <p>{tContentMessage(t, error)}</p>
             {details && details.length > 1 && (
               <ul className="mt-1 list-disc pl-4 font-normal">
                 {details.slice(1, 6).map((d, i) => (
-                  <li key={i}>{d}</li>
+                  <li key={i}>{tContentMessage(t, d)}</li>
                 ))}
               </ul>
             )}

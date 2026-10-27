@@ -10,9 +10,11 @@ import { BottomNav } from "./bottom-nav";
 import { TourLauncher } from "@/components/tour/tour-launcher";
 import { logout } from "./session-nav";
 import { useMe } from "./use-me";
+import { PageGuide } from "./page-guide";
 import { FloatingAiBubble } from "@/components/chat/floating-ai-bubble";
 import { formatDateWib } from "@/components/settings/format";
 import { ThreadsConnectButton } from "@/components/settings/threads-connect-button";
+import { useT } from "@/components/i18n/lang-provider";
 
 /** Halaman tanpa sesi (login, terima undangan, reset password, kebijakan legal) tampil polos: tanpa sidebar/header/bubble. */
 const BARE_PREFIXES = ["/undangan/", "/reset-password/"];
@@ -32,15 +34,15 @@ const isBare = (pathname: string): boolean => BARE_PAGES.includes(pathname) || B
 
 /** Pengguna masuk tetapi belum menjadi anggota workspace mana pun: tidak ada data yang boleh dimuat. */
 function NoAccess() {
+  const t = useT();
   return (
     <div className="card max-w-lg mx-auto mt-10 p-6 text-center">
       <div className="w-12 h-12 mx-auto rounded-2xl bg-warning-soft text-warning flex items-center justify-center">
         <ShieldAlert className="w-6 h-6" />
       </div>
-      <h2 className="mt-4 text-lg font-bold text-fg">Belum ada akses workspace</h2>
+      <h2 className="mt-4 text-lg font-bold text-fg">{t("Belum ada akses workspace")}</h2>
       <p className="mt-1.5 text-sm text-muted leading-relaxed">
-        Akun Anda aktif, tetapi belum menjadi anggota workspace mana pun. Minta Pemilik atau Admin mengundang Anda dari
-        menu Pengaturan, tab Tim.
+        {t("Akun Anda aktif, tetapi belum terhubung ke workspace mana pun. Hubungi kami lewat halaman Kontak bila ini keliru.")}
       </p>
       <button
         type="button"
@@ -48,7 +50,7 @@ function NoAccess() {
         className="mt-5 inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-line text-sm font-semibold text-fg hover:bg-subtle transition-colors cursor-pointer"
       >
         <LogOut className="w-4 h-4" />
-        Keluar
+        {t("Keluar")}
       </button>
     </div>
   );
@@ -56,18 +58,19 @@ function NoAccess() {
 
 /** Workspace aktif ditangguhkan pengelola platform: datanya tidak bisa dibuka sampai dipulihkan. */
 function Suspended({ reason, canSwitch }: { reason: string | null; canSwitch: boolean }) {
+  const t = useT();
   return (
     <div className="card max-w-lg mx-auto mt-10 p-6 text-center" role="alert">
       <div className="w-12 h-12 mx-auto rounded-2xl bg-danger-soft text-danger flex items-center justify-center">
         <Ban className="w-6 h-6" />
       </div>
-      <h2 className="mt-4 text-lg font-bold text-fg">Workspace ini ditangguhkan</h2>
+      <h2 className="mt-4 text-lg font-bold text-fg">{t("Workspace ini ditangguhkan")}</h2>
       <p className="mt-1.5 text-sm text-muted leading-relaxed">
-        Pengelola platform menangguhkan workspace ini, jadi datanya tidak bisa dibuka dan autopilotnya berhenti.
-        {reason ? <span className="block mt-2 font-medium text-fg">Alasan: {reason}</span> : null}
+        {t("Pengelola platform menangguhkan workspace ini, jadi datanya tidak bisa dibuka dan autopilotnya berhenti.")}
+        {reason ? <span className="block mt-2 font-medium text-fg">{t("Alasan:")} {reason}</span> : null}
       </p>
       <p className="mt-3 text-[13px] text-muted">
-        {canSwitch ? "Anda masih bisa pindah ke workspace lain lewat menu akun di pojok kanan atas." : "Hubungi pengelola platform bila ini keliru."}
+        {canSwitch ? t("Anda masih bisa pindah ke workspace lain lewat menu akun di pojok kanan atas.") : t("Hubungi pengelola platform bila ini keliru.")}
       </p>
       <button
         type="button"
@@ -75,7 +78,7 @@ function Suspended({ reason, canSwitch }: { reason: string | null; canSwitch: bo
         className="mt-5 inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-line text-sm font-semibold text-fg hover:bg-subtle transition-colors cursor-pointer"
       >
         <LogOut className="w-4 h-4" />
-        Keluar
+        {t("Keluar")}
       </button>
     </div>
   );
@@ -83,6 +86,7 @@ function Suspended({ reason, canSwitch }: { reason: string | null; canSwitch: bo
 
 /** Paket workspace habis masa berlaku: autopilot berhenti dan akun baru tidak bisa ditambah sampai diperpanjang. */
 function PlanExpiredBanner({ nama, berakhir, canRenew }: { nama: string | null; berakhir: string | null; canRenew: boolean }) {
+  const t = useT();
   return (
     <div
       role="alert"
@@ -94,14 +98,14 @@ function PlanExpiredBanner({ nama, berakhir, canRenew }: { nama: string | null; 
         </div>
         <div className="min-w-0">
           <h2 className="text-lg sm:text-xl font-bold text-danger leading-tight">
-            Paket {nama ?? "langganan"} Anda sudah habis
-            {berakhir ? <span className="font-semibold"> sejak {formatDateWib(berakhir)}</span> : null}
+            {t("Paket {nama} Anda sudah habis", { nama: nama ?? t("langganan") })}
+            {berakhir ? <span className="font-semibold"> {t("sejak {tanggal}", { tanggal: formatDateWib(berakhir) })}</span> : null}
           </h2>
           <p className="mt-1.5 text-sm text-fg leading-relaxed">
-            Autopilot semua akun dihentikan dan akun Threads baru tidak bisa ditambahkan.{" "}
+            {t("Autopilot semua akun dihentikan dan akun Threads baru tidak bisa ditambahkan.")}{" "}
             {canRenew
-              ? "Perpanjang paket supaya semuanya berjalan lagi."
-              : "Minta Pemilik atau Admin workspace memperpanjang paket."}
+              ? t("Perpanjang paket supaya semuanya berjalan lagi.")
+              : t("Minta Pemilik atau Admin workspace memperpanjang paket.")}
           </p>
         </div>
       </div>
@@ -111,7 +115,7 @@ function PlanExpiredBanner({ nama, berakhir, canRenew }: { nama: string | null; 
           className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-full bg-danger text-white text-sm font-bold whitespace-nowrap shrink-0 hover:opacity-90 transition-opacity"
         >
           <Sparkles className="w-4 h-4" />
-          Perpanjang Paket Sekarang
+          {t("Perpanjang Paket Sekarang")}
         </Link>
       )}
     </div>
@@ -119,6 +123,7 @@ function PlanExpiredBanner({ nama, berakhir, canRenew }: { nama: string | null; 
 }
 
 function Frame({ children, pathname }: { children: React.ReactNode; pathname: string }) {
+  const t = useT();
   const { me } = useMe();
   // Konsol super admin memiliki tata letak terpisah sendiri dan hanya dapat diakses oleh SUPERADMIN.
   const adminPage = pathname === "/admin" || pathname.startsWith("/admin/");
@@ -153,8 +158,8 @@ function Frame({ children, pathname }: { children: React.ReactNode; pathname: st
               <div className="flex items-start gap-3 min-w-0">
                 <Link2 className="w-[18px] h-[18px] mt-0.5 text-accent shrink-0" />
                 <p className="leading-relaxed">
-                  <span className="font-semibold">Belum ada akun Threads yang terhubung ke workspace ini.</span> Hubungkan akun Threads Anda
-                  secara mandiri untuk mengaktifkan analitik, penjadwalan, dan autopilot AI.
+                  <span className="font-semibold">{t("Belum ada akun Threads yang terhubung ke workspace ini.")}</span>{" "}
+                  {t("Hubungkan akun Threads Anda secara mandiri untuk mengaktifkan analitik, penjadwalan, dan autopilot AI.")}
                 </p>
               </div>
               {/* Menghubungkan akun hanya untuk Pemilik/Admin (sama dengan /api/threads/oauth); peran lain diberi arahan. */}
@@ -166,14 +171,15 @@ function Frame({ children, pathname }: { children: React.ReactNode; pathname: st
                   className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-surface border border-line-strong text-fg text-xs font-semibold hover:border-accent hover:text-accent transition-colors"
                 >
                   <CreditCard className="w-3.5 h-3.5" />
-                  Pilih Paket Sewa
+                  {t("Pilih Paket Sewa")}
                 </Link>
               </div>
               ) : (
-                <p className="text-xs text-muted shrink-0 sm:ml-2">Minta Pemilik atau Admin workspace menghubungkannya.</p>
+                <p className="text-xs text-muted shrink-0 sm:ml-2">{t("Minta Pemilik atau Admin workspace menghubungkannya.")}</p>
               )}
             </div>
           )}
+          {!blocked && me && <PageGuide pathname={pathname} />}
           {blocked ? me?.suspended ? <Suspended reason={me.suspended.reason} canSwitch={me.workspaces.length > 1} /> : <NoAccess /> : children}
         </main>
       </div>

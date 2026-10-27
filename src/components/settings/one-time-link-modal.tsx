@@ -5,6 +5,8 @@ import { Check, Clock, Copy } from "lucide-react";
 import { formatWibFull } from "@/lib/scheduling";
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { Banner } from "@/components/autopilot/shared";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
 
 export interface OneTimeLink {
   kind: "invite" | "reset";
@@ -22,18 +24,19 @@ const COPY: Record<OneTimeLink["kind"], { title: string; label: string; send: (w
   invite: {
     title: "Tautan undangan",
     label: "Tautan undangan",
-    send: (who) => `Salin lalu kirim sendiri ke ${who}. Undangan lama untuk email ini otomatis tidak berlaku.`,
+    send: (who) => tr("Salin lalu kirim sendiri ke {who}. Undangan lama untuk email ini otomatis tidak berlaku.", { who }),
   },
   reset: {
     title: "Tautan reset password",
     label: "Tautan reset password",
-    send: (who) => `Salin lalu kirim sendiri ke ${who} lewat saluran yang aman.`,
+    send: (who) => tr("Salin lalu kirim sendiri ke {who} lewat saluran yang aman.", { who }),
   },
 };
 
 const COPIED_MS = 2500;
 
 function LinkDialog({ link, onClose }: { link: OneTimeLink; onClose: () => void }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const [everCopied, setEverCopied] = useState(false);
   const [manual, setManual] = useState(false);
@@ -78,22 +81,22 @@ function LinkDialog({ link, onClose }: { link: OneTimeLink; onClose: () => void 
     <ModalShell
       open
       onClose={close}
-      title={copy.title}
-      description={`Untuk ${link.who}`}
+      title={t(copy.title)}
+      description={t("Untuk {who}", { who: link.who })}
       footer={
         <>
-          <ModalButton onClick={close}>{everCopied ? "Selesai" : "Tutup"}</ModalButton>
+          <ModalButton onClick={close}>{everCopied ? t("Selesai") : t("Tutup")}</ModalButton>
           <ModalButton variant="primary" onClick={copyLink} data-autofocus>
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            {copied ? "Tersalin" : "Salin tautan"}
+            {copied ? t("Tersalin") : t("Salin tautan")}
           </ModalButton>
         </>
       }
     >
       <div className="space-y-3">
         <Banner tone="warning">
-          <p className="font-semibold">Tautan ini hanya ditampilkan sekali.</p>
-          <p className="mt-0.5">{copy.send(link.who)} Setelah jendela ini ditutup, tautan tidak bisa dilihat lagi.</p>
+          <p className="font-semibold">{t("Tautan ini hanya ditampilkan sekali.")}</p>
+          <p className="mt-0.5">{copy.send(link.who)} {t("Setelah jendela ini ditutup, tautan tidak bisa dilihat lagi.")}</p>
         </Banner>
 
         <textarea
@@ -101,7 +104,7 @@ function LinkDialog({ link, onClose }: { link: OneTimeLink; onClose: () => void 
           readOnly
           rows={3}
           value={link.url}
-          aria-label={copy.label}
+          aria-label={t(copy.label)}
           onFocus={(e) => e.currentTarget.select()}
           spellCheck={false}
           className="w-full px-3.5 py-2.5 rounded-xl bg-subtle border border-transparent text-[13px] leading-relaxed text-fg font-mono break-all resize-none outline-none focus:bg-surface focus:border-accent transition-colors"
@@ -110,17 +113,17 @@ function LinkDialog({ link, onClose }: { link: OneTimeLink; onClose: () => void 
         <p className="flex items-start gap-1.5 text-[13px] text-muted">
           <Clock className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            Berlaku sampai <span className="font-semibold text-fg">{formatWibFull(new Date(link.expiresAt))}</span> ({link.ttl} dari
-            sekarang) dan hanya bisa dipakai sekali.
+            {t("Berlaku sampai")} <span className="font-semibold text-fg">{formatWibFull(new Date(link.expiresAt))}</span>{" "}
+            {t("({ttl} dari sekarang) dan hanya bisa dipakai sekali.", { ttl: link.ttl })}
           </span>
         </p>
 
         <p role="status" aria-live="polite" className="sr-only">
-          {copied ? "Tautan tersalin." : ""}
+          {copied ? t("Tautan tersalin.") : ""}
         </p>
-        {manual && <Banner tone="info">Penyalinan otomatis tidak tersedia. Teks tautan sudah dipilih; salin secara manual.</Banner>}
+        {manual && <Banner tone="info">{t("Penyalinan otomatis tidak tersedia. Teks tautan sudah dipilih; salin secara manual.")}</Banner>}
         {warned && !everCopied && (
-          <Banner tone="danger">Tautan belum disalin. Tekan Tutup sekali lagi bila memang ingin menutup tanpa menyalin.</Banner>
+          <Banner tone="danger">{t("Tautan belum disalin. Tekan Tutup sekali lagi bila memang ingin menutup tanpa menyalin.")}</Banner>
         )}
       </div>
     </ModalShell>

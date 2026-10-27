@@ -6,14 +6,15 @@ import { cn } from "@/lib/utils";
 import { actOnSlot, listAutopilotSlots } from "@/lib/autopilot-client";
 import type { AutopilotAccountDTO, SlotAction, SlotListResponse, SlotStatus } from "@/lib/autopilot-types";
 import { ContentApiError } from "@/lib/content-client";
-import { formatWibFull } from "@/lib/scheduling";
 import { parseTopicTag } from "@/lib/threads-text";
 import { AccountAvatar } from "@/components/content/post-status-chip";
 import { PostTextField, checkPostText, type PostTextState } from "@/components/content/post-text-field";
 import { MediaCredit, PostMediaView } from "@/components/radar/threads-preview";
 import { fitsWithCredit } from "@/lib/post-media";
 import { ConfirmModal } from "./confirm-modal";
-import { Banner, ListSkeleton, LoadMoreButton, SlotKindChip, accountHandle, durationText } from "./shared";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
+import { Banner, ListSkeleton, LoadMoreButton, SlotKindChip, accountHandle, apiErrorText, durationText, slotReasonText, wibFullText } from "./shared";
 
 type Item = SlotListResponse["items"][number];
 type ReviewAction = Extract<SlotAction, "approve" | "reject" | "rewrite">;
@@ -77,6 +78,7 @@ const ReviewCard = memo(function ReviewCard({
   onAct,
   onReject,
 }: ReviewCardProps) {
+  const t = useT();
   const draft = item.draft;
   const original = useMemo<PostTextState>(() => ({ text: draft?.text ?? "", topic: draft?.topicTag ?? "" }), [draft]);
   const current = edit && edit.base.text === original.text && edit.base.topic === original.topic ? edit.value : undefined;
@@ -97,15 +99,18 @@ const ReviewCard = memo(function ReviewCard({
             <span className="min-w-0 text-sm font-semibold text-fg truncate">{accountHandle(item.account)}</span>
             <SlotKindChip kind={item.kind} className="shrink-0" />
           </p>
-          <p className="mt-0.5 text-xs font-medium text-muted">Tayang {formatWibFull(new Date(item.slotAt))}</p>
+          <p className="mt-0.5 text-xs font-medium text-muted">{t("Tayang {when}", { when: wibFullText(new Date(item.slotAt)) })}</p>
         </div>
       </div>
 
       <p className={cn("flex items-start gap-1.5 text-xs font-medium", urgent ? "text-warning" : "text-muted")}>
         <Clock className="w-3.5 h-3.5 mt-px shrink-0" />
         <span>
-          Dilewati otomatis bila belum disetujui 15 menit sebelum tayang
-          {left === null ? "." : left > 0 ? ` (sisa ${durationText(left)}).` : " (batas waktunya sudah lewat)."}
+          {left === null
+            ? t("Dilewati otomatis bila belum disetujui 15 menit sebelum tayang.")
+            : left > 0
+              ? t("Dilewati otomatis bila belum disetujui 15 menit sebelum tayang (sisa {left}).", { left: durationText(left) })
+              : t("Dilewati otomatis bila belum disetujui 15 menit sebelum tayang (batas waktunya sudah lewat).")}
         </span>
       </p>
 
@@ -118,12 +123,12 @@ const ReviewCard = memo(function ReviewCard({
           rows={5}
         />
       ) : (
-        <p className="rounded-xl bg-subtle p-3 text-sm text-muted">Draf tidak tersedia. Minta AI menulis ulang atau tolak slot ini.</p>
+        <p className="rounded-xl bg-subtle p-3 text-sm text-muted">{t("Draf tidak tersedia. Minta AI menulis ulang atau tolak slot ini.")}</p>
       )}
 
       {draft && (
         <div className="space-y-2">
-          {edited && <p className="text-xs font-medium text-accent">Teks sudah Anda ubah; versi ini yang akan diposting.</p>}
+          {edited && <p className="text-xs font-medium text-accent">{t("Teks sudah Anda ubah; versi ini yang akan diposting.")}</p>}
           {draft.media && draft.media.items.length > 0 && (
             <div className="space-y-1.5">
               <PostMediaView media={draft.media} compact />
@@ -131,39 +136,40 @@ const ReviewCard = memo(function ReviewCard({
                 <MediaCredit media={draft.media} className="text-xs" />
               ) : (
                 <p className="text-xs font-medium text-warning">
-                  Teks + keterangan sumber gambar melebihi batas Threads, jadi postingan ini terbit tanpa gambar. Pendekkan teks
-                  untuk menyertakan gambarnya.
+                  {t(
+                    "Teks + keterangan sumber gambar melebihi batas Threads, jadi postingan ini terbit tanpa gambar. Pendekkan teks untuk menyertakan gambarnya."
+                  )}
                 </p>
               )}
             </div>
           )}
-          {draft.rationale && <p className="text-xs text-muted leading-relaxed">Alasan AI: {draft.rationale}</p>}
+          {draft.rationale && <p className="text-xs text-muted leading-relaxed">{t("Alasan AI:")} {draft.rationale}</p>}
           {draft.affiliate && (
             <div className="rounded-xl border border-warning/40 bg-warning-soft/40 p-3 space-y-1.5">
               <p className="flex items-center gap-1.5 text-xs font-semibold text-warning">
                 <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
-                Affiliate: {draft.affiliate.nama}
+                {t("Affiliate:")} {draft.affiliate.nama}
               </p>
-              <p className="text-xs text-muted">Balasan pertama, dikirim otomatis 1-3 menit setelah terbit:</p>
+              <p className="text-xs text-muted">{t("Balasan pertama, dikirim otomatis 1-3 menit setelah terbit:")}</p>
               <p className="rounded-lg bg-surface p-2.5 text-[13px] text-fg whitespace-pre-line break-words">{draft.affiliate.replyText}</p>
             </div>
           )}
           {draft.checks.length > 0 && (
-            <ul className="flex flex-wrap gap-1.5" aria-label="Hasil pemeriksaan draf">
+            <ul className="flex flex-wrap gap-1.5" aria-label={t("Hasil pemeriksaan draf")}>
               {draft.checks.map((c) => (
                 <li
                   key={c.key}
-                  title={c.detail}
+                  title={c.detail && t(c.detail)}
                   className={cn(
                     "inline-flex items-center gap-1 h-6 px-2 rounded-full text-xs font-semibold",
                     c.ok ? "bg-success-soft text-success" : "bg-danger-soft text-danger"
                   )}
                 >
                   {c.ok ? <Check className="w-3 h-3 shrink-0" /> : <X className="w-3 h-3 shrink-0" />}
-                  {c.label}
+                  {t(c.label)}
                   <span className="sr-only">
-                    {c.ok ? " (lolos)" : " (tidak lolos)"}
-                    {c.detail ? `: ${c.detail}` : ""}
+                    {c.ok ? ` (${t("lolos")})` : ` (${t("tidak lolos")})`}
+                    {c.detail ? `: ${t(c.detail)}` : ""}
                   </span>
                 </li>
               ))}
@@ -174,12 +180,12 @@ const ReviewCard = memo(function ReviewCard({
             .filter((c) => !c.ok && c.detail)
             .map((c) => (
               <p key={c.key} className="text-xs font-medium text-danger">
-                {c.label}: {c.detail}
+                {t(c.label)}: {c.detail && t(c.detail)}
               </p>
             ))}
         </div>
       )}
-      {item.reason && <p className="text-xs text-muted leading-relaxed">Kenapa jam ini: {item.reason}</p>}
+      {item.reason && <p className="text-xs text-muted leading-relaxed">{t("Kenapa jam ini:")} {slotReasonText(item.reason)}</p>}
 
       {error && (
         <p role="alert" className="flex items-start gap-2 rounded-lg bg-danger-soft text-danger p-2.5 text-[13px] font-medium">
@@ -193,11 +199,11 @@ const ReviewCard = memo(function ReviewCard({
           type="button"
           onClick={() => onAct(item, "approve", current)}
           disabled={working || !draft || !check.valid || !publishEnabled}
-          title={!publishEnabled ? "Saklar posting dashboard sedang mati" : undefined}
+          title={!publishEnabled ? t("Saklar posting dashboard sedang mati") : undefined}
           className={cn(BTN, "basis-full sm:basis-auto bg-accent text-on-accent hover:bg-accent-hover")}
         >
           {busy === "approve" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-          Setujui
+          {t("Setujui")}
         </button>
         <button
           type="button"
@@ -206,7 +212,7 @@ const ReviewCard = memo(function ReviewCard({
           className={cn(BTN, "flex-1 sm:flex-none border border-line-strong text-fg hover:border-accent hover:text-accent")}
         >
           {busy === "rewrite" ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
-          Tulis ulang
+          {t("Tulis ulang")}
         </button>
         <button
           type="button"
@@ -215,7 +221,7 @@ const ReviewCard = memo(function ReviewCard({
           className={cn(BTN, "flex-1 sm:flex-none border border-danger/50 text-danger hover:bg-danger-soft")}
         >
           {busy === "reject" ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
-          Tolak
+          {t("Tolak")}
         </button>
       </div>
     </li>
@@ -234,6 +240,7 @@ interface ReviewTabProps {
 }
 
 export function ReviewTab({ accounts, publishEnabled, onResolved, onStale }: ReviewTabProps) {
+  const t = useT();
   const [loaded, setLoaded] = useState<Loaded>({ fetched: false, tick: 0, items: [], nextCursor: null, error: null });
   const [tick, setTick] = useState(0);
   const [nowMs, setNowMs] = useState<number | null>(null);
@@ -264,7 +271,7 @@ export function ReviewTab({ accounts, publishEnabled, onResolved, onStale }: Rev
           ...prev,
           fetched: true,
           tick,
-          error: e instanceof Error ? e.message : "Gagal memuat draf.",
+          error: e instanceof Error ? apiErrorText(e.message) : tr("Gagal memuat draf."),
         }));
       });
     return () => ctrl.abort();
@@ -332,21 +339,21 @@ export function ReviewTab({ accounts, publishEnabled, onResolved, onStale }: Rev
         showNotice(
           "success",
           action === "approve"
-            ? `Draf ${handle} disetujui dan dijadwalkan untuk ${formatWibFull(new Date(item.slotAt))}.`
+            ? tr("Draf {handle} disetujui dan dijadwalkan untuk {when}.", { handle, when: wibFullText(new Date(item.slotAt)) })
             : action === "rewrite"
-              ? `Draf ${handle} akan ditulis ulang oleh AI.`
-              : `Draf ${handle} ditolak. AI menulis draf baru dengan ide lain untuk jam yang sama.`
+              ? tr("Draf {handle} akan ditulis ulang oleh AI.", { handle })
+              : tr("Draf {handle} ditolak. AI menulis draf baru dengan ide lain untuk jam yang sama.", { handle })
         );
         return true;
       } catch (e) {
         if (e instanceof ContentApiError && e.status === 409) {
           // Kartu sudah usang: buang, lalu ambil ulang daftar dan ringkasan supaya sesuai keadaan server.
           dropItem(id);
-          showNotice("danger", `${handle}: ${e.message}`);
-          setTick((t) => t + 1);
+          showNotice("danger", `${handle}: ${apiErrorText(e.message)}`);
+          setTick((n) => n + 1);
           onStale();
         } else {
-          setErrors((prev) => ({ ...prev, [id]: e instanceof ContentApiError ? e.message : "Tindakan gagal. Coba lagi." }));
+          setErrors((prev) => ({ ...prev, [id]: e instanceof ContentApiError ? apiErrorText(e.message) : tr("Tindakan gagal. Coba lagi.") }));
         }
         return false;
       } finally {
@@ -375,7 +382,7 @@ export function ReviewTab({ accounts, publishEnabled, onResolved, onStale }: Rev
         return { ...prev, items: [...prev.items, ...fresh], nextCursor: res.nextCursor };
       });
     } catch (e) {
-      showNotice("danger", e instanceof Error ? e.message : "Gagal memuat halaman berikutnya.");
+      showNotice("danger", e instanceof Error ? apiErrorText(e.message) : tr("Gagal memuat halaman berikutnya."));
     } finally {
       setLoadingMore(false);
     }
@@ -388,21 +395,21 @@ export function ReviewTab({ accounts, publishEnabled, onResolved, onStale }: Rev
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <p className="text-sm text-muted">
-          Draf dari akun bermode Tinjau dulu. Setujui supaya tayang pada jamnya, atau ubah dulu teksnya.
+          {t("Draf dari akun bermode Tinjau dulu. Setujui supaya tayang pada jamnya, atau ubah dulu teksnya.")}
         </p>
         <button
           type="button"
-          onClick={() => setTick((t) => t + 1)}
+          onClick={() => setTick((n) => n + 1)}
           disabled={!loaded.fetched || refreshing}
           className="self-end sm:self-auto shrink-0 h-10 px-3.5 rounded-full border border-line-strong text-[13px] font-semibold text-fg inline-flex items-center gap-1.5 hover:border-accent hover:text-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
-          Segarkan
+          {t("Segarkan")}
         </button>
       </div>
 
       {!publishEnabled && (
-        <Banner tone="info">Saklar posting dashboard sedang mati, jadi draf belum bisa disetujui.</Banner>
+        <Banner tone="info">{t("Saklar posting dashboard sedang mati, jadi draf belum bisa disetujui.")}</Banner>
       )}
       {notice && (
         <Banner tone={notice.tone} onClose={() => setNotice(null)}>
@@ -418,11 +425,11 @@ export function ReviewTab({ accounts, publishEnabled, onResolved, onStale }: Rev
           <p className="mt-3 text-sm font-semibold text-fg">{loaded.error}</p>
           <button
             type="button"
-            onClick={() => setTick((t) => t + 1)}
+            onClick={() => setTick((n) => n + 1)}
             className="mt-4 h-10 px-5 rounded-full bg-accent text-on-accent text-sm font-semibold inline-flex items-center gap-2 cursor-pointer hover:bg-accent-hover"
           >
             <RotateCw className="w-4 h-4" />
-            Coba lagi
+            {t("Coba lagi")}
           </button>
         </div>
       ) : loaded.items.length === 0 ? (
@@ -430,7 +437,7 @@ export function ReviewTab({ accounts, publishEnabled, onResolved, onStale }: Rev
           <div className="mx-auto w-12 h-12 rounded-xl bg-accent-soft text-accent flex items-center justify-center">
             <ClipboardCheck className="w-6 h-6" />
           </div>
-          <p className="mt-4 text-sm font-semibold text-fg">Tidak ada draf yang menunggu tinjauan.</p>
+          <p className="mt-4 text-sm font-semibold text-fg">{t("Tidak ada draf yang menunggu tinjauan.")}</p>
         </div>
       ) : (
         <>
@@ -465,14 +472,16 @@ export function ReviewTab({ accounts, publishEnabled, onResolved, onStale }: Rev
         }}
         busy={rejecting}
         variant="danger"
-        title="Tolak dan ganti ide?"
-        confirmLabel="Ya, ganti ide"
+        title={t("Tolak dan ganti ide?")}
+        confirmLabel={t("Ya, ganti ide")}
         confirmIcon={<X className="w-4 h-4" />}
       >
         {rejectTarget && (
           <p className="text-sm text-fg leading-relaxed">
-            Jam tayang {formatWibFull(new Date(rejectTarget.slotAt))} untuk {accountHandle(rejectTarget.account)} tetap dipakai. AI
-            membuang draf ini dan menulis draf baru dengan ide lain, lalu draf barunya masuk lagi ke sini untuk Anda tinjau.
+            {t(
+              "Jam tayang {when} untuk {handle} tetap dipakai. AI membuang draf ini dan menulis draf baru dengan ide lain, lalu draf barunya masuk lagi ke sini untuk Anda tinjau.",
+              { when: wibFullText(new Date(rejectTarget.slotAt)), handle: accountHandle(rejectTarget.account) }
+            )}
           </p>
         )}
       </ConfirmModal>

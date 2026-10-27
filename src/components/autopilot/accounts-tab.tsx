@@ -18,7 +18,9 @@ import { AccountAvatar } from "@/components/content/post-status-chip";
 import { AutopilotSettingsModal } from "./autopilot-settings-modal";
 import { ConfirmModal, autoModeWarning } from "./confirm-modal";
 import { Dropdown, type DropdownOption } from "./dropdown";
-import { Banner, Checkbox, HandleText, MODE_ACTIVE_CLASS, Segmented, accountHandle, type SegmentedOption } from "./shared";
+import { useT } from "@/components/i18n/lang-provider";
+import { tr } from "@/lib/i18n/core";
+import { Banner, Checkbox, HandleText, MODE_ACTIVE_CLASS, Segmented, accountHandle, apiErrorText, type SegmentedOption } from "./shared";
 import { SlotTimeline, TimelineLegend, TimelineScale } from "./slot-timeline";
 
 type ModeFilter = "ALL" | AutopilotMode;
@@ -60,21 +62,30 @@ const ROW_GRID =
 
 const BULK_COPY: Record<AutopilotMode, { title: (n: number) => string; body: (n: number, total: number) => string; confirm: string }> = {
   OTOMATIS: {
-    title: (n) => `Jadikan ${n} akun Otomatis?`,
+    title: (n) => tr("Jadikan {n} akun Otomatis?", { n }),
     body: (n, total) =>
-      `AI akan memposting ke ${n} akun tanpa persetujuan per posting, total ${total} posting per hari. Anda tetap bisa mengubah atau membatalkan posting di halaman Jadwal.`,
+      tr(
+        "AI akan memposting ke {n} akun tanpa persetujuan per posting, total {total} posting per hari. Anda tetap bisa mengubah atau membatalkan posting di halaman Jadwal.",
+        { n, total }
+      ),
     confirm: "Ya, jadikan Otomatis",
   },
   TINJAU: {
-    title: (n) => `Jadikan ${n} akun Tinjau dulu?`,
+    title: (n) => tr("Jadikan {n} akun Tinjau dulu?", { n }),
     body: (n, total) =>
-      `AI akan menulis draf untuk ${n} akun, total ${total} posting per hari. Setiap draf menunggu persetujuan Anda; yang belum disetujui 15 menit sebelum tayang dilewati.`,
+      tr(
+        "AI akan menulis draf untuk {n} akun, total {total} posting per hari. Setiap draf menunggu persetujuan Anda; yang belum disetujui 15 menit sebelum tayang dilewati.",
+        { n, total }
+      ),
     confirm: "Ya, jadikan Tinjau dulu",
   },
   MATI: {
-    title: (n) => `Matikan autopilot ${n} akun?`,
+    title: (n) => tr("Matikan autopilot {n} akun?", { n }),
     body: (n, total) =>
-      `Autopilot berhenti menjadwalkan ${n} akun, total ${total} posting per hari tidak lagi dibuat. Posting yang sudah masuk antrean tetap bisa diubah atau dibatalkan di halaman Jadwal.`,
+      tr(
+        "Autopilot berhenti menjadwalkan {n} akun, total {total} posting per hari tidak lagi dibuat. Posting yang sudah masuk antrean tetap bisa diubah atau dibatalkan di halaman Jadwal.",
+        { n, total }
+      ),
     confirm: "Ya, matikan",
   },
 };
@@ -106,25 +117,27 @@ const AccountRow = memo(function AccountRow({
   onMode,
   onSettings,
 }: AccountRowProps) {
+  const t = useT();
   const { config, stats7d } = account;
   const handle = accountHandle(account);
-  const paused = pausedText(config.pausedReason);
+  const pausedRaw = pausedText(config.pausedReason);
+  const paused = pausedRaw && t(pausedRaw);
   const mode = savingMode ?? config.mode;
   const compliant = !!stats7d && stats7d.hari > 0 && stats7d.hariPatuh === stats7d.hari;
 
   const modeOptions: SegmentedOption<AutopilotMode>[] = MODES.map((m) => ({
     value: m,
-    label: MODE_LABEL[m],
+    label: t(MODE_LABEL[m]),
     activeClass: MODE_ACTIVE_CLASS[m],
     // Akun yang belum siap tidak bisa dinyalakan (server menolaknya); mematikan selalu boleh.
     disabled: !account.ready && m !== "MATI" && m !== config.mode,
-    title: !account.ready && m !== "MATI" && m !== config.mode ? "Akun belum siap diposting" : undefined,
+    title: !account.ready && m !== "MATI" && m !== config.mode ? t("Akun belum siap diposting") : undefined,
   }));
 
   return (
     <li className={cn(ROW_GRID, TABLE_COLS, selected && "bg-accent-soft/40")}>
       <div className="pt-2 lg:pt-0 flex">
-        <Checkbox checked={selected} onChange={(next) => onToggle(account.id, next)} label={`Pilih ${handle}`} />
+        <Checkbox checked={selected} onChange={(next) => onToggle(account.id, next)} label={t("Pilih {handle}", { handle })} />
       </div>
 
       <div className="min-w-0 flex items-start gap-2.5">
@@ -137,7 +150,7 @@ const AccountRow = memo(function AccountRow({
           {!account.ready && (
             <p className="mt-1 flex items-start gap-1 text-xs font-medium text-muted">
               <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0 text-warning" />
-              <span>Belum siap: {account.reason ? REASON_LABEL[account.reason] : "akun belum bisa diposting"}</span>
+              <span>{t("Belum siap:")} {account.reason ? t(REASON_LABEL[account.reason]) : t("akun belum bisa diposting")}</span>
             </p>
           )}
           {paused && <p className="mt-1 text-xs font-semibold text-warning">{paused}</p>}
@@ -145,7 +158,7 @@ const AccountRow = memo(function AccountRow({
       </div>
 
       <Segmented
-        ariaLabel={`Mode autopilot ${handle}`}
+        ariaLabel={t("Mode autopilot {handle}", { handle })}
         options={modeOptions}
         value={mode}
         busyValue={savingMode}
@@ -164,21 +177,29 @@ const AccountRow = memo(function AccountRow({
 
       <p
         className="text-xs text-muted max-lg:col-span-full max-lg:row-start-3 lg:max-xl:col-start-2 lg:max-xl:row-start-2 xl:leading-tight"
-        title={stats7d ? `7 hari terakhir: ${stats7d.terbit} terbit, ${stats7d.gagal} gagal, ${stats7d.dilewati} dilewati` : undefined}
+        title={
+          stats7d
+            ? t("7 hari terakhir: {terbit} terbit, {gagal} gagal, {dilewati} dilewati", {
+                terbit: stats7d.terbit,
+                gagal: stats7d.gagal,
+                dilewati: stats7d.dilewati,
+              })
+            : undefined
+        }
       >
         <span className="xl:hidden">
-          <span className="font-semibold text-fg tabular-nums">{config.postsPerDay}</span> posting/hari ·{" "}
+          <span className="font-semibold text-fg tabular-nums">{config.postsPerDay}</span> {t("posting/hari")} ·{" "}
         </span>
         {stats7d ? (
           <>
             <span className={cn("font-semibold tabular-nums", compliant ? "text-success" : "text-fg")}>
-              {stats7d.hariPatuh}/{stats7d.hari} hari
+              {t("{a}/{b} hari", { a: stats7d.hariPatuh, b: stats7d.hari })}
             </span>{" "}
-            <span className="xl:block">≥ 3 posting</span>
+            <span className="xl:block">{t("≥ 3 posting")}</span>
           </>
         ) : (
           <>
-            <span className="xl:hidden">kepatuhan 7 hari: </span>-
+            <span className="xl:hidden">{t("kepatuhan 7 hari:")} </span>-
           </>
         )}
       </p>
@@ -186,11 +207,11 @@ const AccountRow = memo(function AccountRow({
       <button
         type="button"
         onClick={() => onSettings(account.id)}
-        aria-label={`Atur autopilot ${handle}`}
+        aria-label={t("Atur autopilot {handle}", { handle })}
         className="max-lg:col-start-3 max-lg:row-start-1 lg:max-xl:col-start-4 lg:max-xl:row-start-1 lg:w-full h-9 lg:h-10 xl:h-9 max-sm:w-9 max-sm:px-0 px-3 rounded-full border border-line-strong text-[13px] font-semibold text-fg inline-flex items-center justify-center gap-1.5 hover:border-accent hover:text-accent transition-colors cursor-pointer"
       >
         <SlidersHorizontal className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-        <span className="max-sm:sr-only">Atur</span>
+        <span className="max-sm:sr-only">{t("Atur")}</span>
       </button>
 
       {feedback && (
@@ -230,6 +251,7 @@ interface BulkResult {
 }
 
 export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [modeFilter, setModeFilter] = useState<ModeFilter>("ALL");
   const [day, setDay] = useState<DayKey>("today");
@@ -342,10 +364,10 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
           ...d,
           accounts: d.accounts.map((a) => (a.id === id ? { ...a, config: { ...a.config, mode } } : a)),
         }));
-        showFeedback(id, { tone: "success", text: `Mode ${accountHandle(account)} sekarang ${MODE_LABEL[mode]}.` });
+        showFeedback(id, { tone: "success", text: tr("Mode {handle} sekarang {mode}.", { handle: accountHandle(account), mode: tr(MODE_LABEL[mode]) }) });
         await refetch();
       } catch (e) {
-        showFeedback(id, { tone: "error", text: e instanceof ContentApiError ? e.message : "Gagal menyimpan mode. Coba lagi." });
+        showFeedback(id, { tone: "error", text: e instanceof ContentApiError ? apiErrorText(e.message) : tr("Gagal menyimpan mode. Coba lagi.") });
       } finally {
         setSaving((prev) => {
           const { [id]: gone, ...rest } = prev;
@@ -379,7 +401,7 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
       setBulkResult({
         mode,
         saved: res.saved,
-        skipped: res.skipped.map((s) => ({ name: names.get(s.accountId) ?? s.accountId, error: s.error })),
+        skipped: res.skipped.map((s) => ({ name: names.get(s.accountId) ?? s.accountId, error: apiErrorText(s.error) })),
       });
       setBulkMode(null);
       setSelected(new Set());
@@ -387,8 +409,8 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
     } catch (e) {
       setBulkError(
         e instanceof ContentApiError
-          ? { message: e.message, details: e.details }
-          : { message: "Gagal menyimpan perubahan. Coba lagi." }
+          ? { message: apiErrorText(e.message), details: e.details?.map(apiErrorText) }
+          : { message: tr("Gagal menyimpan perubahan. Coba lagi.") }
       );
     } finally {
       setBulkBusy(false);
@@ -396,7 +418,7 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
   };
 
   const settingsAccount = settingsId ? (data.accounts.find((a) => a.id === settingsId) ?? null) : null;
-  const dayLabel = day === "today" ? "Hari ini" : "Besok";
+  const dayLabel = day === "today" ? t("Hari ini") : t("Besok");
   const nowMs = day === "today" && loadedAt ? Math.floor(loadedAt / NOW_STEP_MS) * NOW_STEP_MS : null;
   const filtering = query.trim() !== "" || modeFilter !== "ALL";
 
@@ -410,14 +432,14 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari @username atau nama cabang"
-            aria-label="Cari akun"
+            placeholder={t("Cari @username atau nama cabang")}
+            aria-label={t("Cari akun")}
             className="w-full h-12 xl:h-10 pl-10 pr-4 rounded-full bg-surface border border-line-strong text-sm text-fg placeholder-faint outline-none focus:border-accent focus:ring-4 focus:ring-accent/15 transition-colors"
           />
         </div>
         <div className="flex gap-2.5">
           <Dropdown
-            ariaLabel="Filter mode"
+            ariaLabel={t("Filter mode")}
             value={modeFilter}
             options={MODE_FILTERS}
             onChange={setModeFilter}
@@ -426,8 +448,8 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
             buttonClassName="h-12 xl:h-10"
           />
           <Segmented
-            ariaLabel="Hari yang ditampilkan di garis waktu"
-            options={DAY_OPTIONS}
+            ariaLabel={t("Hari yang ditampilkan di garis waktu")}
+            options={DAY_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))}
             value={day}
             onChange={setDay}
             className="w-36 sm:w-44 shrink-0"
@@ -443,8 +465,8 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
       {bulkResult && (
         <Banner tone={bulkResult.skipped.length ? "warning" : "success"} onClose={() => setBulkResult(null)}>
           <p>
-            {bulkResult.saved} akun disimpan ke mode {MODE_LABEL[bulkResult.mode]}.
-            {bulkResult.skipped.length > 0 && ` ${bulkResult.skipped.length} akun dilewati:`}
+            {t("{n} akun disimpan ke mode {mode}.", { n: bulkResult.saved, mode: t(MODE_LABEL[bulkResult.mode]) })}
+            {bulkResult.skipped.length > 0 && ` ${t("{n} akun dilewati:", { n: bulkResult.skipped.length })}`}
           </p>
           {bulkResult.skipped.length > 0 && (
             <ul className="mt-1.5 space-y-1 font-normal">
@@ -462,11 +484,11 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
       {selectedAccounts.length > 0 && (
         <div
           role="region"
-          aria-label="Aksi untuk akun terpilih"
+          aria-label={t("Aksi untuk akun terpilih")}
           className="sticky top-[4.5rem] z-10 card p-3 shadow-pop grid grid-cols-3 gap-2 sm:flex sm:items-center"
         >
           <p className="col-span-2 self-center text-sm font-semibold text-fg sm:flex-1 sm:pl-1">
-            {selectedAccounts.length} akun dipilih
+            {t("{n} akun dipilih", { n: selectedAccounts.length })}
           </p>
           {(
             [
@@ -488,7 +510,7 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
               )}
             >
               {b.mode === "OTOMATIS" && <Zap className="w-3.5 h-3.5 shrink-0" />}
-              {b.label}
+              {t(b.label)}
             </button>
           ))}
           <button
@@ -497,7 +519,7 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
             className="col-start-3 row-start-1 h-10 px-2 sm:px-3 rounded-full text-[13px] font-semibold text-muted inline-flex items-center justify-center gap-1.5 whitespace-nowrap hover:text-fg hover:bg-subtle transition-colors cursor-pointer"
           >
             <X className="hidden sm:block w-3.5 h-3.5 shrink-0" />
-            Batal pilih
+            {t("Batal pilih")}
           </button>
         </div>
       )}
@@ -508,13 +530,13 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
           <div className="mx-auto w-12 h-12 rounded-xl bg-accent-soft text-accent flex items-center justify-center">
             <Users className="w-6 h-6" />
           </div>
-          <h3 className="mt-4 text-base font-bold text-fg">Belum ada akun</h3>
+          <h3 className="mt-4 text-base font-bold text-fg">{t("Belum ada akun")}</h3>
           <p className="mt-1 text-sm text-muted max-w-sm mx-auto">
-            Akun Threads yang bisa Anda kelola akan muncul di sini setelah terhubung di SukaPost.
+            {t("Akun Threads yang bisa Anda kelola akan muncul di sini setelah terhubung di SukaPost.")}
           </p>
         </div>
       ) : (
-        <section aria-label="Daftar akun autopilot" data-tour="autopilot-accounts" className="card">
+        <section aria-label={t("Daftar akun autopilot")} data-tour="autopilot-accounts" className="card">
           <div
             className={cn(
               "grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 items-center px-4 py-3 border-b border-line bg-subtle rounded-t-2xl",
@@ -527,29 +549,29 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
                 indeterminate={filteredSelected > 0 && !allFilteredSelected}
                 onChange={toggleAll}
                 disabled={filtered.length === 0}
-                label={allFilteredSelected ? "Batalkan pilihan semua akun yang tampil" : "Pilih semua akun yang tampil"}
+                label={allFilteredSelected ? t("Batalkan pilihan semua akun yang tampil") : t("Pilih semua akun yang tampil")}
               />
             </div>
             <p className="text-xs font-semibold text-muted">
               <span className="xl:hidden">
-                Pilih semua · {filtered.length} dari {data.accounts.length} akun
+                {t("Pilih semua · {shown} dari {total} akun", { shown: filtered.length, total: data.accounts.length })}
               </span>
-              <span className="hidden xl:inline uppercase tracking-wide">Akun ({filtered.length})</span>
+              <span className="hidden xl:inline uppercase tracking-wide">{t("Akun ({n})", { n: filtered.length })}</span>
             </p>
-            <p className="hidden xl:block text-xs font-semibold text-muted uppercase tracking-wide">Mode</p>
-            <p className="hidden xl:block text-xs font-semibold text-muted uppercase tracking-wide text-center">Per hari</p>
+            <p className="hidden xl:block text-xs font-semibold text-muted uppercase tracking-wide">{t("Mode")}</p>
+            <p className="hidden xl:block text-xs font-semibold text-muted uppercase tracking-wide text-center">{t("Per hari")}</p>
             <div className="hidden xl:block min-w-0">
-              <p className="text-xs font-semibold text-muted uppercase tracking-wide">Jadwal {dayLabel.toLowerCase()} (WIB)</p>
+              <p className="text-xs font-semibold text-muted uppercase tracking-wide">{t("Jadwal {day} (WIB)", { day: dayLabel.toLowerCase() })}</p>
               <TimelineScale />
             </div>
-            <p className="hidden xl:block text-xs font-semibold text-muted uppercase tracking-wide">7 hari</p>
+            <p className="hidden xl:block text-xs font-semibold text-muted uppercase tracking-wide">{t("7 hari")}</p>
             <span className="hidden xl:block" aria-hidden />
           </div>
 
           {filtered.length === 0 ? (
             <div className="p-8 text-center">
-              <p className="text-sm font-semibold text-fg">Tidak ada akun yang cocok.</p>
-              <p className="mt-1 text-sm text-muted">Ubah kata pencarian atau filter mode.</p>
+              <p className="text-sm font-semibold text-fg">{t("Tidak ada akun yang cocok.")}</p>
+              <p className="mt-1 text-sm text-muted">{t("Ubah kata pencarian atau filter mode.")}</p>
               {filtering && (
                 <button
                   type="button"
@@ -559,7 +581,7 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
                   }}
                   className="mt-4 h-10 px-5 rounded-full border border-line-strong text-sm font-semibold text-fg hover:border-accent hover:text-accent transition-colors cursor-pointer"
                 >
-                  Hapus filter
+                  {t("Hapus filter")}
                 </button>
               )}
             </div>
@@ -598,8 +620,8 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
           setConfirmAuto(null);
           if (account) void applyMode(account, "OTOMATIS");
         }}
-        title="Aktifkan mode Otomatis?"
-        confirmLabel="Ya, aktifkan Otomatis"
+        title={t("Aktifkan mode Otomatis?")}
+        confirmLabel={t("Ya, aktifkan Otomatis")}
         confirmIcon={<Zap className="w-4 h-4" />}
       >
         {confirmAuto && (
@@ -619,7 +641,7 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
         details={bulkError?.details}
         variant={bulkMode === "MATI" ? "danger" : "primary"}
         title={bulkMode ? BULK_COPY[bulkMode].title(selectedAccounts.length) : ""}
-        confirmLabel={bulkMode ? BULK_COPY[bulkMode].confirm : ""}
+        confirmLabel={bulkMode ? t(BULK_COPY[bulkMode].confirm) : ""}
       >
         {bulkMode && (
           <>
@@ -631,10 +653,10 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
                   <span className="min-w-0 flex-1">
                     <span className="block font-semibold text-fg truncate">{accountHandle(a)}</span>
                     {bulkMode !== "MATI" && !a.ready && (
-                      <span className="block text-xs font-medium text-warning">Belum siap diposting, akan dilewati</span>
+                      <span className="block text-xs font-medium text-warning">{t("Belum siap diposting, akan dilewati")}</span>
                     )}
                   </span>
-                  <span className="shrink-0 text-xs font-medium text-muted tabular-nums">{a.config.postsPerDay} per hari</span>
+                  <span className="shrink-0 text-xs font-medium text-muted tabular-nums">{t("{n} per hari", { n: a.config.postsPerDay })}</span>
                 </li>
               ))}
             </ul>
@@ -648,7 +670,7 @@ export function AccountsTab({ data, loadedAt, refetch, patch }: AccountsTabProps
         onClose={() => setSettingsId(null)}
         onSaved={(account) => {
           setSettingsId(null);
-          setNotice(`Pengaturan autopilot ${accountHandle(account)} disimpan.`);
+          setNotice(tr("Pengaturan autopilot {handle} disimpan.", { handle: accountHandle(account) }));
           void refetch();
         }}
       />

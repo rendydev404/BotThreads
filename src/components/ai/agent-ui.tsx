@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Check, Loader2, Minus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/lang-provider";
 
 export type AgentStepStatus = "pending" | "active" | "done" | "skipped" | "failed";
 
@@ -16,6 +17,7 @@ export interface AgentStepView {
 
 /** Timeline langkah agen: langkah aktif berdenyut dan teksnya berkilau, langkah selesai "meletup" hijau. */
 export function AgentSteps({ steps, compact = false }: { steps: AgentStepView[]; compact?: boolean }) {
+  const t = useT();
   return (
     <ol className="relative space-y-0" aria-live="polite">
       {steps.map((s, i) => {
@@ -39,7 +41,7 @@ export function AgentSteps({ steps, compact = false }: { steps: AgentStepView[];
                   s.status === "active" ? "ai-shimmer-text" : s.status === "pending" ? "text-faint" : "text-fg"
                 )}
               >
-                {s.label}
+                {t(s.label)}
               </p>
               {s.detail && !compact && (
                 <p className={cn("msg-in mt-0.5 text-xs leading-relaxed", s.status === "failed" ? "text-danger" : "text-muted")}>{s.detail}</p>
@@ -157,10 +159,11 @@ export function TypeReveal({ text, speed = 14, className }: { text: string; spee
 
 /** Lencana skor kealamian: hijau = terdengar manusia, kuning = masih ada ciri AI. */
 export function HumanScore({ score, tells }: { score: number; tells: string[] }) {
+  const t = useT();
   const good = score >= 85;
   return (
     <span
-      title={tells.length ? `Terdeteksi: ${tells.join(", ")}` : "Tidak ada ciri tulisan AI yang terdeteksi"}
+      title={tells.length ? t("Terdeteksi: {list}", { list: tells.join(", ") }) : t("Tidak ada ciri tulisan AI yang terdeteksi")}
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold",
         good ? "bg-success-soft text-success" : "bg-warning-soft text-warning"

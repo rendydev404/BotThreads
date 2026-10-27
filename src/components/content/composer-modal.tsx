@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils";
 import { ContentApiError, createPosts, newIdempotencyKey, recommend } from "@/lib/content-client";
 import type { BestHourDTO, PublishAccountDTO, PublishLimitsDTO } from "@/lib/content-types";
 import { MAX_RECOMMEND_ACCOUNTS } from "@/lib/content-config";
-import { formatWibFull } from "@/lib/scheduling";
+import { useT } from "@/components/i18n/lang-provider";
 import { AccountPicker } from "./account-picker";
 import { ModalButton, ModalShell } from "./modal-shell";
-import { PostTextField, checkPostText, type PostTextState } from "./post-text-field";
+import { PostTextField, checkPostText, tContentMessage, type PostTextState } from "./post-text-field";
 import { PublishConfirmModal } from "./publish-confirm-modal";
-import { SchedulePicker, type ScheduleValue } from "./schedule-picker";
+import { SchedulePicker, useWibFormat, type ScheduleValue } from "./schedule-picker";
 
 interface ComposerModalProps {
   open: boolean;
@@ -26,6 +26,8 @@ const EMPTY: PostTextState = { text: "", topic: "" };
 
 /** Pembuat postingan manual (dengan bantuan AI) untuk satu atau banyak akun, maksimal 10 per kirim. */
 export function ComposerModal({ open, onClose, accounts, publishEnabled, limits, onCreated }: ComposerModalProps) {
+  const t = useT();
+  const wib = useWibFormat();
   const max = limits?.maxBatchItems ?? 10;
   const [ids, setIds] = useState<string[]>([]);
   const [variation, setVariation] = useState(false);
@@ -77,7 +79,7 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
     }
     const targets = usePer ? selected : selected.slice(0, 1);
     if (targets.length > MAX_RECOMMEND_ACCOUNTS) {
-      setAiError(`Bantuan AI per akun maksimal ${MAX_RECOMMEND_ACCOUNTS} akun sekali jalan.`);
+      setAiError(t("Bantuan AI per akun maksimal {n} akun sekali jalan.", { n: MAX_RECOMMEND_ACCOUNTS }));
       return;
     }
     setAiBusy(true);
@@ -153,12 +155,12 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
         onClose={close}
         busy={busy}
         size="lg"
-        title="Buat postingan"
-        description="Tulis sendiri atau minta AI meniru gaya akun. Tidak ada yang terkirim sebelum Anda mengonfirmasi."
+        title={t("Buat postingan")}
+        description={t("Tulis sendiri atau minta AI meniru gaya akun. Tidak ada yang terkirim sebelum Anda mengonfirmasi.")}
         footer={
           <>
             <ModalButton onClick={close} disabled={busy}>
-              Batal
+              {t("Batal")}
             </ModalButton>
             <ModalButton
               variant="primary"
@@ -169,31 +171,31 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
               }}
             >
               {schedule.mode === "now" ? <Send className="w-4 h-4" /> : <CalendarClock className="w-4 h-4" />}
-              {schedule.mode === "now" ? "Lanjut posting" : "Lanjut jadwalkan"}
+              {schedule.mode === "now" ? t("Lanjut posting") : t("Lanjut jadwalkan")}
             </ModalButton>
           </>
         }
       >
         <div className="space-y-4">
           <div>
-            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">Akun tujuan</p>
-            <AccountPicker accounts={accounts} value={ids} onChange={setIds} multiple max={max} placeholder="Pilih satu atau lebih akun" />
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">{t("Akun tujuan")}</p>
+            <AccountPicker accounts={accounts} value={ids} onChange={setIds} multiple max={max} placeholder={t("Pilih satu atau lebih akun")} />
           </div>
 
           {multi && (
             <div className="space-y-2">
-              <div role="tablist" aria-label="Mode teks" className="inline-flex p-1 rounded-full bg-subtle">
+              <div role="tablist" aria-label={t("Mode teks")} className="inline-flex p-1 rounded-full bg-subtle">
                 <button type="button" role="tab" aria-selected={!variation} onClick={() => setVariation(false)} className={segment(!variation)}>
-                  Teks sama
+                  {t("Teks sama")}
                 </button>
                 <button type="button" role="tab" aria-selected={variation} onClick={() => setVariation(true)} className={segment(variation)}>
-                  Variasi per akun
+                  {t("Variasi per akun")}
                 </button>
               </div>
               {!variation && (
                 <p className="flex items-start gap-2 text-xs text-muted leading-relaxed">
                   <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                  Teks identik ke banyak akun berisiko dianggap spam. Pakai {"{nama_cabang}"} di teks agar tiap cabang unik, atau pilih Variasi per akun.
+                  {t("Teks identik ke banyak akun berisiko dianggap spam. Pakai {nama_cabang} di teks agar tiap cabang unik, atau pilih Variasi per akun.")}
                 </p>
               )}
             </div>
@@ -202,7 +204,7 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-bold uppercase tracking-wide text-muted">
-                {usePer ? "Ide / arahan untuk AI" : "Isi postingan"}
+                {usePer ? t("Ide / arahan untuk AI") : t("Isi postingan")}
               </p>
               <button
                 type="button"
@@ -211,12 +213,12 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
                 className="h-9 px-3.5 rounded-full text-[13px] font-semibold inline-flex items-center gap-1.5 bg-accent-soft text-accent hover:bg-accent hover:text-on-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {aiBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                Bantu AI
+                {t("Bantu AI")}
               </button>
             </div>
             {aiError && (
               <p role="alert" className="text-[13px] font-medium text-danger">
-                {aiError}
+                {tContentMessage(t, aiError)}
               </p>
             )}
 
@@ -226,7 +228,7 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
               outletNama={selected[0]?.outletNama ?? null}
               disabled={busy}
               rows={usePer ? 3 : 6}
-              placeholder={usePer ? "Tulis ide singkat, lalu klik Bantu AI untuk membuat versi tiap akun." : undefined}
+              placeholder={usePer ? t("Tulis ide singkat, lalu klik Bantu AI untuk membuat versi tiap akun.") : undefined}
             />
 
             {usePer &&
@@ -239,28 +241,28 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
                     outletNama={a.outletNama}
                     disabled={busy}
                     rows={4}
-                    placeholder="Teks untuk akun ini"
+                    placeholder={t("Teks untuk akun ini")}
                   />
                 </div>
               ))}
           </div>
 
           <div>
-            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">Waktu posting</p>
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">{t("Waktu posting")}</p>
             <SchedulePicker value={schedule} onChange={setSchedule} bestHours={hours} disabled={busy} />
           </div>
 
           {!publishEnabled && (
             <p className="flex items-start gap-2 rounded-xl bg-subtle text-muted p-3 text-[13px] font-medium">
               <Info className="w-4 h-4 mt-0.5 shrink-0" />
-              Fitur posting belum diaktifkan oleh pemilik dashboard.
+              {t("Fitur posting belum diaktifkan oleh pemilik dashboard.")}
             </p>
           )}
           {firstError && selected.length > 0 && (firstError.c.length > 0 || shared.text || per[firstError.a.id]?.text) && (
             <p role="alert" className="flex items-start gap-2 text-[13px] font-medium text-danger">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               {selected.length > 1 ? `@${firstError.a.username ?? firstError.a.displayName}: ` : ""}
-              {firstError.c.error}
+              {tContentMessage(t, firstError.c.error)}
             </p>
           )}
         </div>
@@ -277,7 +279,7 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
         targets={selected.map((a) => ({
           username: a.username ?? a.displayName,
           text: textFor(a.id).text.trim(),
-          whenLabel: schedule.mode === "at" && schedule.at ? formatWibFull(new Date(schedule.at)) : undefined,
+          whenLabel: schedule.mode === "at" && schedule.at ? wib.full(new Date(schedule.at)) : undefined,
         }))}
       />
     </>

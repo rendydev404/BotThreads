@@ -8,6 +8,7 @@ import { adminNavItem, isActivePath, navigationItems } from "./sidebar";
 import { useMe } from "./use-me";
 import { usePopover } from "./use-popover";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/lang-provider";
 
 const primary = navigationItems.filter((i) => i.mobile).sort((a, b) => (a.mobileOrder ?? 99) - (b.mobileOrder ?? 99));
 const moreBase = navigationItems.filter((i) => !i.mobile);
@@ -16,6 +17,7 @@ const ITEM_CLS =
   "flex-1 basis-0 min-w-0 flex flex-col items-center gap-0.5 py-1.5 rounded-lg text-[11px] leading-4 transition-colors";
 
 export function BottomNav() {
+  const t = useT();
   const pathname = usePathname();
   const { open, setOpen, rootRef, triggerRef } = usePopover<HTMLDivElement>();
   const { me } = useMe();
@@ -39,7 +41,7 @@ export function BottomNav() {
               className={cn(ITEM_CLS, isActive ? "text-accent font-semibold" : "text-muted")}
             >
               <Icon className="w-5 h-5 shrink-0" strokeWidth={isActive ? 2.4 : 2} />
-              <span className="max-w-full truncate whitespace-nowrap">{item.mobileName ?? item.name}</span>
+              <span className="max-w-full truncate whitespace-nowrap">{t(item.mobileName ?? item.name)}</span>
             </Link>
           );
         })}
@@ -55,13 +57,13 @@ export function BottomNav() {
             className={cn(ITEM_CLS, "cursor-pointer", moreActive || open ? "text-accent font-semibold" : "text-muted")}
           >
             <Ellipsis className="w-5 h-5 shrink-0" strokeWidth={moreActive ? 2.4 : 2} />
-            <span className="max-w-full truncate whitespace-nowrap">Lainnya</span>
+            <span className="max-w-full truncate whitespace-nowrap">{t("Lainnya")}</span>
           </button>
 
           {open && (
             <div
               role="menu"
-              aria-label="Menu lainnya"
+              aria-label={t("Menu lainnya")}
               className="absolute bottom-full right-0 mb-3 w-52 bg-surface rounded-xl p-1.5 shadow-pop border border-line animate-[pop-in_140ms_ease-out]"
             >
               {more.map((item) => {
@@ -80,7 +82,7 @@ export function BottomNav() {
                     )}
                   >
                     <Icon className="w-[18px] h-[18px] shrink-0" />
-                    {item.name}
+                    {t(item.name)}
                   </Link>
                 );
               })}

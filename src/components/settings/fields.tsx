@@ -3,6 +3,7 @@
 import React, { useId, useState } from "react";
 import { AlertCircle, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/lang-provider";
 
 /** Kelas dasar input teks (satu baris) supaya semua form memakai tampilan yang sama. */
 export const INPUT_CLS =
@@ -114,6 +115,7 @@ type PasswordFieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "id"
 
 /** Input password dengan tombol tampilkan/sembunyikan. */
 export function PasswordField({ label, value, onChange, hint, error, className, ...props }: PasswordFieldProps) {
+  const t = useT();
   const id = useId();
   const [show, setShow] = useState(false);
   return (
@@ -132,7 +134,7 @@ export function PasswordField({ label, value, onChange, hint, error, className, 
         <button
           type="button"
           onClick={() => setShow((v) => !v)}
-          aria-label={show ? `Sembunyikan ${label.toLowerCase()}` : `Tampilkan ${label.toLowerCase()}`}
+          aria-label={show ? t("Sembunyikan {label}", { label: label.toLowerCase() }) : t("Tampilkan {label}", { label: label.toLowerCase() })}
           aria-pressed={show}
           className="absolute right-0.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-lg text-muted hover:text-fg flex items-center justify-center transition-colors cursor-pointer"
         >
@@ -155,16 +157,17 @@ export function ControlLabel({ children, hint }: { children: React.ReactNode; hi
 
 /** Pesan galat form (validasi server atau jaringan). */
 export function FormError({ message, details, className }: { message: string | null | undefined; details?: string[]; className?: string }) {
+  const t = useT();
   if (!message) return null;
   return (
     <div role="alert" className={cn("flex items-start gap-2 rounded-xl bg-danger-soft text-danger p-3 text-[13px] font-medium", className)}>
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
       <div className="min-w-0 break-words">
-        <p>{message}</p>
+        <p>{t(message)}</p>
         {details && details.length > 0 && (
           <ul className="mt-1 list-disc pl-4 font-normal">
             {details.slice(0, 6).map((d, i) => (
-              <li key={i}>{d}</li>
+              <li key={i}>{t(d)}</li>
             ))}
           </ul>
         )}

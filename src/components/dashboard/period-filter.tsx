@@ -10,6 +10,8 @@ import {
   type PeriodKey,
 } from "@/lib/period";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/lang-provider";
+import type { TFunction } from "@/lib/i18n/core";
 
 export interface PeriodValue {
   key: PeriodKey;
@@ -24,7 +26,25 @@ interface PeriodFilterProps {
 
 const DAY = 86_400_000;
 
+/** Terjemahkan kata hari/bulan singkat dari server ("Sen", "3 Mei") lewat kamus. */
+export const translateDateWords = (s: string, t: TFunction) => s.replace(/[A-Za-z]+/g, (w) => t(w));
+
+/** Terjemahkan label periode dari server: "Hari ini", "7 hari terakhir", "3 Mei – 9 Mei". */
+export function periodLabelText(label: string, t: TFunction): string {
+  const m = /^(\d+) hari terakhir$/.exec(label);
+  if (m) return t("{n} hari terakhir", { n: Number(m[1]) });
+  if (label === "Hari ini" || label === "Kemarin") return t(label);
+  return translateDateWords(label, t);
+}
+
+/** Terjemahkan label cakupan dari server: "Semua akun (12)" atau "@username". */
+export function scopeLabelText(label: string, t: TFunction): string {
+  const m = /^Semua akun \((\d+)\)$/.exec(label);
+  return m ? t("Semua akun ({n})", { n: Number(m[1]) }) : label;
+}
+
 export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [from, setFrom] = useState(value.from ?? "");
   const [to, setTo] = useState(value.to ?? "");
@@ -59,10 +79,10 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
   };
 
   const apply = () => {
-    if (!from || !to) return setError("Isi tanggal awal dan akhir.");
-    if (from > to) return setError("Tanggal awal tidak boleh setelah tanggal akhir.");
+    if (!from || !to) return setError(t("Isi tanggal awal dan akhir."));
+    if (from > to) return setError(t("Tanggal awal tidak boleh setelah tanggal akhir."));
     const span = (Date.parse(to) - Date.parse(from)) / DAY + 1;
-    if (span > MAX_CUSTOM_DAYS) return setError(`Maksimal ${MAX_CUSTOM_DAYS} hari.`);
+    if (span > MAX_CUSTOM_DAYS) return setError(t("Maksimal {n} hari.", { n: MAX_CUSTOM_DAYS }));
     setError("");
     setOpen(false);
     onChange({ key: "custom", from, to });
@@ -75,7 +95,7 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
     <div className="relative" ref={boxRef}>
       <div
         role="radiogroup"
-        aria-label="Pilih periode"
+        aria-label={t("Pilih periode")}
         className="flex sm:inline-flex w-full sm:w-auto items-center gap-0.5 p-1 rounded-xl bg-subtle"
       >
         {PERIOD_OPTIONS.map((p) => (
@@ -95,7 +115,7 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
                 : "text-muted hover:text-fg"
             )}
           >
-            {p.label}
+            {t(p.label)}
           </button>
         ))}
         <button
@@ -113,16 +133,16 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
           )}
         >
           <CalendarRange className="hidden sm:block w-4 h-4" />
-          Kustom
+          {t("Kustom")}
         </button>
       </div>
 
       {open && (
         <div className="absolute left-0 sm:left-auto sm:right-0 z-40 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-surface p-4 shadow-pop">
-          <p className="text-sm font-semibold text-fg">Rentang tanggal</p>
+          <p className="text-sm font-semibold text-fg">{t("Rentang tanggal")}</p>
           <div className="mt-3 space-y-3">
             <label className="block">
-              <span className="text-xs text-muted">Dari</span>
+              <span className="text-xs text-muted">{t("Dari")}</span>
               <input
                 type="date"
                 value={from}
@@ -132,7 +152,7 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
               />
             </label>
             <label className="block">
-              <span className="text-xs text-muted">Sampai</span>
+              <span className="text-xs text-muted">{t("Sampai")}</span>
               <input
                 type="date"
                 value={to}
@@ -153,14 +173,14 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
               onClick={() => setOpen(false)}
               className="h-9 px-3.5 rounded-lg text-sm font-medium text-muted hover:text-fg hover:bg-subtle cursor-pointer transition-colors"
             >
-              Batal
+              {t("Batal")}
             </button>
             <button
               type="button"
               onClick={apply}
               className="h-9 px-4 rounded-lg bg-accent hover:bg-accent-hover text-on-accent text-sm font-semibold cursor-pointer transition-colors"
             >
-              Terapkan
+              {t("Terapkan")}
             </button>
           </div>
         </div>

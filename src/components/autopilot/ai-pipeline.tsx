@@ -5,6 +5,8 @@ import { Check, Clock, Lightbulb, PenLine, RotateCcw, Send, ShieldCheck, Sparkle
 import { cn } from "@/lib/utils";
 import { fetchSlotWork } from "@/lib/autopilot-client";
 import type { AutopilotSlotDTO, SlotStatus, SlotWorkDTO } from "@/lib/autopilot-types";
+import { useT } from "@/components/i18n/lang-provider";
+import { currentLocale } from "@/lib/i18n/core";
 
 const STEPS = [
   { label: "Mencari ide", icon: Lightbulb },
@@ -28,7 +30,7 @@ const anim = (name: string, ms: number, delay = 0, extra = "") =>
   ({ animation: `${name} ${ms}ms cubic-bezier(.22,1,.36,1) ${delay}ms both ${extra}`.trim() }) as const;
 
 const hhmm = (iso: string): string =>
-  new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+  new Date(iso).toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 
 /** Lama tiap langkah saat memutar ulang hasil kerja AI (teks panjang diketik lebih cepat, total tetap singkat). */
 function stepMs(step: number, work: SlotWorkDTO | null): number {
@@ -56,6 +58,7 @@ function pickFocus(slots: AutopilotSlotDTO[], today: string, lastLive: string | 
 }
 
 function Stage({ step, focus, work, handle }: { step: number; focus: Focus; work: SlotWorkDTO | null; handle: string }) {
+  const t = useT();
   const d = work?.draft ?? null;
   if (focus.mode === "idle")
     return (
@@ -63,8 +66,8 @@ function Stage({ step, focus, work, handle }: { step: number; focus: Focus; work
         <Clock className="w-5 h-5 text-muted" aria-hidden />
         <p className="text-[13px] text-fg">
           {focus.slot
-            ? `AI belum bekerja hari ini. Slot berikutnya ${handle} jam ${hhmm(focus.slot.slotAt)} ditulis menjelang jamnya.`
-            : "Belum ada slot yang direncanakan. Nyalakan autopilot di salah satu akun."}
+            ? t("AI belum bekerja hari ini. Slot berikutnya {handle} jam {time} ditulis menjelang jamnya.", { handle, time: hhmm(focus.slot.slotAt) })
+            : t("Belum ada slot yang direncanakan. Nyalakan autopilot di salah satu akun.")}
         </p>
       </div>
     );
@@ -73,18 +76,18 @@ function Stage({ step, focus, work, handle }: { step: number; focus: Focus; work
     return (
       <div className="h-full flex flex-col gap-2">
         <p className="text-xs font-semibold text-fg">
-          Menulis untuk {handle} · tayang {hhmm(focus.slot.slotAt)}
-          {focus.slot.attempt > 1 && <span className="text-muted font-medium"> · percobaan ke-{focus.slot.attempt}</span>}
+          {t("Menulis untuk {handle} · tayang {time}", { handle, time: hhmm(focus.slot.slotAt) })}
+          {focus.slot.attempt > 1 && <span className="text-muted font-medium"> · {t("percobaan ke-{n}", { n: focus.slot.attempt })}</span>}
         </p>
         {[96, 88, 70].map((w, i) => (
           <span key={i} className="block h-2.5 rounded bg-accent/25 origin-left" style={{ width: `${w}%`, ...anim("aip-bar", 1600, i * 350, "infinite") }} />
         ))}
-        <p className="mt-auto text-[11px] text-muted">Draf muncul di sini begitu AI selesai dan lolos pemeriksaan.</p>
+        <p className="mt-auto text-[11px] text-muted">{t("Draf muncul di sini begitu AI selesai dan lolos pemeriksaan.")}</p>
       </div>
     );
 
-  if (!work) return <p className="text-xs text-muted">Memuat hasil kerja AI…</p>;
-  if (!d) return <p className="text-xs text-muted">{work.lastError ?? "Draf slot ini tidak tersedia."}</p>;
+  if (!work) return <p className="text-xs text-muted">{t("Memuat hasil kerja AI…")}</p>;
+  if (!d) return <p className="text-xs text-muted">{t(work.lastError ?? "Draf slot ini tidak tersedia.")}</p>;
 
   if (step === 0)
     return (
@@ -92,13 +95,13 @@ function Stage({ step, focus, work, handle }: { step: number; focus: Focus; work
         <div className="flex flex-wrap gap-1.5" style={anim("aip-in", 380)}>
           <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-accent text-on-accent text-xs font-semibold shadow-pop">
             <Sparkles className="w-3.5 h-3.5" aria-hidden />
-            {d.affiliate ? `Rekomendasi: ${d.affiliate}` : d.promo ? "Promo" : (d.topik ?? d.angle ?? "Ide bebas sesuai gaya akun")}
+            {d.affiliate ? t("Rekomendasi: {name}", { name: d.affiliate }) : d.promo ? "Promo" : (d.topik ?? d.angle ?? t("Ide bebas sesuai gaya akun"))}
           </span>
-          {d.pillar && <span className="inline-flex items-center h-8 px-3 rounded-full bg-surface border border-line text-xs font-semibold text-muted">Pilar: {d.pillar}</span>}
+          {d.pillar && <span className="inline-flex items-center h-8 px-3 rounded-full bg-surface border border-line text-xs font-semibold text-muted">{t("Pilar:")} {d.pillar}</span>}
         </div>
         {d.rationale && (
           <p className="text-xs text-muted line-clamp-3" style={anim("aip-in", 380, 500)}>
-            Alasan AI: {d.rationale}
+            {t("Alasan AI:")} {d.rationale}
           </p>
         )}
       </div>
@@ -127,14 +130,14 @@ function Stage({ step, focus, work, handle }: { step: number; focus: Focus; work
               {c.ok ? <Check className="w-3 h-3" strokeWidth={3} aria-hidden /> : <X className="w-3 h-3" strokeWidth={3} aria-hidden />}
             </span>
             <span className="min-w-0">
-              {c.label}
-              {c.detail && <span className="text-muted"> · {c.detail}</span>}
+              {t(c.label)}
+              {c.detail && <span className="text-muted"> · {t(c.detail)}</span>}
             </span>
           </li>
         ))}
         {work.criticScore !== null && (
           <li className="text-xs font-semibold text-fg" style={anim("aip-in", 320, 300 + d.checks.length * 450)}>
-            Skor editor AI: {work.criticScore}
+            {t("Skor editor AI:")} {work.criticScore}
           </li>
         )}
       </ul>
@@ -142,10 +145,10 @@ function Stage({ step, focus, work, handle }: { step: number; focus: Focus; work
 
   const status =
     work.status === "MENUNGGU_TINJAU"
-      ? { text: "Menunggu persetujuan Anda di tab Tinjau", cls: "text-warning bg-warning-soft" }
+      ? { text: t("Menunggu persetujuan Anda di tab Tinjau"), cls: "text-warning bg-warning-soft" }
       : work.status === "TERBIT"
-        ? { text: `Sudah terbit ${hhmm(focus.slot.slotAt)}`, cls: "text-success bg-success-soft" }
-        : { text: `Terjadwal ${hhmm(focus.slot.slotAt)}`, cls: "text-success bg-success-soft" };
+        ? { text: t("Sudah terbit {time}", { time: hhmm(focus.slot.slotAt) }), cls: "text-success bg-success-soft" }
+        : { text: t("Terjadwal {time}", { time: hhmm(focus.slot.slotAt) }), cls: "text-success bg-success-soft" };
   return (
     <div className="h-full flex items-center justify-center">
       <div className="w-full max-w-md rounded-xl bg-surface border border-line p-2.5 shadow-pop" style={anim("aip-in", 450)}>
@@ -181,6 +184,7 @@ export const AiPipeline = memo(function AiPipeline({
   /** accountId -> @username */
   handles: Map<string, string>;
 }) {
+  const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
   const [lastLive, setLastLive] = useState<string | null>(null);
   const focus = useMemo(() => pickFocus(slots, today, lastLive), [slots, today, lastLive]);
@@ -234,34 +238,34 @@ export const AiPipeline = memo(function AiPipeline({
   const playing = focus.mode === "result" && !!shownWork && step < 3 && onScreen && !reduced;
   useEffect(() => {
     if (!playing) return;
-    const t = setTimeout(() => setStep((s) => s + 1), stepMs(step, shownWork));
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setStep((s) => s + 1), stepMs(step, shownWork));
+    return () => clearTimeout(timer);
   }, [playing, step, run, shownWork]);
 
   const viewStep = focus.mode === "live" ? 1 : focus.mode === "idle" ? -1 : reduced ? 3 : step;
-  const handle = focus.slot ? (handles.get(focus.slot.accountId) ?? "akun") : "akun";
+  const handle = focus.slot ? (handles.get(focus.slot.accountId) ?? t("akun")) : t("akun");
   const caption =
     focus.mode === "live"
-      ? "AI sedang menulis draf sekarang. Setelah itu gerbang mutu memeriksanya sebelum masuk antrean."
+      ? t("AI sedang menulis draf sekarang. Setelah itu gerbang mutu memeriksanya sebelum masuk antrean.")
       : focus.mode === "result"
-        ? `Rekaman kerja AI untuk slot ${hhmm(focus.slot.slotAt)} ${handle}. Klik langkah untuk melihat detailnya.`
-        : "Menunggu giliran slot berikutnya.";
+        ? t("Rekaman kerja AI untuk slot {time} {handle}. Klik langkah untuk melihat detailnya.", { time: hhmm(focus.slot.slotAt), handle })
+        : t("Menunggu giliran slot berikutnya.");
 
   return (
-    <section ref={rootRef} data-tour="ai-pipeline" aria-label="Kerja AI autopilot" className={cn("card p-3 sm:p-4", !onScreen && "aip-off", reduced && "aip-static")}>
+    <section ref={rootRef} data-tour="ai-pipeline" aria-label={t("Kerja AI autopilot")} className={cn("card p-3 sm:p-4", !onScreen && "aip-off", reduced && "aip-static")}>
       <style href="ai-pipeline" precedence="default">{CSS}</style>
       <div className="flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-accent shrink-0" aria-hidden />
-        <h3 className="text-sm font-bold text-fg truncate">Kerja AI autopilot</h3>
+        <h3 className="text-sm font-bold text-fg truncate">{t("Kerja AI autopilot")}</h3>
         {focus.mode === "live" ? (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-accent bg-accent-soft rounded-full px-2 py-0.5 shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-accent" style={anim("aip-dot", 1200, 0, "infinite")} aria-hidden />
-            Sedang bekerja
+            {t("Sedang bekerja")}
           </span>
         ) : focus.mode === "result" ? (
-          <span className="text-[11px] font-semibold text-muted bg-subtle rounded-full px-2 py-0.5 shrink-0">Hasil terakhir</span>
+          <span className="text-[11px] font-semibold text-muted bg-subtle rounded-full px-2 py-0.5 shrink-0">{t("Hasil terakhir")}</span>
         ) : null}
-        {paused && <span className="text-[11px] font-semibold text-danger bg-danger-soft rounded-full px-2 py-0.5 shrink-0">Dijeda</span>}
+        {paused && <span className="text-[11px] font-semibold text-danger bg-danger-soft rounded-full px-2 py-0.5 shrink-0">{t("Dijeda")}</span>}
         {focus.mode === "result" && shownWork && (
           <button
             type="button"
@@ -269,7 +273,7 @@ export const AiPipeline = memo(function AiPipeline({
               setStep(0);
               setRun((r) => r + 1);
             }}
-            aria-label="Putar ulang kerja AI"
+            aria-label={t("Putar ulang kerja AI")}
             className="ml-auto w-8 h-8 rounded-full text-muted hover:text-fg hover:bg-subtle inline-flex items-center justify-center cursor-pointer shrink-0"
           >
             <RotateCcw className="w-4 h-4" />
@@ -307,7 +311,7 @@ export const AiPipeline = memo(function AiPipeline({
                   {done ? <Check className="w-4 h-4" strokeWidth={3} /> : <Icon className="w-4 h-4" />}
                 </span>
                 <span className={cn("text-[11px] sm:text-xs font-semibold leading-tight text-center", active ? "text-accent" : "text-muted")}>
-                  {s.label}
+                  {t(s.label)}
                 </span>
               </button>
             </li>

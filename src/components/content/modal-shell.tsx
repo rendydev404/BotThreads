@@ -4,6 +4,7 @@ import React, { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/lang-provider";
 
 /** Tumpukan dialog terbuka: hanya yang paling atas menangani Esc dan Tab. */
 const openStack: symbol[] = [];
@@ -29,6 +30,7 @@ interface ModalShellProps {
  * Esc menutup, fokus kembali ke pemicu, scroll halaman di belakangnya dikunci.
  */
 export function ModalShell({ open, onClose, title, description, children, footer, busy, size = "md" }: ModalShellProps) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const closeRef = useRef(onClose);
@@ -120,7 +122,7 @@ export function ModalShell({ open, onClose, title, description, children, footer
             type="button"
             onClick={onClose}
             disabled={busy}
-            aria-label="Tutup"
+            aria-label={t("Tutup")}
             className="w-9 h-9 -mr-2 shrink-0 rounded-full text-muted hover:text-fg hover:bg-subtle flex items-center justify-center cursor-pointer transition-colors disabled:opacity-40"
           >
             <X className="w-5 h-5" />

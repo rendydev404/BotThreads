@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { currentLocale, tr } from "@/lib/i18n/core";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -13,7 +14,7 @@ export function formatNumber(num: number): string {
   if (num >= 1_000) {
     return (num / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
   }
-  return num.toLocaleString("id-ID");
+  return num.toLocaleString(currentLocale());
 }
 
 export function formatPercent(rate: number): string {
@@ -24,7 +25,7 @@ export function formatPercent(rate: number): string {
 export function formatDateWIB(date: Date | string): string {
   if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("id-ID", {
+  return new Intl.DateTimeFormat(currentLocale(), {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -43,13 +44,13 @@ export function formatRelativeTime(date: Date | string): string {
   const diffHours = Math.floor(diffMinutes / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffMinutes < 1) return "Baru saja";
-  if (diffMinutes < 60) return `${diffMinutes}m lalu`;
-  if (diffHours < 24) return `${diffHours}j lalu`;
-  if (diffDays === 1) return "Kemarin";
-  if (diffDays < 7) return `${diffDays} hari lalu`;
+  if (diffMinutes < 1) return tr("Baru saja");
+  if (diffMinutes < 60) return tr("{n}m lalu", { n: diffMinutes });
+  if (diffHours < 24) return tr("{n}j lalu", { n: diffHours });
+  if (diffDays === 1) return tr("Kemarin");
+  if (diffDays < 7) return tr("{n} hari lalu", { n: diffDays });
 
-  return new Intl.DateTimeFormat("id-ID", {
+  return new Intl.DateTimeFormat(currentLocale(), {
     day: "numeric",
     month: "short",
     timeZone: "Asia/Jakarta",
@@ -57,7 +58,7 @@ export function formatRelativeTime(date: Date | string): string {
 }
 
 export function cleanPostText(text: string): string {
-  if (!text) return "(Tidak ada caption teks)";
+  if (!text) return tr("(Tidak ada caption teks)");
   return text
     // Remove mojibake characters like d??... or unprintable unicode control bytes
     .replace(/d\?[\?\s\u0080-\u009F]*/gi, " ")

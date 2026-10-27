@@ -43,6 +43,7 @@ import { MethodPicker, PaymentPanel } from "./payment-panel";
 import { errorText, formatDateWib, formatInt } from "./format";
 import { BTN_OUTLINE, BTN_PRIMARY, EmptyState, LoadError, Pill, RefreshButton, type PillTone } from "./states";
 import { useRemote } from "./use-remote";
+import { useT } from "@/components/i18n/lang-provider";
 
 type PlanItem = PublicPlansResponse["items"][number];
 
@@ -58,6 +59,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
   const pubPlans = useRemote<PublicPlansResponse>("paket-publik", fetchPublicPlans, "Gagal memuat katalog paket.");
   const billing = useRemote<WorkspaceBillingResponse>("tagihan-ws", fetchWorkspaceBilling, "Gagal memuat riwayat tagihan.");
   const returnedInvoice = useSearchParams().get("invoice");
+  const t = useT();
 
   const [cycle, setCycle] = useState<BillingCycleMonths>(1);
   const [checkoutPlan, setCheckoutPlan] = useState<PlanItem | null>(null);
@@ -78,14 +80,16 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
     if (inv.status === "PAID") {
       setNotice({
         tone: "success",
-        text: `Pembayaran ${inv.id} diterima. Paket ${inv.planNama} aktif sampai ${
-          inv.planActiveUntil ? formatDateWib(inv.planActiveUntil) : "tanpa batas"
-        }.`,
+        text: t("Pembayaran {id} diterima. Paket {plan} aktif sampai {until}.", {
+          id: inv.id,
+          plan: inv.planNama,
+          until: inv.planActiveUntil ? formatDateWib(inv.planActiveUntil) : t("tanpa batas"),
+        }),
       });
     } else if (inv.status === "PENDING") {
-      setNotice({ tone: "info", text: `Tagihan ${inv.id} belum dibayar. Klik Bayar untuk melihat kode pembayarannya.` });
+      setNotice({ tone: "info", text: t("Tagihan {id} belum dibayar. Klik Bayar untuk melihat kode pembayarannya.", { id: inv.id }) });
     } else {
-      setNotice({ tone: "info", text: `Tagihan ${inv.id} ${INVOICE_STATUS_LABEL[inv.status].toLowerCase()}.` });
+      setNotice({ tone: "info", text: t("Tagihan {id}: {status}.", { id: inv.id, status: t(INVOICE_STATUS_LABEL[inv.status]).toLowerCase() }) });
     }
   };
 
@@ -132,7 +136,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
       async () => {
         if (!checkoutPlan) return;
         const free = calculateCyclePrice(checkoutPlan.hargaBulanan, cycle).total === 0;
-        if (!free && !method) throw new Error("Pilih metode pembayaran dulu.");
+        if (!free && !method) throw new Error(t("Pilih metode pembayaran dulu."));
         const res = await createBillingCheckout({ planId: checkoutPlan.id, months: cycle, method: method ?? "qris" });
         setCheckoutPlan(null);
         if (res.invoice.status === "PAID") {
@@ -162,7 +166,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
         reloadAll();
         reportStatus(res.invoice);
       } else if (!silent && res.invoice.status === "PENDING") {
-        setActionError("Pembayaran belum diterima. Bila baru saja membayar, tunggu sebentar; status diperbarui otomatis.");
+        setActionError(t("Pembayaran belum diterima. Bila baru saja membayar, tunggu sebentar; status diperbarui otomatis."));
       }
     } catch (e) {
       if (!silent) setActionError(errorText(e, "Gagal mengecek status pembayaran."));
@@ -203,7 +207,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
       async () => {
         await cancelBillingInvoice(inv.id);
         billing.reload();
-        setNotice({ tone: "info", text: `Tagihan ${inv.id} dibatalkan.` });
+        setNotice({ tone: "info", text: t("Tagihan {id} dibatalkan.", { id: inv.id }) });
       },
       "Gagal membatalkan tagihan."
     );
@@ -247,22 +251,21 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
       )}
       {billing.data && !paymentReady && canManage && (
         <Banner tone="warning">
-          Pembayaran online belum diaktifkan oleh pengelola platform. Paket gratis tetap bisa dipakai; untuk paket berbayar
-          hubungi admin.
+          {t("Pembayaran online belum diaktifkan oleh pengelola platform. Paket gratis tetap bisa dipakai; untuk paket berbayar hubungi admin.")}
         </Banner>
       )}
 
       {/* Pemilih Siklus Sewa & Katalog Paket */}
-      <section className="space-y-4" aria-label="Pilih paket langganan">
+      <section className="space-y-4" aria-label={t("Pilih paket langganan")}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-bold text-fg">Pilih Paket Langganan</h3>
+            <h3 className="text-base font-bold text-fg">{t("Pilih Paket Langganan")}</h3>
             <p className="text-xs text-muted">
-              Sewa paket sesuai jumlah akun Threads yang ingin diotomatisasi. Aktif seketika setelah pembayaran.
+              {t("Sewa paket sesuai jumlah akun Threads yang ingin diotomatisasi. Aktif seketika setelah pembayaran.")}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div role="group" aria-label="Siklus penagihan" className="inline-flex p-1 rounded-xl bg-subtle border border-line">
+            <div role="group" aria-label={t("Siklus penagihan")} className="inline-flex p-1 rounded-xl bg-subtle border border-line">
               {BILLING_CYCLES.map((c) => {
                 const active = cycle === c.months;
                 return (
@@ -276,10 +279,10 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
                       active ? "bg-surface text-fg shadow-xs" : "text-muted hover:text-fg"
                     )}
                   >
-                    <span>{c.label}</span>
+                    <span>{t(c.label)}</span>
                     {c.badge && (
                       <span className="px-1.5 py-0.5 rounded bg-accent-soft text-accent text-[10px] font-bold">
-                        {c.badge}
+                        {t(c.badge)}
                       </span>
                     )}
                   </button>
@@ -291,8 +294,8 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
         </div>
 
         {plans.length === 0 ? (
-          <EmptyState icon={<Gem className="w-6 h-6" />} title="Belum ada paket langganan publik.">
-            Super admin dapat menambahkan atau mengaktifkan paket dari konsol Super Admin.
+          <EmptyState icon={<Gem className="w-6 h-6" />} title={t("Belum ada paket langganan publik.")}>
+            {t("Super admin dapat menambahkan atau mengaktifkan paket dari konsol Super Admin.")}
           </EmptyState>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -319,16 +322,16 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
                       <div className="flex flex-wrap justify-end gap-1.5">
                         {isCurrent && (
                           <Pill tone="success" icon={<CheckCircle2 className="w-3 h-3" />}>
-                            {isDefaultPlan ? "Bawaan" : "Aktif"}
+                            {isDefaultPlan ? t("Bawaan") : t("Aktif")}
                           </Pill>
                         )}
                         {badge ? (
                           <Pill tone="accent" icon={<Sparkles className="w-3 h-3" />}>
-                            {badge}
+                            {t(badge)}
                           </Pill>
                         ) : isPopular ? (
                           <Pill tone="accent" icon={<Sparkles className="w-3 h-3" />}>
-                            Populer
+                            {t("Populer")}
                           </Pill>
                         ) : null}
                       </div>
@@ -341,15 +344,15 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
                         <span className="text-2xl font-extrabold text-fg tabular-nums">
                           {formatRupiah(pricing.monthlyEquivalent)}
                         </span>
-                        {p.hargaBulanan > 0 && <span className="text-xs text-muted">/ bulan</span>}
+                        {p.hargaBulanan > 0 && <span className="text-xs text-muted">{t("/ bulan")}</span>}
                       </div>
                       {p.hargaBulanan > 0 && cycle > 1 ? (
                         <p className="mt-0.5 text-[11px] text-accent font-semibold">
-                          Total {formatRupiah(pricing.total)} untuk {cycle} bulan (Hemat {formatRupiah(pricing.discountAmount)})
+                          {t("Total {total} untuk {n} bulan (Hemat {saving})", { total: formatRupiah(pricing.total), n: cycle, saving: formatRupiah(pricing.discountAmount) })}
                         </p>
                       ) : (
                         <p className="mt-0.5 text-[11px] text-muted">
-                          {p.hargaBulanan === 0 ? "Gratis untuk uji coba awal" : "Ditagih bulanan"}
+                          {p.hargaBulanan === 0 ? t("Gratis untuk uji coba awal") : t("Ditagih bulanan")}
                         </p>
                       )}
                     </div>
@@ -358,24 +361,18 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
                       <li className="flex items-start gap-2">
                         <Check className="w-4 h-4 text-success shrink-0 mt-0.5" />
                         <span>
-                          Maksimal <strong className="font-bold">{formatInt(p.maxAkun)} akun Threads</strong>
+                          {t("Maksimal")} <strong className="font-bold">{t("{n} akun Threads", { n: formatInt(p.maxAkun) })}</strong>
                         </span>
                       </li>
                       <li className="flex items-start gap-2">
                         <Check className="w-4 h-4 text-success shrink-0 mt-0.5" />
                         <span>
-                          Sampai <strong className="font-bold">{formatInt(p.maxPostingPerHari)} posting/hari</strong> tiap akun
+                          {t("Sampai")} <strong className="font-bold">{t("{n} posting/hari", { n: formatInt(p.maxPostingPerHari) })}</strong> {t("tiap akun")}
                         </span>
                       </li>
                       <li className="flex items-start gap-2">
                         <Check className="w-4 h-4 text-success shrink-0 mt-0.5" />
-                        <span>
-                          Hingga <strong className="font-bold">{formatInt(p.maxAnggota)} anggota tim</strong>
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Check className="w-4 h-4 text-success shrink-0 mt-0.5" />
-                        <span>{p.modeOtomatis ? "Mode Otomatis Penuh & Tinjau Dulu" : "Hanya Mode Tinjau Dulu"}</span>
+                        <span>{p.modeOtomatis ? t("Mode Otomatis Penuh & Tinjau Dulu") : t("Hanya Mode Tinjau Dulu")}</span>
                       </li>
                     </ul>
                   </div>
@@ -394,13 +391,13 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
                       >
                         <CreditCard className="w-3.5 h-3.5" />
                         {isCurrent && !isDefaultPlan
-                          ? "Perpanjang Paket"
+                          ? t("Perpanjang Paket")
                           : p.hargaBulanan === 0
-                            ? "Pakai Paket Ini"
-                            : "Sewa Paket Ini"}
+                            ? t("Pakai Paket Ini")
+                            : t("Sewa Paket Ini")}
                       </button>
                     ) : (
-                      <p className="text-[11px] text-center text-muted">Hanya Pemilik/Admin yang dapat menyewa paket.</p>
+                      <p className="text-[11px] text-center text-muted">{t("Hanya Pemilik/Admin yang dapat menyewa paket.")}</p>
                     )}
                   </div>
                 </article>
@@ -411,17 +408,17 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
       </section>
 
       {/* Riwayat Tagihan / Invoice */}
-      <section className="space-y-3" aria-label="Riwayat tagihan">
+      <section className="space-y-3" aria-label={t("Riwayat tagihan")}>
         <div>
-          <h3 className="text-base font-bold text-fg">Riwayat Tagihan & Pembayaran</h3>
-          <p className="text-xs text-muted">Daftar invoice langganan workspace ini. Status lunas diperbarui otomatis dari Midtrans.</p>
+          <h3 className="text-base font-bold text-fg">{t("Riwayat Tagihan & Pembayaran")}</h3>
+          <p className="text-xs text-muted">{t("Daftar invoice langganan workspace ini. Status lunas diperbarui otomatis dari Midtrans.")}</p>
         </div>
 
         {invoices.length === 0 ? (
           <div className="card p-6 text-center">
             <Receipt className="w-6 h-6 text-muted mx-auto" />
-            <p className="mt-2 text-sm font-semibold text-fg">Belum ada riwayat tagihan</p>
-            <p className="mt-0.5 text-xs text-muted">Tagihan akan muncul di sini setelah Anda memilih paket langganan di atas.</p>
+            <p className="mt-2 text-sm font-semibold text-fg">{t("Belum ada riwayat tagihan")}</p>
+            <p className="mt-0.5 text-xs text-muted">{t("Tagihan akan muncul di sini setelah Anda memilih paket langganan di atas.")}</p>
           </div>
         ) : (
           <ul className="card divide-y divide-line">
@@ -432,18 +429,18 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
                   <div className="space-y-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-bold text-fg font-mono">{inv.id}</span>
-                      <Pill tone={STATUS_TONE[inv.status]}>{INVOICE_STATUS_LABEL[inv.status]}</Pill>
+                      <Pill tone={STATUS_TONE[inv.status]}>{t(INVOICE_STATUS_LABEL[inv.status])}</Pill>
                       {method && <Pill tone="neutral">{method}</Pill>}
                     </div>
                     <p className="text-xs text-fg font-medium">
-                      Paket <span className="font-bold">{inv.planNama}</span> · {inv.months} bulan ·{" "}
+                      {t("Paket")} <span className="font-bold">{inv.planNama}</span> · {t("{n} bulan", { n: inv.months })} ·{" "}
                       <span className="font-bold text-accent">{formatRupiah(inv.amount)}</span>
                     </p>
                     <p className="text-[11px] text-muted">
-                      Dibuat {formatDateWib(inv.createdAt)}
-                      {inv.status === "PENDING" ? ` · Bayar sebelum ${formatDateWib(inv.expiresAt)}` : ""}
-                      {inv.paidAt ? ` · Lunas ${formatDateWib(inv.paidAt)}` : ""}
-                      {inv.planActiveUntil ? ` · Berlaku s/d ${formatDateWib(inv.planActiveUntil)}` : ""}
+                      {t("Dibuat {date}", { date: formatDateWib(inv.createdAt) })}
+                      {inv.status === "PENDING" ? ` · ${t("Bayar sebelum {date}", { date: formatDateWib(inv.expiresAt) })}` : ""}
+                      {inv.paidAt ? ` · ${t("Lunas {date}", { date: formatDateWib(inv.paidAt) })}` : ""}
+                      {inv.planActiveUntil ? ` · ${t("Berlaku s/d {date}", { date: formatDateWib(inv.planActiveUntil) })}` : ""}
                     </p>
                   </div>
 
@@ -460,7 +457,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
                           className={BTN_PRIMARY}
                         >
                           <CreditCard className="w-3.5 h-3.5" />
-                          Bayar
+                          {t("Bayar")}
                         </button>
                       )}
                       <button
@@ -474,7 +471,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
                         ) : (
                           <RefreshCw className="w-3.5 h-3.5" />
                         )}
-                        Cek status
+                        {t("Cek status")}
                       </button>
                       <button
                         type="button"
@@ -483,7 +480,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
                         className={cn(BTN_OUTLINE, "hover:border-danger hover:text-danger")}
                       >
                         {busy === `cancel:${inv.id}` && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                        Batalkan
+                        {t("Batalkan")}
                       </button>
                     </div>
                   )}
@@ -505,8 +502,8 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
             billing.reload();
           }}
           busy={busy === "pay"}
-          title={payTarget.status === "PAID" ? "Pembayaran Diterima" : `Bayar Paket ${payTarget.planNama}`}
-          description={payTarget.status === "PAID" ? undefined : `${payTarget.months} bulan · ${payTarget.id}`}
+          title={payTarget.status === "PAID" ? t("Pembayaran Diterima") : t("Bayar Paket {name}", { name: payTarget.planNama })}
+          description={payTarget.status === "PAID" ? undefined : `${t("{n} bulan", { n: payTarget.months })} · ${payTarget.id}`}
           footer={
             <ModalButton
               onClick={() => {
@@ -516,7 +513,7 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
               }}
               disabled={busy === "pay"}
             >
-              {payTarget.status === "PAID" ? "Selesai" : "Tutup, bayar nanti"}
+              {payTarget.status === "PAID" ? t("Selesai") : t("Tutup, bayar nanti")}
             </ModalButton>
           }
         >
@@ -541,12 +538,12 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
           open
           onClose={() => !busy && setCheckoutPlan(null)}
           busy={!!busy}
-          title={`Sewa Paket ${checkoutPlan.nama}`}
-          description="Periksa ringkasan tagihan sebelum membayar"
+          title={t("Sewa Paket {name}", { name: checkoutPlan.nama })}
+          description={t("Periksa ringkasan tagihan sebelum membayar")}
           footer={
             <>
               <ModalButton onClick={() => setCheckoutPlan(null)} disabled={!!busy}>
-                Batal
+                {t("Batal")}
               </ModalButton>
               <ModalButton
                 variant="primary"
@@ -555,10 +552,10 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
               >
                 {busy === "checkout" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                 {busy === "checkout"
-                  ? "Menyiapkan pembayaran..."
+                  ? t("Menyiapkan pembayaran...")
                   : checkoutPlan.hargaBulanan === 0
-                    ? "Aktifkan Paket Gratis"
-                    : `Bayar ${formatRupiah(calculateCyclePrice(checkoutPlan.hargaBulanan, cycle).total)}`}
+                    ? t("Aktifkan Paket Gratis")
+                    : t("Bayar {amount}", { amount: formatRupiah(calculateCyclePrice(checkoutPlan.hargaBulanan, cycle).total) })}
               </ModalButton>
             </>
           }
@@ -569,23 +566,23 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
               <div className="space-y-5">
                 <div className="rounded-xl bg-subtle p-4 space-y-2 border border-line">
                   <div className="flex items-center justify-between gap-3 text-xs text-muted">
-                    <span>Paket & Kuota</span>
+                    <span>{t("Paket & Kuota")}</span>
                     <span className="font-semibold text-fg text-right">
-                      {checkoutPlan.nama} ({checkoutPlan.maxAkun} akun · {checkoutPlan.maxPostingPerHari} post/hari)
+                      {checkoutPlan.nama} ({t("{n} akun", { n: checkoutPlan.maxAkun })} · {t("{n} post/hari", { n: checkoutPlan.maxPostingPerHari })})
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted">
-                    <span>Durasi Langganan</span>
-                    <span className="font-semibold text-fg">{cycle} Bulan</span>
+                    <span>{t("Durasi Langganan")}</span>
+                    <span className="font-semibold text-fg">{t("{n} Bulan", { n: cycle })}</span>
                   </div>
                   {p.discountAmount > 0 && (
                     <div className="flex items-center justify-between text-xs text-success">
-                      <span>Potongan Diskon Siklus</span>
+                      <span>{t("Potongan Diskon Siklus")}</span>
                       <span className="font-semibold">-{formatRupiah(p.discountAmount)}</span>
                     </div>
                   )}
                   <div className="pt-2 border-t border-line flex items-center justify-between">
-                    <span className="text-sm font-bold text-fg">Total Tagihan</span>
+                    <span className="text-sm font-bold text-fg">{t("Total Tagihan")}</span>
                     <span className="text-lg font-extrabold text-accent tabular-nums">{formatRupiah(p.total)}</span>
                   </div>
                 </div>
@@ -594,19 +591,19 @@ export function SubscriptionTab({ canManage }: { canManage: boolean }) {
                   (paymentReady ? (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-bold text-fg">Metode pembayaran</p>
+                        <p className="text-sm font-bold text-fg">{t("Metode pembayaran")}</p>
                         {testMode && <Pill tone="warning">Sandbox</Pill>}
                       </div>
                       <MethodPicker methods={methods} value={method} onChange={setMethod} disabled={!!busy} />
                       <p className="text-[11px] text-muted inline-flex items-start gap-1.5">
                         <ShieldCheck className="w-3.5 h-3.5 text-accent shrink-0 mt-px" />
-                        Diproses aman oleh Midtrans. Kode bayar tampil di halaman ini; paket aktif otomatis begitu pembayaran diterima.
+                        {t("Diproses aman oleh Midtrans. Kode bayar tampil di halaman ini; paket aktif otomatis begitu pembayaran diterima.")}
                       </p>
                     </div>
                   ) : (
                     <div className="rounded-xl border border-warning p-3.5 flex items-start gap-3 text-xs text-fg">
                       <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
-                      Pembayaran online belum diaktifkan oleh pengelola platform.
+                      {t("Pembayaran online belum diaktifkan oleh pengelola platform.")}
                     </div>
                   ))}
 

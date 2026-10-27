@@ -60,14 +60,33 @@ import { ContentApiError } from "@/lib/content-client";
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { AccountAvatar } from "@/components/content/post-status-chip";
 import { ConfirmModal } from "./confirm-modal";
-import { Banner, Checkbox, HandleText, ListSkeleton, Switch, accountHandle, timeOf } from "./shared";
+import { useT } from "@/components/i18n/lang-provider";
+import { currentLocale, tr } from "@/lib/i18n/core";
+import { Banner, Checkbox, HandleText, ListSkeleton, Switch, accountHandle, apiErrorText, timeOf } from "./shared";
 
 const FIELD =
   "w-full h-10 px-3 rounded-xl border border-line-strong bg-surface text-sm text-fg placeholder-faint outline-none focus:border-accent focus:ring-4 focus:ring-accent/15 transition-colors";
 const LABEL = "text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block";
 const SAMPLE_LINK = "https://s.shopee.co.id/contoh";
 
-const errText = (err: unknown, fallback: string): string => (err instanceof ContentApiError ? err.message : fallback);
+const errText = (err: unknown, fallback: string): string => apiErrorText(err instanceof ContentApiError ? err.message : fallback);
+
+/** Pola kalimat status affiliate dari server (src/lib/affiliate-pick.ts); kalimat tetap lewat kamus. */
+const STATUS_PATTERNS: [RegExp, string][] = [
+  [/^Jatah 0 per hari dari (\d+) postingan\. Pilih frekuensi yang lebih tinggi\.$/, "Jatah 0 per hari dari {a} postingan. Pilih frekuensi yang lebih tinggi."],
+  [/^Belum ada produk aktif untuk niche (.+)\.$/, "Belum ada produk aktif untuk niche {a}."],
+  [/^Semua (\d+) produk baru saja dipakai\. Tersedia lagi (.+), atau tambah produk\.$/, "Semua {a} produk baru saja dipakai. Tersedia lagi {b}, atau tambah produk."],
+  [/^Jalan: (\d+) postingan affiliate per hari, (\d+) produk siap dipakai\.$/, "Jalan: {a} postingan affiliate per hari, {b} produk siap dipakai."],
+];
+/** "12 Okt" -> nama bulan sesuai bahasa. */
+const dayMonthText = (s: string): string => s.replace(/^(\d+) (\S+)$/, (_, d: string, m: string) => `${d} ${tr(m)}`);
+function statusText(teks: string): string {
+  for (const [re, key] of STATUS_PATTERNS) {
+    const m = re.exec(teks);
+    if (m) return tr(key, { a: m[1], b: m[2] === undefined ? undefined : dayMonthText(m[2]) });
+  }
+  return tr(teks);
+}
 const pct = (n: number): number => Math.round(n * 100);
 
 const REPLY_LABEL: Record<AffiliateReplyStatus, { label: string; cls: string }> = {
@@ -80,22 +99,23 @@ const REPLY_LABEL: Record<AffiliateReplyStatus, { label: string; cls: string }> 
 /* ------------------------------------------------------------------ kontrol kecil */
 
 function Stepper({ value, min, max, onChange, label, unit }: { value: number; min: number; max: number; onChange: (n: number) => void; label: string; unit: string }) {
+  const t = useT();
   const btn =
     "w-10 h-10 rounded-lg inline-flex items-center justify-center text-fg hover:bg-subtle cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed";
   return (
     <div className="flex items-center gap-3">
       <div className="inline-flex items-center gap-1 rounded-xl border border-line-strong p-1">
-        <button type="button" aria-label={`Kurangi ${label}`} disabled={value <= min} onClick={() => onChange(value - 1)} className={btn}>
+        <button type="button" aria-label={t("Kurangi {label}", { label: t(label) })} disabled={value <= min} onClick={() => onChange(value - 1)} className={btn}>
           <Minus className="w-4 h-4" />
         </button>
         <span aria-live="polite" className="w-10 text-center text-base font-bold text-fg tabular-nums">
           {value}
         </span>
-        <button type="button" aria-label={`Tambah ${label}`} disabled={value >= max} onClick={() => onChange(value + 1)} className={btn}>
+        <button type="button" aria-label={t("Tambah {label}", { label: t(label) })} disabled={value >= max} onClick={() => onChange(value + 1)} className={btn}>
           <Plus className="w-4 h-4" />
         </button>
       </div>
-      <span className="text-sm text-muted">{unit}</span>
+      <span className="text-sm text-muted">{t(unit)}</span>
     </div>
   );
 }
@@ -122,9 +142,10 @@ function NicheInput({
   /** "produk" atau "akun". */
   unit: string;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState("");
   const add = (raw: string) => {
-    const tags = raw.split(",").map(normalizeNiche).filter((t) => t.length >= 2);
+    const tags = raw.split(",").map(normalizeNiche).filter((tag) => tag.length >= 2);
     if (tags.length) onChange([...new Set([...value, ...tags])].slice(0, AFF_NICHE_MAX));
     setDraft("");
   };
@@ -149,7 +170,7 @@ function NicheInput({
             <span className="text-[11px] font-medium opacity-80 tabular-nums">{counts.get(n) ?? 0}</span>
             <button
               type="button"
-              aria-label={`Hapus niche ${n}`}
+              aria-label={t("Hapus niche {n}", { n })}
               onClick={() => onChange(value.filter((v) => v !== n))}
               className="w-6 h-6 rounded-full inline-flex items-center justify-center hover:bg-accent/15 cursor-pointer"
             >
@@ -169,14 +190,14 @@ function NicheInput({
               }
             }}
             onBlur={() => draft && add(draft)}
-            placeholder={value.length ? "Tambah niche…" : "mis. dapur, skincare, otomotif"}
+            placeholder={value.length ? t("Tambah niche…") : t("mis. dapur, skincare, otomotif")}
             className="h-8 min-w-40 flex-1 px-2 bg-transparent text-sm text-fg placeholder-faint outline-none"
           />
         )}
       </div>
       {rest.length > 0 && value.length < AFF_NICHE_MAX && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted">Usulan:</span>
+          <span className="text-xs text-muted">{t("Usulan:")}</span>
           {rest.map((s) => (
             <button
               key={s}
@@ -193,7 +214,9 @@ function NicheInput({
       {orphan.length > 0 && (
         <p className="mt-2 text-xs font-medium text-warning flex items-start gap-1">
           <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
-          Belum ada {unit} dengan niche {orphan.join(", ")}. Pastikan ejaannya sama persis, atau pilih dari usulan.
+          {unit === "produk"
+            ? t("Belum ada produk dengan niche {list}. Pastikan ejaannya sama persis, atau pilih dari usulan.", { list: orphan.join(", ") })
+            : t("Belum ada akun dengan niche {list}. Pastikan ejaannya sama persis, atau pilih dari usulan.", { list: orphan.join(", ") })}
         </p>
       )}
     </div>
@@ -222,6 +245,7 @@ function AccountModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const first = accounts[0];
   const [form, setForm] = useState<AffiliateSettings>(() => {
     const { updatedAt, ...s } = first?.config ?? { ...DEFAULT_AFFILIATE, updatedAt: null };
@@ -263,20 +287,20 @@ function AccountModal({
       onClose={onClose}
       busy={busy}
       size="lg"
-      title={accounts.length === 1 ? `Affiliate ${accountHandle(first)}` : `Affiliate untuk ${accounts.length} akun`}
+      title={accounts.length === 1 ? t("Affiliate {handle}", { handle: accountHandle(first) }) : t("Affiliate untuk {n} akun", { n: accounts.length })}
       description={
         accounts.length === 1
-          ? "Pilih niche dan seberapa sering. Sisanya otomatis."
-          : "Pengaturan ini diterapkan sama ke semua akun terpilih."
+          ? t("Pilih niche dan seberapa sering. Sisanya otomatis.")
+          : t("Pengaturan ini diterapkan sama ke semua akun terpilih.")
       }
       footer={
         <>
           <ModalButton onClick={onClose} disabled={busy}>
-            Batal
+            {t("Batal")}
           </ModalButton>
           <ModalButton variant="primary" onClick={save} disabled={busy || !templateOk || (form.aktif && form.niche.length === 0)}>
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Simpan
+            {t("Simpan")}
           </ModalButton>
         </>
       }
@@ -286,15 +310,15 @@ function AccountModal({
 
         <div className="flex items-center justify-between gap-4 rounded-xl bg-subtle p-3.5">
           <div>
-            <p className="text-sm font-semibold text-fg">Postingan affiliate</p>
-            <p className="text-xs text-muted">Matikan kapan saja; slot berikutnya kembali jadi postingan biasa.</p>
+            <p className="text-sm font-semibold text-fg">{t("Postingan affiliate")}</p>
+            <p className="text-xs text-muted">{t("Matikan kapan saja; slot berikutnya kembali jadi postingan biasa.")}</p>
           </div>
-          <Switch on={form.aktif} onChange={(aktif) => update({ aktif })} label="Nyalakan postingan affiliate" />
+          <Switch on={form.aktif} onChange={(aktif) => update({ aktif })} label={t("Nyalakan postingan affiliate")} />
         </div>
 
         <div>
           <label className={LABEL} htmlFor="aff-niche">
-            Niche akun
+            {t("Niche akun")}
           </label>
           <NicheInput
             id="aff-niche"
@@ -305,14 +329,14 @@ function AccountModal({
             unit="produk"
           />
           <p className="mt-1.5 text-xs text-muted">
-            Angka di tiap niche = jumlah produk aktif di katalog.{" "}
-            <span className={cn("font-semibold", matching ? "text-fg" : "text-warning")}>{matching} produk cocok untuk akun ini.</span>
+            {t("Angka di tiap niche = jumlah produk aktif di katalog.")}{" "}
+            <span className={cn("font-semibold", matching ? "text-fg" : "text-warning")}>{t("{n} produk cocok untuk akun ini.", { n: matching })}</span>
           </p>
         </div>
 
         <div>
-          <p className={LABEL}>Seberapa sering</p>
-          <div role="radiogroup" aria-label="Frekuensi affiliate" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <p className={LABEL}>{t("Seberapa sering")}</p>
+          <div role="radiogroup" aria-label={t("Frekuensi affiliate")} className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {FREQUENCY_PRESETS.map((p) => {
               const on = !custom && preset === p.key;
               const n = effectivePerDay({ ...p.values, aktif: true }, posts);
@@ -331,9 +355,9 @@ function AccountModal({
                     on ? "border-accent bg-accent-soft" : "border-line-strong hover:border-accent"
                   )}
                 >
-                  <span className={cn("block text-sm font-bold", on ? "text-accent" : "text-fg")}>{p.label}</span>
-                  {accounts.length === 1 && <span className="block text-xs font-semibold text-fg tabular-nums">{n}/hari</span>}
-                  <span className="mt-0.5 block text-[11px] leading-snug text-muted">{p.hint}</span>
+                  <span className={cn("block text-sm font-bold", on ? "text-accent" : "text-fg")}>{t(p.label)}</span>
+                  {accounts.length === 1 && <span className="block text-xs font-semibold text-fg tabular-nums">{t("{n}/hari", { n })}</span>}
+                  <span className="mt-0.5 block text-[11px] leading-snug text-muted">{t(p.hint)}</span>
                 </button>
               );
             })}
@@ -347,8 +371,8 @@ function AccountModal({
                 custom ? "border-accent bg-accent-soft" : "border-line-strong hover:border-accent"
               )}
             >
-              <span className={cn("block text-sm font-bold", custom ? "text-accent" : "text-fg")}>Atur sendiri</span>
-              <span className="mt-0.5 block text-[11px] leading-snug text-muted">Batas harian, porsi, jarak, dan jeda produk.</span>
+              <span className={cn("block text-sm font-bold", custom ? "text-accent" : "text-fg")}>{t("Atur sendiri")}</span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-muted">{t("Batas harian, porsi, jarak, dan jeda produk.")}</span>
             </button>
           </div>
         </div>
@@ -356,12 +380,12 @@ function AccountModal({
         {custom && (
         <div className="grid gap-5 sm:grid-cols-2 rounded-xl border border-line p-4">
           <div>
-            <p className={LABEL}>Maks per hari</p>
+            <p className={LABEL}>{t("Maks per hari")}</p>
             <Stepper value={form.perHari} min={0} max={AFF_PER_DAY_MAX} onChange={(perHari) => update({ perHari })} label="maks per hari" unit="postingan" />
           </div>
           <div>
             <label className={LABEL} htmlFor="aff-porsi">
-              Porsi maksimal
+              {t("Porsi maksimal")}
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -374,16 +398,16 @@ function AccountModal({
                 onChange={(e) => update({ porsi: Math.min(100, Math.max(0, Number(e.target.value) || 0)) / 100 })}
                 className={cn(FIELD, "w-24 tabular-nums")}
               />
-              <span className="text-sm text-muted">% dari postingan harian</span>
+              <span className="text-sm text-muted">{t("% dari postingan harian")}</span>
             </div>
           </div>
           <div>
-            <p className={LABEL}>Jarak antar affiliate</p>
+            <p className={LABEL}>{t("Jarak antar affiliate")}</p>
             <Stepper value={form.jarakJam} min={0} max={AFF_GAP_HOURS_MAX} onChange={(jarakJam) => update({ jarakJam })} label="jarak jam" unit="jam" />
           </div>
           <div>
             <label className={LABEL} htmlFor="aff-jeda">
-              Produk sama boleh diulang setelah
+              {t("Produk sama boleh diulang setelah")}
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -395,31 +419,32 @@ function AccountModal({
                 onChange={(e) => update({ jedaHari: Math.min(AFF_REPEAT_DAYS_MAX, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
                 className={cn(FIELD, "w-24 tabular-nums")}
               />
-              <span className="text-sm text-muted">hari</span>
+              <span className="text-sm text-muted">{t("hari")}</span>
             </div>
           </div>
-          <p className="sm:col-span-2 text-xs text-muted">Yang berlaku adalah yang paling ketat antara maks per hari dan porsi.</p>
+          <p className="sm:col-span-2 text-xs text-muted">{t("Yang berlaku adalah yang paling ketat antara maks per hari dan porsi.")}</p>
         </div>
         )}
 
         <Banner tone={(accounts.length === 1 && spammy) || eff === 0 ? "warning" : "info"}>
           {accounts.length === 1 ? (
             <>
-              Akun ini terbit {posts} postingan per hari, jadi yang berlaku <b>{eff} postingan affiliate per hari</b>.
+              {t("Akun ini terbit {n} postingan per hari, jadi yang berlaku", { n: posts })}{" "}
+              <b>{t("{n} postingan affiliate per hari", { n: eff })}</b>.
             </>
           ) : (
-            <>Jatah efektif dihitung per akun dari jumlah postingan hariannya.</>
+            <>{t("Jatah efektif dihitung per akun dari jumlah postingan hariannya.")}</>
           )}
-          {eff === 0 && " Naikkan maks per hari atau porsi supaya affiliate bisa jalan."}
+          {eff === 0 && ` ${t("Naikkan maks per hari atau porsi supaya affiliate bisa jalan.")}`}
           {accounts.length === 1 &&
             spammy &&
             eff > 0 &&
-            " Lebih dari sepertiga postingan berisi produk berisiko membuat akun terlihat seperti akun jualan dan menurunkan jangkauan."}
+            ` ${t("Lebih dari sepertiga postingan berisi produk berisiko membuat akun terlihat seperti akun jualan dan menurunkan jangkauan.")}`}
         </Banner>
 
         <div>
           <label className={LABEL} htmlFor="aff-template">
-            Teks balasan pertama (berisi link)
+            {t("Teks balasan pertama (berisi link)")}
           </label>
           <textarea
             id="aff-template"
@@ -431,12 +456,12 @@ function AccountModal({
           />
           {templateOk ? (
             <p className="mt-1.5 text-xs text-muted">
-              Contoh terkirim: <span className="whitespace-pre-line text-fg">{replyFromTemplate(form.templateBalasan, SAMPLE_LINK)}</span>
+              {t("Contoh terkirim:")} <span className="whitespace-pre-line text-fg">{replyFromTemplate(form.templateBalasan, SAMPLE_LINK)}</span>
             </p>
           ) : (
-            <p className="mt-1.5 text-xs font-semibold text-danger">Wajib memuat {LINK_TOKEN} sebagai tempat link.</p>
+            <p className="mt-1.5 text-xs font-semibold text-danger">{t("Wajib memuat {token} sebagai tempat link.", { token: LINK_TOKEN })}</p>
           )}
-          <p className="mt-1 text-xs text-muted">Dikirim otomatis 1-3 menit setelah postingan terbit. Sertakan keterangan &ldquo;link affiliate&rdquo; supaya jujur ke pembaca.</p>
+          <p className="mt-1 text-xs text-muted">{t("Dikirim otomatis 1-3 menit setelah postingan terbit. Sertakan keterangan “link affiliate” supaya jujur ke pembaca.")}</p>
         </div>
       </div>
     </ModalShell>
@@ -459,6 +484,7 @@ function ProductModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState<ProductInput>(() =>
     product
       ? { id: product.id, nama: product.nama, link: product.link, niche: [...product.niche], catatan: product.catatan, aktif: product.aktif }
@@ -488,16 +514,16 @@ function ProductModal({
       open
       onClose={onClose}
       busy={busy}
-      title={product ? "Ubah produk" : "Tambah produk"}
-      description="Salin link dari dashboard Shopee Affiliate (Custom Link / Produk), lalu tempel di sini."
+      title={product ? t("Ubah produk") : t("Tambah produk")}
+      description={t("Salin link dari dashboard Shopee Affiliate (Custom Link / Produk), lalu tempel di sini.")}
       footer={
         <>
           <ModalButton onClick={onClose} disabled={busy}>
-            Batal
+            {t("Batal")}
           </ModalButton>
           <ModalButton variant="primary" onClick={save} disabled={busy || !valid}>
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Simpan
+            {t("Simpan")}
           </ModalButton>
         </>
       }
@@ -506,21 +532,21 @@ function ProductModal({
         {error && <Banner tone="danger">{error}</Banner>}
         <div>
           <label className={LABEL} htmlFor="aff-nama">
-            Nama singkat produk
+            {t("Nama singkat produk")}
           </label>
           <input
             id="aff-nama"
             value={form.nama}
             maxLength={AFF_NAME_MAX}
             onChange={(e) => update({ nama: e.target.value })}
-            placeholder="mis. Wajan anti lengket 24 cm"
+            placeholder={t("mis. Wajan anti lengket 24 cm")}
             className={FIELD}
           />
-          <p className="mt-1 text-xs text-muted">Nama yang wajar disebut orang, bukan judul panjang dari Shopee.</p>
+          <p className="mt-1 text-xs text-muted">{t("Nama yang wajar disebut orang, bukan judul panjang dari Shopee.")}</p>
         </div>
         <div>
           <label className={LABEL} htmlFor="aff-link">
-            Link affiliate
+            {t("Link affiliate")}
           </label>
           <input
             id="aff-link"
@@ -531,11 +557,11 @@ function ProductModal({
             inputMode="url"
             className={cn(FIELD, form.link && !linkOk && "border-danger")}
           />
-          {form.link && !linkOk && <p className="mt-1 text-xs font-semibold text-danger">Harus link Shopee Indonesia yang diawali https://.</p>}
+          {form.link && !linkOk && <p className="mt-1 text-xs font-semibold text-danger">{t("Harus link Shopee Indonesia yang diawali https://.")}</p>}
         </div>
         <div>
           <label className={LABEL} htmlFor="aff-pniche">
-            Niche
+            {t("Niche")}
           </label>
           <NicheInput
             id="aff-pniche"
@@ -545,11 +571,11 @@ function ProductModal({
             counts={accountCounts}
             unit="akun"
           />
-          <p className="mt-1.5 text-xs text-muted">Angka di tiap niche = jumlah akun yang memakainya. Produk hanya dipakai akun dengan niche yang sama.</p>
+          <p className="mt-1.5 text-xs text-muted">{t("Angka di tiap niche = jumlah akun yang memakainya. Produk hanya dipakai akun dengan niche yang sama.")}</p>
         </div>
         <div>
           <label className={LABEL} htmlFor="aff-catatan">
-            Catatan produk (fakta untuk AI)
+            {t("Catatan produk (fakta untuk AI)")}
           </label>
           <textarea
             id="aff-catatan"
@@ -557,16 +583,16 @@ function ProductModal({
             maxLength={AFF_NOTE_MAX}
             value={form.catatan}
             onChange={(e) => update({ catatan: e.target.value })}
-            placeholder="mis. Lapisan granit, aman untuk kompor induksi, gagangnya tidak panas. Dipakai sendiri 2 bulan."
+            placeholder={t("mis. Lapisan granit, aman untuk kompor induksi, gagangnya tidak panas. Dipakai sendiri 2 bulan.")}
             className={cn(FIELD, "h-auto py-2.5 resize-y")}
           />
           <p className="mt-1 text-xs text-muted">
-            AI hanya boleh menyebut detail yang tertulis di sini. Jangan tulis harga atau diskon yang bisa berubah.
+            {t("AI hanya boleh menyebut detail yang tertulis di sini. Jangan tulis harga atau diskon yang bisa berubah.")}
           </p>
         </div>
         <div className="flex items-center justify-between gap-4 rounded-xl bg-subtle p-3.5">
-          <p className="text-sm font-semibold text-fg">Produk aktif</p>
-          <Switch on={form.aktif} onChange={(aktif) => update({ aktif })} label="Produk aktif" />
+          <p className="text-sm font-semibold text-fg">{t("Produk aktif")}</p>
+          <Switch on={form.aktif} onChange={(aktif) => update({ aktif })} label={t("Produk aktif")} />
         </div>
       </div>
     </ModalShell>
@@ -577,6 +603,7 @@ function ProductModal({
 
 /** Judul langkah bernomor; centang hijau bila langkah itu sudah beres. */
 function StepHead({ n, title, hint, done, children }: { n: number; title: string; hint: string; done: boolean; children?: React.ReactNode }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-3 px-4 py-3 border-b border-line bg-subtle rounded-t-2xl">
       <span
@@ -590,10 +617,10 @@ function StepHead({ n, title, hint, done, children }: { n: number; title: string
       </span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-fg">
-          <span className="sr-only">Langkah {n}{done ? " (selesai)" : ""}: </span>
-          {title}
+          <span className="sr-only">{done ? t("Langkah {n} (selesai):", { n }) : t("Langkah {n}:", { n })} </span>
+          {t(title)}
         </p>
-        <p className="text-xs text-muted">{hint}</p>
+        <p className="text-xs text-muted">{t(hint)}</p>
       </div>
       {children}
     </div>
@@ -604,9 +631,10 @@ function StepHead({ n, title, hint, done, children }: { n: number; title: string
 const RETRY_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "success" | "danger" }) {
+  const t = useT();
   return (
     <div className="card p-2.5 sm:p-4 min-w-0 flex flex-col">
-      <p className="text-[11px] sm:text-xs font-semibold text-muted leading-tight line-clamp-2">{label}</p>
+      <p className="text-[11px] sm:text-xs font-semibold text-muted leading-tight line-clamp-2">{t(label)}</p>
       <p className={cn("mt-auto pt-1 text-lg sm:text-2xl font-bold tabular-nums leading-tight", tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "text-fg")}>{value}</p>
     </div>
   );
@@ -617,9 +645,10 @@ function Avatar({ a }: { a: AffiliateAccountDTO }) {
 }
 
 const dateTimeOf = (iso: string): string =>
-  `${new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" })} ${timeOf(iso)}`;
+  `${new Date(iso).toLocaleDateString(currentLocale(), { day: "numeric", month: "short", timeZone: "Asia/Jakarta" })} ${timeOf(iso)}`;
 
 export function AffiliateTab({ active }: { active: boolean }) {
+  const t = useT();
   const [data, setData] = useState<AffiliateOverviewResponse | null>(null);
   /** Waktu data dimuat: acuan batas kirim ulang (render tetap murni). */
   const [loadedAt, setLoadedAt] = useState(0);
@@ -679,7 +708,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
       <Banner tone="danger">
         {loadError}{" "}
         <button type="button" onClick={() => void load()} className="underline font-semibold cursor-pointer">
-          Coba lagi
+          {t("Coba lagi")}
         </button>
       </Banner>
     ) : (
@@ -693,12 +722,13 @@ export function AffiliateTab({ active }: { active: boolean }) {
         <div className="mx-auto w-12 h-12 rounded-xl bg-accent-soft text-accent flex items-center justify-center">
           <Database className="w-6 h-6" />
         </div>
-        <h3 className="mt-4 text-base font-bold text-fg">Fitur affiliate belum aktif</h3>
+        <h3 className="mt-4 text-base font-bold text-fg">{t("Fitur affiliate belum aktif")}</h3>
         <p className="mt-1 text-sm text-muted max-w-md mx-auto">
-          Minta admin mengaktifkan fitur Shopee Affiliate untuk workspace ini, lalu muat ulang halaman.
+          {t("Minta admin mengaktifkan fitur Shopee Affiliate untuk workspace ini, lalu muat ulang halaman.")}
         </p>
         <p className="mt-2 text-xs text-faint">
-          Untuk admin: jalankan <code className="font-mono">sql/019_affiliate.sql</code> dan <code className="font-mono">sql/032_affiliate_retry.sql</code>.
+          {t("Untuk admin: jalankan")} <code className="font-mono">sql/019_affiliate.sql</code> {t("dan")}{" "}
+          <code className="font-mono">sql/032_affiliate_retry.sql</code>.
         </p>
       </div>
     );
@@ -728,7 +758,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
         setEditProduct("new");
         break;
       case "LANJUTKAN":
-        void run("jeda", () => setAffiliatePaused(true), "Affiliate berjalan lagi.");
+        void run("jeda", () => setAffiliatePaused(true), tr("Affiliate berjalan lagi."));
         break;
       case "AUTOPILOT":
         router.push("/autopilot?tab=akun");
@@ -746,14 +776,14 @@ export function AffiliateTab({ active }: { active: boolean }) {
   };
 
   const retry = (r: AffiliateRecentDTO) =>
-    void run(`ulang:${r.id}`, () => retryAffiliateReply(r.id), "Link dijadwalkan kirim ulang dalam beberapa menit.");
+    void run(`ulang:${r.id}`, () => retryAffiliateReply(r.id), tr("Link dijadwalkan kirim ulang dalam beberapa menit."));
 
   const quickToggle = (a: AffiliateAccountDTO, on: boolean) => {
     if (on && a.config.niche.length === 0) {
       setEditAccounts([a]);
       return;
     }
-    void run(`akun:${a.id}`, () => saveAffiliateAccounts([a.id], { aktif: on }), on ? `Affiliate ${accountHandle(a)} dinyalakan.` : `Affiliate ${accountHandle(a)} dimatikan.`);
+    void run(`akun:${a.id}`, () => saveAffiliateAccounts([a.id], { aktif: on }), on ? tr("Affiliate {handle} dinyalakan.", { handle: accountHandle(a) }) : tr("Affiliate {handle} dimatikan.", { handle: accountHandle(a) }));
   };
 
   return (
@@ -767,17 +797,18 @@ export function AffiliateTab({ active }: { active: boolean }) {
       {/* Ringkasan + saklar workspace */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-fg">Shopee Affiliate</h3>
+          <h3 className="text-base font-bold text-fg">{t("Shopee Affiliate")}</h3>
           <p className="text-sm text-muted">
-            Tiga langkah: isi produk, pilih akun, lalu pantau. AI menyelipkan produk secara natural, dan link dikirim otomatis di
-            balasan pertama 1-3 menit setelah postingan terbit.
+            {t(
+              "Tiga langkah: isi produk, pilih akun, lalu pantau. AI menyelipkan produk secara natural, dan link dikirim otomatis di balasan pertama 1-3 menit setelah postingan terbit."
+            )}
           </p>
         </div>
         <button
           type="button"
           disabled={busyKey === "jeda"}
           onClick={() =>
-            void run("jeda", () => setAffiliatePaused(!data.aktif), data.aktif ? "Semua affiliate dijeda." : "Affiliate berjalan lagi.")
+            void run("jeda", () => setAffiliatePaused(!data.aktif), data.aktif ? tr("Semua affiliate dijeda.") : tr("Affiliate berjalan lagi."))
           }
           className={cn(
             "h-10 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 shrink-0 cursor-pointer transition-colors disabled:opacity-50",
@@ -785,21 +816,24 @@ export function AffiliateTab({ active }: { active: boolean }) {
           )}
         >
           {busyKey === "jeda" ? <Loader2 className="w-4 h-4 animate-spin" /> : data.aktif ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          {data.aktif ? "Jeda semua affiliate" : "Lanjutkan affiliate"}
+          {data.aktif ? t("Jeda semua affiliate") : t("Lanjutkan affiliate")}
         </button>
       </div>
 
-      {!data.aktif && <Banner tone="warning">Affiliate sedang dijeda untuk seluruh workspace. Slot baru ditulis sebagai postingan biasa.</Banner>}
+      {!data.aktif && <Banner tone="warning">{t("Affiliate sedang dijeda untuk seluruh workspace. Slot baru ditulis sebagai postingan biasa.")}</Banner>}
 
       {/* Katalog */}
-      <section aria-label="Katalog produk affiliate" className="card">
+      <section aria-label={t("Katalog produk affiliate")} className="card">
         <StepHead
           n={1}
           done={productStepDone}
           title="Isi katalog produk"
           hint={
             productStepDone
-              ? `${activeProducts.length} produk aktif dari ${data.products.length}. Tiap produk dipakai akun dengan niche yang sama.`
+              ? t("{active} produk aktif dari {total}. Tiap produk dipakai akun dengan niche yang sama.", {
+                  active: activeProducts.length,
+                  total: data.products.length,
+                })
               : "Tempel link dari Shopee Affiliate dan beri niche. Mulai dari sini."
           }
         >
@@ -809,7 +843,8 @@ export function AffiliateTab({ active }: { active: boolean }) {
             className="h-9 px-4 rounded-full bg-accent text-on-accent text-sm font-semibold inline-flex items-center gap-1.5 hover:bg-accent-hover cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            Tambah<span className="max-sm:sr-only"> produk</span>
+            {t("Tambah")}
+            <span className="max-sm:sr-only"> {t("produk")}</span>
           </button>
         </StepHead>
         {data.products.length === 0 ? (
@@ -817,9 +852,9 @@ export function AffiliateTab({ active }: { active: boolean }) {
             <div className="mx-auto w-12 h-12 rounded-xl bg-accent-soft text-accent flex items-center justify-center">
               <ShoppingBag className="w-6 h-6" />
             </div>
-            <p className="mt-3 text-sm font-semibold text-fg">Katalog masih kosong</p>
+            <p className="mt-3 text-sm font-semibold text-fg">{t("Katalog masih kosong")}</p>
             <p className="mt-1 text-sm text-muted max-w-sm mx-auto">
-              Tambahkan produk dari Shopee Affiliate beserta niche-nya. Satu produk bisa dipakai semua akun dengan niche yang sama.
+              {t("Tambahkan produk dari Shopee Affiliate beserta niche-nya. Satu produk bisa dipakai semua akun dengan niche yang sama.")}
             </p>
           </div>
         ) : (
@@ -829,7 +864,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-fg">
                     {p.nama}
-                    {!p.aktif && <span className="ml-2 text-xs font-semibold text-muted">(nonaktif)</span>}
+                    {!p.aktif && <span className="ml-2 text-xs font-semibold text-muted">{t("(nonaktif)")}</span>}
                   </p>
                   <a
                     href={p.link}
@@ -845,24 +880,25 @@ export function AffiliateTab({ active }: { active: boolean }) {
                     {p.niche.map((n) => (
                       <span
                         key={n}
-                        title={accountCounts.get(n) ? undefined : "Belum ada akun dengan niche ini"}
+                        title={accountCounts.get(n) ? undefined : t("Belum ada akun dengan niche ini")}
                         className={cn(
                           "h-6 px-2 rounded-full text-xs font-semibold inline-flex items-center",
                           accountCounts.get(n) ? "bg-subtle text-muted" : "bg-warning-soft text-warning"
                         )}
                       >
-                        {n} · {accountCounts.get(n) ?? 0} akun
+                        {n} · {t("{n} akun", { n: accountCounts.get(n) ?? 0 })}
                       </span>
                     ))}
                     <span className="text-xs text-muted ml-1">
-                      · {p.dipakai30}× terbit 30 hari{p.terakhir ? ` · terakhir ${dateTimeOf(p.terakhir)}` : ""}
+                      · {t("{n}× terbit 30 hari", { n: p.dipakai30 })}
+                      {p.terakhir ? ` · ${t("terakhir {when}", { when: dateTimeOf(p.terakhir) })}` : ""}
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
-                    aria-label={`Ubah ${p.nama}`}
+                    aria-label={t("Ubah {name}", { name: p.nama })}
                     onClick={() => setEditProduct(p)}
                     className="w-10 h-10 rounded-full inline-flex items-center justify-center text-muted hover:text-accent hover:bg-subtle cursor-pointer"
                   >
@@ -870,7 +906,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
                   </button>
                   <button
                     type="button"
-                    aria-label={`Hapus ${p.nama}`}
+                    aria-label={t("Hapus {name}", { name: p.nama })}
                     onClick={() => setDeleting(p)}
                     className="w-10 h-10 rounded-full inline-flex items-center justify-center text-muted hover:text-danger hover:bg-subtle cursor-pointer"
                   >
@@ -884,14 +920,14 @@ export function AffiliateTab({ active }: { active: boolean }) {
       </section>
 
       {/* Akun */}
-      <section aria-label="Pengaturan affiliate per akun" className="card">
+      <section aria-label={t("Pengaturan affiliate per akun")} className="card">
         <StepHead
           n={2}
           done={accountStepDone}
           title="Nyalakan di akun"
           hint={
             accountStepDone
-              ? `${data.accounts.filter((a) => a.status.ok).length} akun berjalan. Status tiap akun ada di bawah namanya.`
+              ? t("{n} akun berjalan. Status tiap akun ada di bawah namanya.", { n: data.accounts.filter((a) => a.status.ok).length })
               : productStepDone
                 ? "Pilih niche dan seberapa sering. Ikuti tombol di tiap akun bila ada yang perlu dibereskan."
                 : "Isi katalog dulu (langkah 1), lalu nyalakan di akun yang niche-nya cocok."
@@ -904,11 +940,12 @@ export function AffiliateTab({ active }: { active: boolean }) {
               indeterminate={selected.size > 0 && !allSelected}
               onChange={() => setSelected(allSelected ? new Set() : new Set(data.accounts.map((a) => a.id)))}
               disabled={data.accounts.length === 0}
-              label={allSelected ? "Batalkan pilihan semua akun" : "Pilih semua akun"}
+              label={allSelected ? t("Batalkan pilihan semua akun") : t("Pilih semua akun")}
             />
           </div>
           <p className="flex-1 text-xs font-semibold text-muted uppercase tracking-wide">
-            Akun ({data.accounts.length}){selected.size > 0 && ` · ${selected.size} dipilih`}
+            {t("Akun ({n})", { n: data.accounts.length })}
+            {selected.size > 0 && ` · ${t("{n} dipilih", { n: selected.size })}`}
           </p>
           {selected.size > 0 && (
             <button
@@ -917,12 +954,12 @@ export function AffiliateTab({ active }: { active: boolean }) {
               className="h-9 px-4 rounded-full bg-accent text-on-accent text-sm font-semibold inline-flex items-center gap-1.5 hover:bg-accent-hover cursor-pointer"
             >
               <Pencil className="w-3.5 h-3.5" />
-              Atur {selected.size} akun
+              {t("Atur {n} akun", { n: selected.size })}
             </button>
           )}
         </div>
         {data.accounts.length === 0 ? (
-          <p className="p-8 text-center text-sm text-muted">Belum ada akun yang dipetakan ke cabang.</p>
+          <p className="p-8 text-center text-sm text-muted">{t("Belum ada akun yang dipetakan ke cabang.")}</p>
         ) : (
           <ul className="divide-y divide-line">
             {data.accounts.map((a) => {
@@ -934,17 +971,17 @@ export function AffiliateTab({ active }: { active: boolean }) {
                 // Layar kecil: rincian memakai lebar penuh di bawah nama, tidak terjepit sakelar dan tombol edit.
                 <li key={a.id} className="px-4 py-3.5 grid grid-cols-[auto_auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 items-start">
                   <div className="flex pt-1.5">
-                    <Checkbox checked={selected.has(a.id)} onChange={() => toggle(a.id)} label={`Pilih ${accountHandle(a)}`} />
+                    <Checkbox checked={selected.has(a.id)} onChange={() => toggle(a.id)} label={t("Pilih {handle}", { handle: accountHandle(a) })} />
                   </div>
                   <Avatar a={a} />
                   <p className="self-center text-sm font-semibold text-fg truncate">
                     <HandleText account={a} />
                   </p>
                   <div className="col-start-4 row-start-1 flex items-center gap-1 shrink-0">
-                    <Switch on={c.aktif} busy={busyKey === `akun:${a.id}`} onChange={(on) => quickToggle(a, on)} label={`Affiliate ${accountHandle(a)}`} />
+                    <Switch on={c.aktif} busy={busyKey === `akun:${a.id}`} onChange={(on) => quickToggle(a, on)} label={t("Affiliate {handle}", { handle: accountHandle(a) })} />
                     <button
                       type="button"
-                      aria-label={`Atur affiliate ${accountHandle(a)}`}
+                      aria-label={t("Atur affiliate {handle}", { handle: accountHandle(a) })}
                       onClick={() => setEditAccounts([a])}
                       className="w-10 h-10 rounded-full inline-flex items-center justify-center text-muted hover:text-accent hover:bg-subtle cursor-pointer"
                     >
@@ -964,7 +1001,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
                         ) : c.aktif ? (
                           <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
                         ) : null}
-                        {st.teks}
+                        {statusText(st.teks)}
                       </span>
                       {st.aksi && (c.aktif || st.aksi === "NYALAKAN") && (
                         <button
@@ -973,14 +1010,14 @@ export function AffiliateTab({ active }: { active: boolean }) {
                           onClick={() => fixAccount(a)}
                           className="h-7 px-3 rounded-full border border-current text-xs font-semibold hover:bg-subtle cursor-pointer disabled:opacity-50"
                         >
-                          {FIX_LABEL[st.aksi]}
+                          {t(FIX_LABEL[st.aksi])}
                         </button>
                       )}
                     </div>
                     {c.aktif && (
                       <p className="mt-1 text-xs text-muted">
-                        {preset ? `Frekuensi ${preset.label.toLowerCase()}` : "Frekuensi diatur sendiri"} · {st.perHari} dari {a.postsPerDay}{" "}
-                        postingan per hari
+                        {preset ? t("Frekuensi {label}", { label: t(preset.label).toLowerCase() }) : t("Frekuensi diatur sendiri")} ·{" "}
+                        {t("{a} dari {b} postingan per hari", { a: st.perHari, b: a.postsPerDay })}
                       </p>
                     )}
                     {c.niche.length > 0 && (
@@ -995,7 +1032,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
                     {spammy && (
                       <p className="mt-1 text-xs font-medium text-warning flex items-start gap-1">
                         <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
-                        Lebih dari sepertiga postingan berisi produk: berisiko terlihat seperti akun jualan.
+                        {t("Lebih dari sepertiga postingan berisi produk: berisiko terlihat seperti akun jualan.")}
                       </p>
                     )}
                   </div>
@@ -1007,7 +1044,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
       </section>
 
       {/* Aktivitas */}
-      <section aria-label="Aktivitas affiliate 30 hari" className="card">
+      <section aria-label={t("Aktivitas affiliate 30 hari")} className="card">
         <StepHead
           n={3}
           done={false}
@@ -1021,7 +1058,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
           <Stat label="Link gagal" value={data.summary.balasanGagal} tone={data.summary.balasanGagal ? "danger" : undefined} />
         </div>
         {data.recent.length === 0 ? (
-          <p className="p-8 text-center text-sm text-muted">Belum ada postingan affiliate.</p>
+          <p className="p-8 text-center text-sm text-muted">{t("Belum ada postingan affiliate.")}</p>
         ) : (
           <ul className="divide-y divide-line">
             {data.recent.map((r: AffiliateRecentDTO) => {
@@ -1031,12 +1068,12 @@ export function AffiliateTab({ active }: { active: boolean }) {
               return (
                 <li key={r.id} className="px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="text-xs text-muted tabular-nums w-24 shrink-0">{dateTimeOf(r.slotAt)}</span>
-                  <span className="text-sm font-semibold text-fg min-w-0 truncate">{acc ? accountHandle(acc) : "Akun"}</span>
-                  <span className="text-sm text-muted min-w-0 truncate flex-1">{r.produk ?? productById.get(r.productId)?.nama ?? "Produk dihapus"}</span>
+                  <span className="text-sm font-semibold text-fg min-w-0 truncate">{acc ? accountHandle(acc) : t("Akun")}</span>
+                  <span className="text-sm text-muted min-w-0 truncate flex-1">{r.produk ?? productById.get(r.productId)?.nama ?? t("Produk dihapus")}</span>
                   <span className="h-6 px-2 rounded-full bg-subtle text-xs font-semibold text-muted inline-flex items-center">
-                    {SLOT_STATUS_LABEL[r.slotStatus as SlotStatus] ?? r.slotStatus}
+                    {t(SLOT_STATUS_LABEL[r.slotStatus as SlotStatus] ?? r.slotStatus)}
                   </span>
-                  <span className={cn("h-6 px-2 rounded-full text-xs font-semibold inline-flex items-center", reply.cls)}>{reply.label}</span>
+                  <span className={cn("h-6 px-2 rounded-full text-xs font-semibold inline-flex items-center", reply.cls)}>{t(reply.label)}</span>
                   {canRetry && (
                     <button
                       type="button"
@@ -1045,7 +1082,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
                       className="h-7 px-3 rounded-full border border-line-strong text-xs font-semibold text-fg inline-flex items-center gap-1.5 hover:border-accent hover:text-accent cursor-pointer disabled:opacity-50"
                     >
                       {busyKey === `ulang:${r.id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
-                      Kirim ulang
+                      {t("Kirim ulang")}
                     </button>
                   )}
                   {r.releaseUrl && (
@@ -1053,14 +1090,14 @@ export function AffiliateTab({ active }: { active: boolean }) {
                       href={r.releaseUrl}
                       target="_blank"
                       rel="noreferrer noopener"
-                      aria-label="Lihat postingan di Threads"
+                      aria-label={t("Lihat postingan di Threads")}
                       className="w-8 h-8 rounded-full inline-flex items-center justify-center text-muted hover:text-accent hover:bg-subtle"
                     >
                       <ExternalLink className="w-4 h-4" />
                     </a>
                   )}
                   {/* Alasan gagal tampil langsung: `title` tidak terbaca di layar sentuh. */}
-                  {r.balasan === "GAGAL" && r.error && <p className="basis-full text-xs font-medium text-danger">Alasan: {r.error}</p>}
+                  {r.balasan === "GAGAL" && r.error && <p className="basis-full text-xs font-medium text-danger">{t("Alasan:")} {apiErrorText(r.error)}</p>}
                 </li>
               );
             })}
@@ -1078,7 +1115,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
             const n = editAccounts.length;
             setEditAccounts(null);
             setSelected(new Set());
-            setNotice({ tone: "success", text: n === 1 ? "Pengaturan affiliate disimpan." : `Pengaturan affiliate ${n} akun disimpan.` });
+            setNotice({ tone: "success", text: n === 1 ? tr("Pengaturan affiliate disimpan.") : tr("Pengaturan affiliate {n} akun disimpan.", { n }) });
             void load();
           }}
         />
@@ -1091,7 +1128,7 @@ export function AffiliateTab({ active }: { active: boolean }) {
           onClose={() => setEditProduct(null)}
           onSaved={() => {
             setEditProduct(null);
-            setNotice({ tone: "success", text: "Produk disimpan." });
+            setNotice({ tone: "success", text: tr("Produk disimpan.") });
             void load();
           }}
         />
@@ -1103,11 +1140,15 @@ export function AffiliateTab({ active }: { active: boolean }) {
           const p = deleting;
           if (!p) return;
           setDeleting(null);
-          void run(`hapus:${p.id}`, () => deleteAffiliateProduct(p.id), `${p.nama} dihapus dari katalog.`);
+          void run(`hapus:${p.id}`, () => deleteAffiliateProduct(p.id), tr("{name} dihapus dari katalog.", { name: p.nama }));
         }}
-        title="Hapus produk?"
-        description={deleting ? `${deleting.nama} tidak akan dipakai lagi, dan link-nya yang belum terkirim dibatalkan. Riwayat tetap tersimpan.` : undefined}
-        confirmLabel="Hapus"
+        title={t("Hapus produk?")}
+        description={
+          deleting
+            ? t("{name} tidak akan dipakai lagi, dan link-nya yang belum terkirim dibatalkan. Riwayat tetap tersimpan.", { name: deleting.nama })
+            : undefined
+        }
+        confirmLabel={t("Hapus")}
         confirmIcon={<Trash2 className="w-4 h-4" />}
         variant="danger"
       />

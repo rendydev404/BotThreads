@@ -4,6 +4,7 @@ import React from "react";
 import { AlertCircle, CalendarClock, CheckCircle2, Clock, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STATUS_LABEL, type PostStatusKey } from "@/lib/content-types";
+import { useT } from "@/components/i18n/lang-provider";
 
 /**
  * Foto profil akun; inisial bila tidak ada foto atau gambarnya gagal dimuat (URL CDN Meta bisa
@@ -56,6 +57,7 @@ const STYLE: Record<PostStatusKey, { cls: string; Icon: React.ComponentType<{ cl
 };
 
 export function PostStatusChip({ status, className }: { status: PostStatusKey; className?: string }) {
+  const t = useT();
   const { cls, Icon } = STYLE[status];
   return (
     <span
@@ -66,7 +68,7 @@ export function PostStatusChip({ status, className }: { status: PostStatusKey; c
       )}
     >
       <Icon className={cn("w-3.5 h-3.5", status === "PROCESSING" && "animate-spin")} />
-      {STATUS_LABEL[status]}
+      {t(STATUS_LABEL[status])}
     </span>
   );
 }

@@ -6,6 +6,7 @@ import { Sparkles, X, Maximize2, Minimize2, GripHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { ChatPanel } from "./chat-panel";
 import { useChat } from "./use-chat";
+import { useT } from "@/components/i18n/lang-provider";
 
 const WIN_W = 420;
 const WIN_H = 640;
@@ -13,6 +14,7 @@ const WIN_H = 640;
 export function FloatingAiBubble() {
   const pathname = usePathname();
   const chat = useChat();
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
@@ -109,14 +111,14 @@ export function FloatingAiBubble() {
         <button
           type="button"
           onClick={openWindow}
-          aria-label="Buka asisten AI"
+          aria-label={t("Buka asisten AI")}
           className="group fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 w-12 md:w-auto h-12 md:pl-3 md:pr-5 inline-flex items-center justify-center gap-2.5 rounded-full bg-gradient-to-r from-accent to-violet-500 text-on-accent text-sm font-semibold shadow-pop hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
         >
           {/* Di layar kecil cukup ikon, supaya tidak menutupi isi halaman. */}
           <span className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
             <Sparkles className="w-4 h-4" />
           </span>
-          <span className="max-md:sr-only">Tanya AI</span>
+          <span className="max-md:sr-only">{t("Tanya AI")}</span>
         </button>
       )}
 
@@ -124,7 +126,7 @@ export function FloatingAiBubble() {
         <div
           ref={windowRef}
           role="dialog"
-          aria-label="Asisten AI"
+          aria-label={t("Asisten AI")}
           style={
             isFullScreen
               ? undefined
@@ -146,7 +148,7 @@ export function FloatingAiBubble() {
         >
           <div
             onPointerDown={handlePointerDown}
-            title={isFullScreen ? undefined : "Tahan dan geser untuk memindahkan"}
+            title={isFullScreen ? undefined : t("Tahan dan geser untuk memindahkan")}
             className={cn(
               "h-14 px-4 flex items-center justify-between border-b border-line bg-gradient-to-r from-accent-soft/70 to-transparent select-none touch-none shrink-0",
               !isFullScreen && (isDragging ? "cursor-grabbing" : "cursor-grab")
@@ -161,14 +163,14 @@ export function FloatingAiBubble() {
               </div>
               <div className="leading-tight min-w-0">
                 <h2 className="text-sm font-semibold text-fg truncate">
-                  Asisten AI
+                  {t("Asisten AI")}
                 </h2>
                 <p className="flex items-center gap-1.5 text-xs text-muted truncate">
                   <span className="relative flex w-1.5 h-1.5 shrink-0" aria-hidden>
                     <span className="absolute inset-0 rounded-full bg-success opacity-60 animate-ping" />
                     <span className="relative w-1.5 h-1.5 rounded-full bg-success" />
                   </span>
-                  Terhubung ke data semua akun
+                  {t("Terhubung ke data semua akun")}
                 </p>
               </div>
             </div>
@@ -178,8 +180,8 @@ export function FloatingAiBubble() {
                 type="button"
                 onClick={() => setIsFullScreen((v) => !v)}
                 className="w-8 h-8 rounded-lg text-muted hover:text-fg hover:bg-subtle flex items-center justify-center transition-colors cursor-pointer"
-                title={isFullScreen ? "Perkecil" : "Layar penuh"}
-                aria-label={isFullScreen ? "Perkecil" : "Layar penuh"}
+                title={isFullScreen ? t("Perkecil") : t("Layar penuh")}
+                aria-label={isFullScreen ? t("Perkecil") : t("Layar penuh")}
               >
                 {isFullScreen ? (
                   <Minimize2 className="w-4 h-4" />
@@ -194,8 +196,8 @@ export function FloatingAiBubble() {
                   setIsFullScreen(false);
                 }}
                 className="w-8 h-8 rounded-lg text-muted hover:text-fg hover:bg-subtle flex items-center justify-center transition-colors cursor-pointer"
-                title="Tutup"
-                aria-label="Tutup"
+                title={t("Tutup")}
+                aria-label={t("Tutup")}
               >
                 <X className="w-[18px] h-[18px]" />
               </button>

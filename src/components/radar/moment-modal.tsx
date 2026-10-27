@@ -8,6 +8,7 @@ import { MOMENT_MAX_SPAN_DAYS, MOMENT_NAME_MAX, MOMENT_NOTE_MAX, type MomentDTO 
 import { ModalButton, ModalShell } from "@/components/content/modal-shell";
 import { FormError, TextAreaField, TextField } from "@/components/settings/fields";
 import { errorDetails, errorStatus, errorText, formatDayRange } from "@/components/settings/format";
+import { useT } from "@/components/i18n/lang-provider";
 import { DayPicker } from "./day-picker";
 import { dayDiff } from "./moment-dates";
 
@@ -36,6 +37,7 @@ interface DialogProps {
 const cleanName = (raw: string): string => raw.replace(/[<>]/g, " ").replace(/\s+/g, " ").trim();
 
 function MomentDialog({ editor, onClose, onSaved, onGone, onForbidden }: DialogProps) {
+  const t = useT();
   const { moment, today } = editor;
   const [nama, setNama] = useState(moment?.nama ?? "");
   const [mulai, setMulai] = useState(moment?.mulai ?? today);
@@ -50,19 +52,19 @@ function MomentDialog({ editor, onClose, onSaved, onGone, onForbidden }: DialogP
   const years = [baseYear - 1, baseYear, baseYear + 1, baseYear + 2];
 
   const name = cleanName(nama);
-  const nameIssue = name.length < 2 || name.length > MOMENT_NAME_MAX ? `Nama momen harus 2-${MOMENT_NAME_MAX} karakter.` : null;
+  const nameIssue = name.length < 2 || name.length > MOMENT_NAME_MAX ? t("Nama momen harus 2-{max} karakter.", { max: MOMENT_NAME_MAX }) : null;
 
   // Aturan yang sama dengan server, supaya kesalahan terlihat sebelum dikirim.
   const span = dayDiff(mulai, selesai);
   const dateIssue =
     span === null
-      ? "Tanggal momen tidak valid."
+      ? t("Tanggal momen tidak valid.")
       : span < 0
-        ? "Tanggal selesai tidak boleh sebelum tanggal mulai."
+        ? t("Tanggal selesai tidak boleh sebelum tanggal mulai.")
         : span > MOMENT_MAX_SPAN_DAYS
-          ? `Rentang momen paling lama ${MOMENT_MAX_SPAN_DAYS} hari.`
+          ? t("Rentang momen paling lama {n} hari.", { n: MOMENT_MAX_SPAN_DAYS })
           : selesai < today
-            ? "Tanggal selesai sudah lewat. Pilih hari ini atau sesudahnya."
+            ? t("Tanggal selesai sudah lewat. Pilih hari ini atau sesudahnya.")
             : null;
 
   const changeStart = (next: string) => {
@@ -106,23 +108,23 @@ function MomentDialog({ editor, onClose, onSaved, onGone, onForbidden }: DialogP
       open
       onClose={onClose}
       busy={saving}
-      title={moment ? "Ubah momen" : "Tambah momen"}
-      description="Tanggal penting yang ikut dipertimbangkan AI saat menyusun ide."
+      title={moment ? t("Ubah momen") : t("Tambah momen")}
+      description={t("Tanggal penting yang ikut dipertimbangkan AI saat menyusun ide.")}
       footer={
         <>
           <ModalButton onClick={onClose} disabled={saving}>
-            Batal
+            {t("Batal")}
           </ModalButton>
           <ModalButton variant="primary" onClick={() => void submit()} disabled={saving || !!dateIssue}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {saving ? "Menyimpan..." : "Simpan"}
+            {saving ? t("Menyimpan...") : t("Simpan")}
           </ModalButton>
         </>
       }
     >
       <div className="space-y-4">
         <TextField
-          label="Nama momen"
+          label={t("Nama momen")}
           value={nama}
           onChange={(v) => {
             setNama(v);
@@ -133,19 +135,19 @@ function MomentDialog({ editor, onClose, onSaved, onGone, onForbidden }: DialogP
           }}
           maxLength={MOMENT_NAME_MAX}
           showCount
-          placeholder="Contoh: Ulang tahun outlet"
+          placeholder={t("Contoh: Ulang tahun outlet")}
           autoComplete="off"
           disabled={saving}
           error={tried ? nameIssue : null}
           data-autofocus
         />
-        <DayPicker label="Mulai" value={mulai} onChange={changeStart} years={years} disabled={saving} />
-        <DayPicker label="Selesai" value={selesai} onChange={changeEnd} years={years} disabled={saving} />
+        <DayPicker label={t("Mulai")} value={mulai} onChange={changeStart} years={years} disabled={saving} />
+        <DayPicker label={t("Selesai@@tanggal")} value={selesai} onChange={changeEnd} years={years} disabled={saving} />
         <p role={dateIssue ? "alert" : undefined} className={cn("text-[13px] font-medium", dateIssue ? "text-danger" : "text-muted")}>
-          {dateIssue ?? `Berlaku ${formatDayRange(mulai, selesai)} (${(span ?? 0) + 1} hari).`}
+          {dateIssue ?? t("Berlaku {range} ({n} hari).", { range: formatDayRange(mulai, selesai), n: (span ?? 0) + 1 })}
         </p>
         <TextAreaField
-          label="Catatan (opsional)"
+          label={t("Catatan (opsional)")}
           value={catatan}
           onChange={(v) => {
             setCatatan(v);
@@ -153,11 +155,11 @@ function MomentDialog({ editor, onClose, onSaved, onGone, onForbidden }: DialogP
           }}
           maxLength={MOMENT_NOTE_MAX}
           rows={3}
-          placeholder="Contoh: promo beli 2 gratis 1, tonjolkan suasana kumpul keluarga"
-          hint="Ikut dibaca AI sebagai konteks momen."
+          placeholder={t("Contoh: promo beli 2 gratis 1, tonjolkan suasana kumpul keluarga")}
+          hint={t("Ikut dibaca AI sebagai konteks momen.")}
           disabled={saving}
         />
-        <FormError message={error?.message} details={error?.details} />
+        <FormError message={error?.message ? t(error.message) : error?.message} details={error?.details} />
       </div>
     </ModalShell>
   );

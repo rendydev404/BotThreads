@@ -6,6 +6,7 @@ import { Search, Check, RotateCcw } from "lucide-react";
 import type { Delta } from "@/lib/report";
 import { DeltaBadge } from "@/components/ui/delta-badge";
 import { AccountAvatar } from "@/components/content/post-status-chip";
+import { useT } from "@/components/i18n/lang-provider";
 
 export interface LeaderboardAccount {
   id: string;
@@ -39,6 +40,7 @@ export function FleetLeaderboardTable({
   onSelectAccount,
   loading = false,
 }: FleetLeaderboardTableProps) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(false);
 
@@ -64,10 +66,9 @@ export function FleetLeaderboardTable({
     <section className="card overflow-hidden">
       <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold text-fg">Peringkat cabang</h3>
+          <h3 className="text-base font-semibold text-fg">{t("Peringkat cabang")}</h3>
           <p className="text-[13px] text-muted mt-0.5">
-            Diurutkan dari penayangan terbanyak pada periode terpilih. Klik
-            baris untuk melihat satu cabang.
+            {t("Diurutkan dari penayangan terbanyak pada periode terpilih. Klik baris untuk melihat satu cabang.")}
           </p>
         </div>
 
@@ -79,7 +80,7 @@ export function FleetLeaderboardTable({
               className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-subtle hover:bg-line text-sm font-medium text-fg cursor-pointer transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              Semua akun
+              {t("Semua akun")}
             </button>
           )}
           <div className="relative">
@@ -88,8 +89,8 @@ export function FleetLeaderboardTable({
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari cabang…"
-              aria-label="Cari cabang"
+              placeholder={t("Cari cabang…")}
+              aria-label={t("Cari cabang")}
               className="w-44 sm:w-52 h-9 pl-9 pr-3 text-sm rounded-lg bg-subtle border border-transparent text-fg placeholder-faint focus:bg-surface focus:border-accent focus:outline-none transition-colors"
             />
           </div>
@@ -101,11 +102,11 @@ export function FleetLeaderboardTable({
           <thead>
             <tr className="text-xs font-medium text-muted border-y border-line bg-subtle/60">
               <th className="py-2.5 pl-5 pr-2 w-12">#</th>
-              <th className="py-2.5 px-3">Cabang</th>
-              <th className="py-2.5 px-3 text-right">Pengikut</th>
-              <th className="py-2.5 px-3 text-right">Postingan</th>
-              <th className="py-2.5 px-3 min-w-44">Penayangan</th>
-              <th className="py-2.5 px-3 text-right">Interaksi</th>
+              <th className="py-2.5 px-3">{t("Cabang")}</th>
+              <th className="py-2.5 px-3 text-right">{t("Pengikut")}</th>
+              <th className="py-2.5 px-3 text-right">{t("Postingan")}</th>
+              <th className="py-2.5 px-3 min-w-44">{t("Penayangan")}</th>
+              <th className="py-2.5 px-3 text-right">{t("Interaksi")}</th>
               <th className="py-2.5 px-3 text-right pr-5">ER</th>
             </tr>
           </thead>
@@ -121,7 +122,7 @@ export function FleetLeaderboardTable({
             ) : shown.length === 0 ? (
               <tr>
                 <td colSpan={7} className="py-10 text-center text-muted">
-                  Tidak ada cabang yang cocok dengan “{search}”.
+                  {t("Tidak ada cabang yang cocok dengan “{query}”.", { query: search })}
                 </td>
               </tr>
             ) : (
@@ -202,14 +203,14 @@ export function FleetLeaderboardTable({
       {!search && filtered.length > PREVIEW_COUNT && (
         <div className="px-5 py-3 border-t border-line flex items-center justify-between text-sm">
           <span className="text-muted">
-            {shown.length} dari {filtered.length} cabang
+            {t("{shown} dari {total} cabang", { shown: shown.length, total: filtered.length })}
           </span>
           <button
             type="button"
             onClick={() => setShowAll((v) => !v)}
             className="font-medium text-accent hover:underline cursor-pointer"
           >
-            {showAll ? "Tampilkan lebih sedikit" : "Lihat semua"}
+            {showAll ? t("Tampilkan lebih sedikit") : t("Lihat semua")}
           </button>
         </div>
       )}

@@ -2,6 +2,7 @@
 
 import React from "react";
 import { AlertTriangle, Trash2, X } from "lucide-react";
+import { useT } from "@/components/i18n/lang-provider";
 
 interface DeleteConfirmModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export function DeleteConfirmModal({
   description,
   isDeleting = false,
 }: DeleteConfirmModalProps) {
+  const t = useT();
   if (!isOpen) return null;
 
   return (
@@ -30,6 +32,7 @@ export function DeleteConfirmModal({
         <button
           onClick={onClose}
           disabled={isDeleting}
+          aria-label={t("Tutup")}
           className="absolute top-6 right-6 text-muted hover:text-fg p-1 rounded-full hover:bg-subtle transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
@@ -42,30 +45,30 @@ export function DeleteConfirmModal({
 
         {/* H1 Mandatory Big Headline */}
         <h1 className="text-xl md:text-2xl font-black text-danger tracking-tight uppercase mb-3">
-          # KONFIRMASI PENGHAPUSAN DATA
+          {t("# KONFIRMASI PENGHAPUSAN DATA")}
         </h1>
 
         <p className="text-sm text-fg font-medium mb-4 leading-relaxed">
-          Tindakan ini bersifat destruktif dan akan menghapus data secara permanen dari database produksi. Pastikan Anda telah memeriksa kembali data yang akan dihapus.
+          {t("Tindakan ini bersifat destruktif dan akan menghapus data secara permanen dari database produksi. Pastikan Anda telah memeriksa kembali data yang akan dihapus.")}
         </p>
 
         {/* Record Details Card */}
         <div className="rounded-2xl bg-subtle p-4 border border-line mb-6 space-y-2 text-xs">
           <div className="flex justify-between items-center py-1 border-b border-line">
-            <span className="text-muted font-semibold">Tabel Target:</span>
+            <span className="text-muted font-semibold">{t("Tabel Target:")}</span>
             <span className="font-mono font-bold text-fg bg-surface px-2 py-0.5 rounded border border-line">
               {tableName}
             </span>
           </div>
           <div className="flex justify-between items-center py-1 border-b border-line">
-            <span className="text-muted font-semibold">Identitas Data:</span>
+            <span className="text-muted font-semibold">{t("Identitas Data:")}</span>
             <span className="font-mono font-bold text-accent">
               {recordIdentifier}
             </span>
           </div>
           {description && (
             <div className="pt-1">
-              <span className="text-muted block mb-1">Rincian Tambahan:</span>
+              <span className="text-muted block mb-1">{t("Rincian Tambahan:")}</span>
               <p className="text-fg bg-surface p-2 rounded-lg border border-line">
                 {description}
               </p>
@@ -81,7 +84,7 @@ export function DeleteConfirmModal({
             disabled={isDeleting}
             className="px-5 py-2.5 rounded-full text-sm font-semibold text-muted bg-subtle hover:bg-subtle hover:text-fg transition-colors cursor-pointer"
           >
-            Batal
+            {t("Batal")}
           </button>
           <button
             type="button"
@@ -90,7 +93,7 @@ export function DeleteConfirmModal({
             className="px-6 py-2.5 rounded-full text-sm font-semibold text-on-accent bg-danger hover:opacity-90 transition-colors flex items-center gap-2 cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
-            <span>{isDeleting ? "Menghapus..." : "Ya, Hapus Data"}</span>
+            <span>{isDeleting ? t("Menghapus...") : t("Ya, Hapus Data")}</span>
           </button>
         </div>
       </div>

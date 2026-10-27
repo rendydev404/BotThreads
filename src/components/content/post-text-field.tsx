@@ -4,6 +4,35 @@ import React, { useId } from "react";
 import { Hash } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { THREADS_MAX_TEXT, charLength, hasBranchTag, parseTopicTag, validateThreadsText } from "@/lib/threads-text";
+import type { TFunction } from "@/lib/i18n/core";
+import { useT } from "@/components/i18n/lang-provider";
+
+/**
+ * Terjemahkan pesan galat konten (validasi klien atau API) yang tampil apa adanya. Pesan ber-awalan
+ * "@akun: " dan pesan dengan angka/alasan dinamis dipecah dulu supaya kuncinya tetap cocok dengan kamus.
+ */
+export function tContentMessage(t: TFunction, msg: string | null | undefined): string {
+  if (!msg) return "";
+  const prefixed = /^(@[^\s:]+): ([\s\S]+)$/.exec(msg);
+  if (prefixed) return `${prefixed[1]}: ${tContentMessage(t, prefixed[2])}`;
+  let m = /^Teks (\d+) karakter\. Threads maksimal (\d+) karakter\.$/.exec(msg);
+  if (m) return t("Teks {n} karakter. Threads maksimal {max} karakter.", { n: m[1], max: m[2] });
+  m = /^Teks dan kredit foto (\d+) karakter\. Threads maksimal (\d+) karakter\.$/.exec(msg);
+  if (m) return t("Teks dan kredit foto {n} karakter. Threads maksimal {max} karakter.", { n: m[1], max: m[2] });
+  m = /^Akun belum siap diposting: (.*)\.$/.exec(msg);
+  if (m) return t("Akun belum siap diposting: {reason}.", { reason: t(m[1]) });
+  m = /^akun belum siap diposting \((.*)\)\.$/.exec(msg);
+  if (m) return t("akun belum siap diposting ({reason}).", { reason: t(m[1]) });
+  m = /^Batas (\d+) postingan dashboard per akun per hari sudah tercapai untuk tanggal tersebut\.$/.exec(msg);
+  if (m) return t("Batas {n} postingan dashboard per akun per hari sudah tercapai untuk tanggal tersebut.", { n: m[1] });
+  m = /^Jarak dengan postingan lain di akun ini kurang dari (\d+) menit \(sudah ada yang tayang (.+)\)\.$/.exec(msg);
+  if (m) return t("Jarak dengan postingan lain di akun ini kurang dari {n} menit (sudah ada yang tayang {when}).", { n: m[1], when: m[2] });
+  m = /^Maksimal (\d+) postingan dalam satu kali kirim\.$/.exec(msg);
+  if (m) return t("Maksimal {n} postingan dalam satu kali kirim.", { n: m[1] });
+  m = /^Item (\d+): ([\s\S]+)$/.exec(msg);
+  if (m) return t("Item {n}: {error}", { n: m[1], error: tContentMessage(t, m[2]) });
+  return t(msg);
+}
 
 export interface PostTextState {
   text: string;
@@ -39,6 +68,7 @@ interface PostTextFieldProps {
 
 /** Textarea + penghitung karakter x/500 (kuning > 450, merah > 500) + kolom topik. */
 export function PostTextField({ value, onChange, outletNama = null, disabled, rows = 5, placeholder }: PostTextFieldProps) {
+  const t = useT();
   const id = useId();
   const check = checkPostText(value, outletNama);
   const len = value.text.trim() ? check.length || charLength(value.text) : 0;
@@ -60,13 +90,13 @@ export function PostTextField({ value, onChange, outletNama = null, disabled, ro
           onChange={(e) => onChange({ ...value, text: e.target.value })}
           rows={rows}
           disabled={disabled}
-          placeholder={placeholder ?? "Tulis isi postingan..."}
-          aria-label="Isi postingan"
+          placeholder={placeholder ?? t("Tulis isi postingan...")}
+          aria-label={t("Isi postingan")}
           aria-invalid={over}
           className="w-full resize-y bg-transparent border-0 px-3.5 pt-3 pb-1 text-sm leading-relaxed text-fg placeholder-faint outline-none focus:outline-none focus-visible:outline-none focus:ring-0 disabled:opacity-60"
         />
         <div className="flex items-center justify-between px-3.5 pb-2 text-xs">
-          <span className="text-faint">{hasBranchTag(value.text) ? "Nama cabang akan terisi otomatis." : ""}</span>
+          <span className="text-faint">{hasBranchTag(value.text) ? t("Nama cabang akan terisi otomatis.") : ""}</span>
           <span
             aria-live="polite"
             className={cn("font-semibold tabular-nums", over ? "text-danger" : warn ? "text-warning" : "text-muted")}
@@ -90,8 +120,8 @@ export function PostTextField({ value, onChange, outletNama = null, disabled, ro
             onChange={(e) => onChange({ ...value, topic: e.target.value.replace(/^#+/, "") })}
             disabled={disabled}
             maxLength={60}
-            placeholder="Topik (opsional)"
-            aria-label="Topik"
+            placeholder={t("Topik (opsional)")}
+            aria-label={t("Topik")}
             aria-invalid={!topic.ok}
             className="flex-1 min-w-0 bg-transparent border-0 text-[13px] text-fg placeholder-faint outline-none focus:outline-none focus-visible:outline-none focus:ring-0"
           />
@@ -99,12 +129,12 @@ export function PostTextField({ value, onChange, outletNama = null, disabled, ro
       </div>
       {!topic.ok && (
         <p role="alert" className="text-xs font-medium text-danger">
-          {topic.error}
+          {tContentMessage(t, topic.error)}
         </p>
       )}
       {over && (
         <p role="alert" className="text-xs font-medium text-danger">
-          Teks melebihi {THREADS_MAX_TEXT} karakter. Persingkat dulu sebelum diposting.
+          {t("Teks melebihi {max} karakter. Persingkat dulu sebelum diposting.", { max: THREADS_MAX_TEXT })}
         </p>
       )}
     </div>

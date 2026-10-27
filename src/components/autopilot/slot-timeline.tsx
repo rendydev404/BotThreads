@@ -4,7 +4,8 @@ import React, { memo, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { cn } from "@/lib/utils";
 import { SLOT_KIND_LABEL, SLOT_STATUS_LABEL, type AutopilotSlotDTO, type SlotStatus } from "@/lib/autopilot-types";
 import { wibParts } from "@/lib/scheduling";
-import { SLOT_STATUS_STYLE, isStruck, pad2 } from "./shared";
+import { useT } from "@/components/i18n/lang-provider";
+import { SLOT_STATUS_STYLE, isStruck, pad2, slotReasonText } from "./shared";
 
 /** Rentang garis waktu (jam WIB). */
 const FIRST_HOUR = 6;
@@ -48,12 +49,13 @@ function Dot({ status, className }: { status: SlotStatus; className?: string }) 
 
 /** Keterangan warna titik (warna tidak pernah jadi satu-satunya penanda: tiap titik punya tooltip). */
 export function TimelineLegend({ className }: { className?: string }) {
+  const t = useT();
   return (
-    <ul className={cn("flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted", className)} aria-label="Keterangan status slot">
+    <ul className={cn("flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted", className)} aria-label={t("Keterangan status slot")}>
       {LEGEND.map((s) => (
         <li key={s} className="inline-flex items-center gap-1.5">
           <Dot status={s} className={s === "MENULIS" ? "animate-none" : undefined} />
-          {s === "DILEWATI" ? "Dilewati / dibatalkan" : SLOT_STATUS_LABEL[s]}
+          {s === "DILEWATI" ? t("Dilewati / dibatalkan") : t(SLOT_STATUS_LABEL[s])}
         </li>
       ))}
     </ul>
@@ -75,6 +77,7 @@ interface SlotTimelineProps {
  * difokus, atau diketuk (ketuk lagi / Esc / ketuk di luar untuk menutup).
  */
 export const SlotTimeline = memo(function SlotTimeline({ slots, dayLabel, nowMs, dimmed }: SlotTimelineProps) {
+  const t = useT();
   const [active, setActive] = useState<{ id: string; pinned: boolean } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const tipId = useId();
@@ -120,13 +123,13 @@ export const SlotTimeline = memo(function SlotTimeline({ slots, dayLabel, nowMs,
       {nowPct !== null && (
         <span
           aria-hidden
-          title="Sekarang"
+          title={t("Sekarang")}
           className="absolute top-1/2 h-5 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-fg/45"
           style={{ left: `${nowPct}%` }}
         />
       )}
 
-      {slots.length === 0 && <span className="sr-only">Tidak ada slot {dayLabel.toLowerCase()}.</span>}
+      {slots.length === 0 && <span className="sr-only">{t("Tidak ada slot {day}.", { day: dayLabel.toLowerCase() })}</span>}
 
       {slots.map((s) => {
         const p = wibParts(new Date(s.slotAt));
@@ -135,7 +138,7 @@ export const SlotTimeline = memo(function SlotTimeline({ slots, dayLabel, nowMs,
           <button
             key={s.id}
             type="button"
-            aria-label={`Slot ${dayLabel.toLowerCase()} ${pad2(p.h)}.${pad2(p.min)} WIB, ${SLOT_STATUS_LABEL[s.status]}`}
+            aria-label={t("Slot {day} {time} WIB, {status}", { day: dayLabel.toLowerCase(), time: `${pad2(p.h)}.${pad2(p.min)}`, status: t(SLOT_STATUS_LABEL[s.status]) })}
             aria-describedby={open ? tipId : undefined}
             onMouseEnter={() => setActive((cur) => (cur?.pinned ? cur : { id: s.id, pinned: false }))}
             onMouseLeave={() => setActive((cur) => (cur && !cur.pinned && cur.id === s.id ? null : cur))}
@@ -164,17 +167,17 @@ export const SlotTimeline = memo(function SlotTimeline({ slots, dayLabel, nowMs,
           style={shownPct >= 30 && shownPct <= 70 ? { left: `${shownPct}%` } : undefined}
         >
           <p className="font-semibold text-fg">
-            {pad2(shownParts.h)}.{pad2(shownParts.min)} WIB · {SLOT_STATUS_LABEL[shown.status]}
+            {pad2(shownParts.h)}.{pad2(shownParts.min)} WIB · {t(SLOT_STATUS_LABEL[shown.status])}
           </p>
-          <p className="mt-0.5 font-medium text-muted">{SLOT_KIND_LABEL[shown.kind]}</p>
+          <p className="mt-0.5 font-medium text-muted">{t(SLOT_KIND_LABEL[shown.kind])}</p>
           {detail.length > 0 ? (
             detail.map((text) => (
               <p key={text} className={cn("mt-1.5 break-words", text === shown.lastError ? "text-danger" : "text-muted")}>
-                {text}
+                {t(text)}
               </p>
             ))
           ) : shown.reason ? (
-            <p className="mt-1.5 break-words text-muted">{shown.reason}</p>
+            <p className="mt-1.5 break-words text-muted">{slotReasonText(shown.reason)}</p>
           ) : null}
         </div>
       )}
