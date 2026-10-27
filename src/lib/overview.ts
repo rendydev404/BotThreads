@@ -1,7 +1,14 @@
 import { agg, db, excludedIdList, must, onlyVisible, sqlTs, toDate, toDateOrNull, type DailyByDate } from "@/lib/supabase";
 import { isoDate, resolvePeriod } from "@/lib/period";
 import { pctDelta } from "@/lib/report";
-import { fetchLiveToday, livePostMetrics, withPostFloor, type LivePost, type LivePostMetrics } from "@/lib/threads-live";
+import {
+  fetchLiveRange,
+  fetchLiveToday,
+  livePostMetrics,
+  withPostFloor,
+  type LivePost,
+  type LivePostMetrics,
+} from "@/lib/threads-live";
 
 const DAY = 86_400_000;
 const WIB_MS = 7 * 3_600_000;
@@ -100,15 +107,18 @@ export async function buildOverview(opts: OverviewParams) {
 
     const ids = targetAccount ? [targetAccount.id] : undefined;
     const scopeIds = new Set(ids ?? accounts.map((a) => a.id));
-    // Angka hari ini dari Threads: seluruh akun (peringkat cabang juga butuh angka hari ini), lalu metrik
-    // postingan hari ini milik akun yang sedang dilihat. Ditunggu paling lama LIVE_WAIT_MS.
+    // Angka dari Threads untuk periode yang mencakup hari ini, seluruh akun (peringkat cabang juga butuh):
+    // - views & interaksi N hari terakhir dalam satu panggilan per akun, sama persis dengan Insights Threads;
+    // - postingan & followers hari ini, lalu metrik postingan hari ini milik akun yang sedang dilihat.
+    // Ditunggu paling lama LIVE_WAIT_MS.
+    const allIds = accounts.map((a) => a.id);
     const liveBundle = live
       ? within(
           (async () => {
-            const data = await fetchLiveToday(accounts.map((a) => a.id), todayStart);
+            const [data, range] = await Promise.all([fetchLiveToday(allIds, todayStart), fetchLiveRange(allIds, days)]);
             const posts = [...data.accounts.values()].filter((a) => scopeIds.has(a.accountId)).flatMap((a) => a.posts);
             const metrics = posts.length ? await livePostMetrics(posts) : new Map<string, LivePostMetrics>();
-            return { data, posts, metrics };
+            return { data, range, posts, metrics };
           })(),
           LIVE_WAIT_MS
         )
@@ -140,7 +150,6 @@ export async function buildOverview(opts: OverviewParams) {
       prevDaily,
       mediaRows,
       prevPostRows,
-      prevMediaRows,
       topPostRows,
       reportLogRows,
       lbCurRows,
@@ -156,8 +165,6 @@ export async function buildOverview(opts: OverviewParams) {
       agg.dailyByDate({ from: prevFrom, to: prevTo, ids }),
       hasDbPosts ? agg.postsByMedia({ from: dbPostRange.gte, to: dbPostRange.lt, ids }) : Promise.resolve([]),
       agg.postsByAccount({ from: prevPostRange.gte, to: prevPostRange.lt, ids }),
-      // Views postingan periode pembanding (dijumlah di SQL per format)
-      agg.postsByMedia({ from: prevPostRange.gte, to: prevPostRange.lt, ids }),
       must<
         {
           id: string;
@@ -198,6 +205,11 @@ export async function buildOverview(opts: OverviewParams) {
     const postMetrics = liveFetched?.metrics ?? new Map<string, LivePostMetrics>();
     const liveAll = liveRaw.map((a) => withPostFloor(a, postMetrics));
     const liveScoped = liveAll.filter((a) => scopeIds.has(a.accountId));
+    // Rentang N hari dari Threads (null bila periode tidak mencakup hari ini atau Threads belum menjawab)
+    const range = liveFetched?.range ?? null;
+    const rangeScoped = range ? [...range.values()].filter((r) => scopeIds.has(r.accountId)) : [];
+    const rangeViewsByDate = new Map<string, number>();
+    for (const r of rangeScoped) for (const b of r.series) rangeViewsByDate.set(b.date, (rangeViewsByDate.get(b.date) ?? 0) + b.views);
 
     // Bentuk hasil disamakan dengan groupBy/aggregate Prisma sebelumnya
     const bySum = (r: DailyByDate) => ({
@@ -219,12 +231,6 @@ export async function buildOverview(opts: OverviewParams) {
     const mediaTypesGrouped = [...mediaCounts].map(([mediaType, posts]) => ({ mediaType, _count: { id: posts } }));
     const postsCur = mediaRows.reduce((s, m) => s + m.posts, 0) + livePosts.length;
     const postsPrev = prevPostRows.reduce((s, p) => s + p.posts, 0);
-    // Views postingan = jumlah views tiap postingan yang terbit pada periode, sama dengan kartu "Views" di
-    // aplikasi Threads. `views` level akun dari API adalah kunjungan profil, jadi tidak dipakai di sini.
-    const postViewsCur =
-      mediaRows.reduce((s, m) => s + Number(m.views || 0), 0) +
-      livePosts.reduce((s, p) => s + (postMetrics.get(p.id)?.views ?? 0), 0);
-    const postViewsPrev = prevMediaRows.reduce((s, m) => s + Number(m.views || 0), 0);
     const dbTop = topPostRows[0]
       ? (({ ThreadsAccount, ...p }) => ({
           ...p,
@@ -267,11 +273,22 @@ export async function buildOverview(opts: OverviewParams) {
         { views: 0, likes: 0, replies: 0, reposts: 0 }
       );
 
-    const cur = total(curByDate);
+    // Periode yang mencakup hari ini memakai angka Threads langsung (sama dengan aplikasi); selain itu database.
+    const cur = range
+      ? rangeScoped.reduce(
+          (t, r) => ({
+            views: t.views + r.views,
+            likes: t.likes + r.likes,
+            replies: t.replies + r.replies,
+            reposts: t.reposts + r.reposts,
+          }),
+          { views: 0, likes: 0, replies: 0, reposts: 0 }
+        )
+      : total(curByDate);
     const prev = total(prevByDate);
     const totalInteractions = cur.likes + cur.replies + cur.reposts;
     const prevInteractions = prev.likes + prev.replies + prev.reposts;
-    const avgER = erOf(postViewsCur, totalInteractions);
+    const avgER = erOf(cur.views, totalInteractions);
     // Hari ini belum selesai: membandingkannya dengan kemarin sehari penuh menyesatkan
     const hasPrev = period.key !== "today" && prevByDate.length >= Math.ceil(days * 0.6);
 
@@ -314,11 +331,11 @@ export async function buildOverview(opts: OverviewParams) {
 
     const deltas = hasPrev
       ? {
-          views: pctDelta(postViewsCur, postViewsPrev),
+          views: pctDelta(cur.views, prev.views),
           posts: pctDelta(postsCur, postsPrev),
           interactions: pctDelta(totalInteractions, prevInteractions),
           // Selisih ER dalam poin persen
-          er: Number((avgER - erOf(postViewsPrev, prevInteractions)).toFixed(1)),
+          er: Number((avgER - erOf(prev.views, prevInteractions)).toFixed(1)),
           followers: followersDelta,
         }
       : null;
@@ -335,7 +352,13 @@ export async function buildOverview(opts: OverviewParams) {
             ? DAY_NAMES[d.getUTCDay()]
             : `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`,
         date: isoDate(d),
-        views: row?._sum.views || 0,
+        // Dengan angka Threads langsung, views mengikuti bucket hari Threads (tanggal sama dengan grafik di
+        // aplikasi); tanggal periode tanpa bucket = 0 supaya angka hari ini tidak terhitung dua kali.
+        views: rangeViewsByDate.has(isoDate(d))
+          ? rangeViewsByDate.get(isoDate(d))!
+          : range && d.getTime() >= from.getTime()
+            ? 0
+            : row?._sum.views || 0,
         interactions:
           (row?._sum.likes || 0) + (row?._sum.replies || 0) + (row?._sum.reposts || 0),
       };
@@ -412,6 +435,12 @@ export async function buildOverview(opts: OverviewParams) {
       });
       postMap.set(a.accountId, (postMap.get(a.accountId) ?? 0) + a.posts.length);
     }
+    // Angka Threads langsung untuk periode ini menggantikan jumlah database + hari ini
+    if (range) {
+      for (const r of range.values()) {
+        curMap.set(r.accountId, { views: r.views, likes: r.likes, replies: r.replies, reposts: r.reposts, quotes: r.quotes });
+      }
+    }
 
     const leaderboard = accounts
       .map((a) => {
@@ -458,7 +487,7 @@ export async function buildOverview(opts: OverviewParams) {
       },
       currentAccount,
       stats: {
-        totalViews: postViewsCur,
+        totalViews: cur.views,
         totalLikes: cur.likes,
         totalReplies: cur.replies,
         totalReposts: cur.reposts,

@@ -3,8 +3,9 @@
  * dashboard tidak bergantung pada sistem lain). Dipanggil penjadwal tiap 5 menit lewat
  * /api/internal/insights/tick. Sekali sehari per akun (setelah 05.00 WIB); akun yang belum pernah diambil
  * langsung jalan:
- * - metrik akun per hari WIB -> ThreadsAccountDaily (hari yang belum ada diisi mundur s.d. BACKFILL_DAYS)
- * - followers saat ini -> baris hari kemarin
+ * - metrik akun per hari Threads -> ThreadsAccountDaily (hari yang belum ada diisi mundur s.d. BACKFILL_DAYS).
+ *   Threads memotong hari pada tengah malam waktu Pasifik; tanggal baris = tanggal hari itu di aplikasi Threads.
+ * - followers saat ini -> baris hari Threads terakhir yang sudah lengkap
  * - postingan 30 hari terakhir + metriknya -> ThreadsPostStat
  *
  * Satu putaran berhenti mengambil akun baru setelah TICK_BUDGET_MS; sisanya diambil putaran berikutnya
@@ -39,7 +40,7 @@ const TICK_BUDGET_MS = 120_000;
 const LEASE_NAME = "insights-tick";
 const LEASE_MS = 5 * 60 * 1000;
 
-const USER_METRICS = "views,likes,replies,reposts,quotes,clicks";
+const INTERACTION_METRICS = "likes,replies,reposts,quotes,clicks";
 const MEDIA_METRICS = "views,likes,replies,reposts,quotes,shares";
 const OWN_POST_FIELDS = "id,media_type,text,timestamp,permalink,is_quote_post";
 
@@ -103,7 +104,24 @@ interface Insight {
   name?: string;
   total_value?: { value?: number };
   link_total_values?: { value?: number }[];
-  values?: { value?: number }[];
+  values?: { value?: number; end_time?: string }[];
+}
+
+/**
+ * Bucket harian `views` akun, urut waktu. `end_time` adalah AWAL bucket (tengah malam waktu Pasifik, 07.00/08.00
+ * UTC). Rentang yang menyentuh dua bucket mengembalikan keduanya utuh, jadi views harus diambil dalam satu
+ * rentang lalu dipecah per bucket, bukan dipanggil per hari WIB (itu menghitung dua bucket sekaligus).
+ */
+export function viewBuckets(data: Insight[] | undefined): { date: string; start: Date; views: number }[] {
+  const item = (data ?? []).find((d) => d?.name === "views");
+  return (item?.values ?? [])
+    .filter((v) => typeof v.end_time === "string" && !Number.isNaN(Date.parse(v.end_time)))
+    .map((v) => ({
+      date: v.end_time!.slice(0, 10),
+      start: new Date(v.end_time!),
+      views: typeof v.value === "number" && Number.isFinite(v.value) ? v.value : 0,
+    }))
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
 }
 
 /**
@@ -152,11 +170,18 @@ type DailyMetrics = { views: number; likes: number; replies: number; reposts: nu
 type MediaMetrics = { views: number; likes: number; replies: number; reposts: number; quotes: number; shares: number };
 type OwnPost = { id?: string; media_type?: string; text?: string; timestamp?: string; permalink?: string; is_quote_post?: boolean };
 
-async function userInsights(userId: string, token: string, since: Date, until: Date): Promise<DailyMetrics> {
-  const q = new URLSearchParams({ metric: USER_METRICS, since: unix(since), until: unix(until), access_token: token });
+/** Bucket views harian akun dalam satu panggilan untuk seluruh rentang. */
+async function userViewSeries(userId: string, token: string, since: Date, until: Date) {
+  const q = new URLSearchParams({ metric: "views", since: unix(since), until: unix(until), access_token: token });
+  const { data } = await get<{ data?: Insight[] }>(`${API}/${userId}/threads_insights?${q}`);
+  return viewBuckets(data);
+}
+
+/** Interaksi akun pada satu jendela (total_value, tepat sesuai since/until). */
+async function userInteractions(userId: string, token: string, since: Date, until: Date): Promise<Omit<DailyMetrics, "views">> {
+  const q = new URLSearchParams({ metric: INTERACTION_METRICS, since: unix(since), until: unix(until), access_token: token });
   const { data } = await get<{ data?: Insight[] }>(`${API}/${userId}/threads_insights?${q}`);
   return {
-    views: insightMetric(data, "views"),
     likes: insightMetric(data, "likes"),
     replies: insightMetric(data, "replies"),
     reposts: insightMetric(data, "reposts"),
@@ -219,40 +244,47 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 type SyncAccount = AccountRow & { username: string | null; insightsSyncedAt: string | null };
 
 async function syncDaily(account: SyncAccount, token: string, now: Date): Promise<number> {
-  const today = wibMidnight(now);
-  const oldestKey = wibDateKey(new Date(today.getTime() - BACKFILL_DAYS * DAY));
+  // Views seluruh rentang dalam satu panggilan, lalu dipecah per bucket hari Threads. Bucket terakhir = hari
+  // Threads yang masih berjalan: tidak disimpan (dasbor mengambilnya langsung dari Threads).
+  const series = await userViewSeries(account.threadsUserId, token, new Date(now.getTime() - BACKFILL_DAYS * DAY), now);
+  const days = series.slice(0, -1);
+  let calls = 1;
+  if (!days.length) return calls;
+
   const existing = await must<{ date: string }[]>(
-    db().from("ThreadsAccountDaily").select("date").eq("threadsAccountId", account.id).gte("date", oldestKey)
+    db().from("ThreadsAccountDaily").select("date").eq("threadsAccountId", account.id).gte("date", days[0].date)
   );
   const have = new Set(existing.map((d) => d.date.slice(0, 10)));
 
-  const days: { key: string; start: Date }[] = [];
-  for (let i = 1; i <= BACKFILL_DAYS; i++) {
-    const start = new Date(today.getTime() - i * DAY);
-    const key = wibDateKey(start);
-    if (i > REFRESH_RECENT_DAYS && have.has(key)) continue;
-    days.push({ key, start });
-  }
+  // Interaksi per hari Threads (jendela tepat satu bucket). Hari lama yang sudah ada cukup diperbarui views-nya.
   // Berurutan seperti worker: satu akun = satu token, jangan bebani batas lajunya.
-  const rows = [];
-  for (const d of days) {
-    const m = await userInsights(account.threadsUserId, token, d.start, new Date(d.start.getTime() + DAY));
-    rows.push({ threadsAccountId: account.id, date: d.key, ...m, updatedAt: sqlTs(now) });
+  const fullRows = [];
+  const viewRows = [];
+  for (const [i, d] of days.entries()) {
+    const recent = i >= days.length - REFRESH_RECENT_DAYS;
+    if (!recent && have.has(d.date)) {
+      viewRows.push({ threadsAccountId: account.id, date: d.date, views: d.views, updatedAt: sqlTs(now) });
+      continue;
+    }
+    const m = await userInteractions(account.threadsUserId, token, d.start, new Date(d.start.getTime() + DAY - 1000));
+    calls++;
+    fullRows.push({ threadsAccountId: account.id, date: d.date, views: d.views, ...m, updatedAt: sqlTs(now) });
   }
-  if (rows.length) {
-    await must(db().from("ThreadsAccountDaily").upsert(rows, { onConflict: "threadsAccountId,date" }));
+  // Dua upsert terpisah: baris "views saja" tidak boleh mengosongkan kolom interaksi yang sudah ada.
+  for (const rows of [fullRows, viewRows]) {
+    if (rows.length) await must(db().from("ThreadsAccountDaily").upsert(rows, { onConflict: "threadsAccountId,date" }));
   }
 
   const followers = await followersCount(account.threadsUserId, token);
-  const yesterday = wibDateKey(new Date(today.getTime() - DAY));
+  calls++;
   await must(
     db()
       .from("ThreadsAccountDaily")
       .update({ followers, updatedAt: sqlTs(now) })
       .eq("threadsAccountId", account.id)
-      .eq("date", yesterday)
+      .eq("date", days.at(-1)!.date)
   );
-  return days.length + 1;
+  return calls;
 }
 
 async function syncPosts(account: SyncAccount, token: string, now: Date): Promise<number> {

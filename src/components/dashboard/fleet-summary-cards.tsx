@@ -75,7 +75,7 @@ export function FleetSummaryCards({
     {
       title: t("Total penayangan"),
       value: formatNumber(totalViews),
-      hint: t("Berapa kali postingan dilihat"),
+      hint: t("Sama dengan Views di Insights Threads"),
       icon: Eye,
       tone: "bg-accent-soft text-accent",
       delta: deltas && <DeltaBadge delta={deltas.views} />,

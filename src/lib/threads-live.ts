@@ -65,7 +65,20 @@ export interface LiveToday {
 interface Insight {
   name?: string;
   total_value?: { value?: number };
-  values?: { value?: number }[];
+  values?: { value?: number; end_time?: string }[];
+}
+
+/**
+ * Bucket harian `views` dari Threads, urut waktu. Threads memotong hari pada tengah malam waktu Pasifik
+ * (07.00/08.00 UTC) dan `end_time` adalah AWAL bucket, jadi tanggalnya = tanggal di aplikasi Threads.
+ * Rentang yang menyentuh dua bucket mengembalikan keduanya utuh: jangan potong per hari WIB.
+ */
+export function viewBuckets(data: Insight[] | undefined): { date: string; views: number }[] {
+  const item = (data ?? []).find((d) => d?.name === "views");
+  return (item?.values ?? [])
+    .filter((v) => typeof v.end_time === "string")
+    .map((v) => ({ date: v.end_time!.slice(0, 10), views: typeof v.value === "number" && Number.isFinite(v.value) ? v.value : 0 }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /** Jumlahkan satu metrik; sama dengan `insightMetric` di worker auto-suka. */
@@ -304,4 +317,102 @@ function fetchPostMetrics(p: LivePost, now: Date): Promise<LivePostMetrics | nul
   if (cached) void value.then(() => postCache.set(p.id, { at: now.getTime(), value }));
   else postCache.set(p.id, { at: now.getTime(), value });
   return value;
+}
+
+/* ------------------------------------------------------------------ rentang N hari (sama dengan aplikasi Threads) */
+
+export interface LiveRange {
+  accountId: string;
+  /** Jumlah N bucket hari Threads terakhir, termasuk hari ini (sama dengan kartu Views di Insights Threads). */
+  views: number;
+  likes: number;
+  replies: number;
+  reposts: number;
+  quotes: number;
+  /** Views per bucket hari Threads (tanggal di aplikasi Threads). */
+  series: { date: string; views: number }[];
+}
+
+const rangeCache = new Map<string, { at: number; value: Promise<LiveRange | null>; refreshing?: boolean }>();
+
+async function fetchRange(row: TokenRow, days: number, now: Date): Promise<LiveRange | null> {
+  if (row.needsReconnect || !row.accessToken || !(row.scopes ?? []).includes(INSIGHTS_SCOPE)) return null;
+  try {
+    const token = decryptThreadsToken(row.accessToken);
+    liveTokens.set(row.id, token);
+    const until = Math.floor(now.getTime() / 1000);
+    const res = await graph<{ data?: Insight[] }>(`${row.threadsUserId}/threads_insights`, {
+      metric: "views,likes,replies,reposts,quotes",
+      since: String(until - days * 86_400),
+      until: String(until),
+      access_token: token,
+    });
+    const series = viewBuckets(res.data).slice(-days);
+    return {
+      accountId: row.id,
+      views: series.reduce((s, b) => s + b.views, 0),
+      likes: metric(res.data, "likes"),
+      replies: metric(res.data, "replies"),
+      reposts: metric(res.data, "reposts"),
+      quotes: metric(res.data, "quotes"),
+      series,
+    };
+  } catch (err) {
+    console.warn(`[threads-live] rentang ${row.id}: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+/**
+ * Views & interaksi N hari terakhir per akun, satu panggilan per akun, persis seperti Insights di aplikasi Threads.
+ * Cache sama dengan `fetchLiveToday`: TTL 60 dtk, lewat TTL < LIVE_STALE_MAX_MS disajikan sambil disegarkan di latar.
+ */
+export async function fetchLiveRange(ids: string[], days: number, now = new Date()): Promise<Map<string, LiveRange>> {
+  const key = (id: string) => `${id}:${days}`;
+  const age = (id: string) => {
+    const c = rangeCache.get(key(id));
+    return c ? now.getTime() - c.at : Infinity;
+  };
+  const stale = ids.filter((id) => age(id) >= LIVE_TTL_MS && !rangeCache.get(key(id))?.refreshing);
+  const background = new Set(stale.filter((id) => age(id) < LIVE_STALE_MAX_MS));
+
+  if (stale.length) {
+    const batch = (async () => {
+      const rows: TokenRow[] = [];
+      for (let i = 0; i < stale.length; i += ID_CHUNK) {
+        const { data, error } = await db()
+          .from("ThreadsAccount")
+          .select("id, threadsUserId, accessToken, scopes, needsReconnect")
+          .in("id", stale.slice(i, i + ID_CHUNK));
+        if (error) throw new Error(`Supabase: ${error.message}`);
+        rows.push(...((data ?? []) as TokenRow[]));
+      }
+      const results = await mapLimit(rows, CONCURRENCY, (r) => fetchRange(r, days, now));
+      return new Map(results.filter((r): r is LiveRange => r !== null).map((r) => [r.accountId, r]));
+    })();
+    for (const id of stale) {
+      const value = batch.then((m) => m.get(id) ?? null);
+      const entry = { at: now.getTime(), value };
+      if (background.has(id)) {
+        rangeCache.get(key(id))!.refreshing = true;
+        void value.then(() => rangeCache.set(key(id), entry), () => undefined);
+      } else {
+        rangeCache.set(key(id), entry);
+      }
+    }
+    batch.catch(() =>
+      stale.forEach((id) => {
+        const c = rangeCache.get(key(id));
+        if (!c) return;
+        if (background.has(id)) c.refreshing = false;
+        else rangeCache.delete(key(id));
+      })
+    );
+  }
+
+  // Buang entri yang sudah terlalu tua supaya cache tidak tumbuh terus.
+  for (const [k, c] of rangeCache) if (now.getTime() - c.at >= LIVE_STALE_MAX_MS * 3 && !c.refreshing) rangeCache.delete(k);
+
+  const results = await Promise.all(ids.map((id) => rangeCache.get(key(id))?.value ?? Promise.resolve(null)));
+  return new Map(results.filter((r): r is LiveRange => r !== null).map((r) => [r.accountId, r]));
 }

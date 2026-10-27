@@ -6,9 +6,36 @@ import {
   isSyncDue,
   needsMediaRefresh,
   needsMetaFill,
+  viewBuckets,
   wibDateKey,
   wibMidnight,
 } from "../threads-insights";
+
+describe("viewBuckets", () => {
+  it("memecah deret views per hari Threads (end_time = awal bucket waktu Pasifik), urut, tanpa hitung ganda", () => {
+    // Respons asli satu panggilan 30 hari (@re_nevermind, 27 Okt 2026): total 13 = kartu Views di aplikasi Threads
+    const data = [
+      {
+        name: "views",
+        values: [
+          { value: 7, end_time: "2026-10-26T07:00:00+0000" },
+          { value: 1, end_time: "2026-10-21T07:00:00+0000" },
+          { value: 5, end_time: "2026-10-22T07:00:00+0000" },
+          { value: 0, end_time: "2026-10-23T07:00:00+0000" },
+        ],
+      },
+    ];
+    const b = viewBuckets(data);
+    expect(b.map((x) => `${x.date}=${x.views}`)).toEqual(["2026-10-21=1", "2026-10-22=5", "2026-10-23=0", "2026-10-26=7"]);
+    expect(b.reduce((s, x) => s + x.views, 0)).toBe(13);
+    expect(b[0].start.toISOString()).toBe("2026-10-21T07:00:00.000Z");
+  });
+
+  it("tanpa metrik views atau end_time tidak valid: dilewati", () => {
+    expect(viewBuckets([{ name: "likes", total_value: { value: 3 } }])).toEqual([]);
+    expect(viewBuckets([{ name: "views", values: [{ value: 2 }, { value: 1, end_time: "bukan-tanggal" }] }])).toEqual([]);
+  });
+});
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;

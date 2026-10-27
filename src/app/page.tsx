@@ -234,13 +234,13 @@ export default function DashboardPage() {
             <div>
               <h3 className="text-base font-semibold text-fg">{chartTitle}</h3>
               <p className="text-[13px] text-muted mt-0.5">
-                {t("Kunjungan profil dan interaksi per hari")}
+                {t("Penayangan dan interaksi per hari")}
               </p>
             </div>
             <div className="flex items-center gap-4 text-[13px] text-muted">
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-accent" />
-                {t("Kunjungan profil")}
+                {t("Penayangan")}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-success" />
