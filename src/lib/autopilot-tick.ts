@@ -26,6 +26,7 @@ import {
   writeConcurrency,
 } from "./autopilot-config";
 import { emptyAffiliateState, loadAffiliateState, type AffiliateState } from "./affiliate-store";
+import { runAutoComments } from "./auto-comment";
 import { criticEnabled } from "./autopilot-critic";
 import {
   buildStats,
@@ -508,6 +509,13 @@ export async function runTick(opts: { now?: Date; budgetMs?: number } = {}): Pro
     } else if (rec.penerbitTelat === 0) {
       // Penerbit terlambat berarti antrean tidak diambil; menambah antrean hanya menumpuk masalah.
       await writeDueSlots(state, accounts, now, deadline, counts);
+    }
+
+    // Auto Komentar (sql/043): tunduk pada saklar darurat platform, saklar posting, paket habis, dan jeda workspace.
+    // Kegagalannya tidak menahan tick (ditangani di dalam runAutoComments).
+    if (!stopped && isPublishEnabled()) {
+      const blocked = new Set([...state.workspaceActive].filter(([, on]) => !on).map(([id]) => id));
+      await runAutoComments(now, deadline, counts, { blocked, accounts });
     }
   } catch (err) {
     error = err instanceof Error ? err.message : "galat tak dikenal";

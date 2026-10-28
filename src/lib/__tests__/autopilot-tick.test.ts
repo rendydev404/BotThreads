@@ -299,7 +299,8 @@ describe("tick autopilot: rencana, tulis, antre", () => {
     await db.exec(`UPDATE "AutopilotConfig" SET mode = 'MATI' WHERE "accountId" = 'a5'`);
     const quiet = await tick(6);
     expect(quiet.counts.diklaim).toBeUndefined();
-    expect(h.calls.length).toBeLessThanOrEqual(12);
+    // 12 untuk autopilot + 1 dash_acmt_load (Auto Komentar, sql/043): tetap satu panggilan berapa pun jumlah akunnya.
+    expect(h.calls.length).toBeLessThanOrEqual(13);
     await db.exec(`UPDATE "AutopilotConfig" SET mode = 'OTOMATIS' WHERE "accountId" = 'a5'`);
   });
 

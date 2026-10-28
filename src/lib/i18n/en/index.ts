@@ -9,9 +9,12 @@ import radar from "./radar";
 import settings from "./settings";
 import landing from "./landing";
 import landingFilm from "./landing-film";
+import autoComment from "./auto-comment";
 
 /** Kamus EN gabungan. Dimuat lewat import dinamis (lihat ../core.ts), jadi tidak ikut bundel pengguna ID. */
 const en: Readonly<Record<string, string>> = {
+  // Auto Komentar paling awal: kunci yang sudah diterjemahkan modul lain tetap memakai terjemahan modul itu.
+  ...autoComment,
   // Halaman publik paling awal: bila kunci bentrok, terjemahan aplikasi (di bawah) yang dipakai.
   ...landingFilm,
   ...landing,

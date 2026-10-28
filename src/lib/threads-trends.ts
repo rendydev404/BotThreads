@@ -32,9 +32,11 @@ export interface ThreadsPost {
   text: string;
   permalink: string | null;
   timestamp: string | null;
+  /** Hanya terisi bila diminta (`withReplyFlag`): posting ini balasan, bukan postingan utama. */
+  isReply?: boolean;
 }
 
-interface SearchToken {
+export interface SearchToken {
   username: string;
   token: string;
 }
@@ -84,22 +86,30 @@ export type SearchType = "TOP" | "RECENT";
 export async function searchPosts(
   keyword: string,
   auth: SearchToken,
-  searchType: SearchType
+  searchType: SearchType,
+  opts: { withReplyFlag?: boolean } = {}
 ): Promise<{ posts: ThreadsPost[]; publicSearch: boolean }> {
   const u = new URL(`${GRAPH}/keyword_search`);
   u.search = new URLSearchParams({
     q: keyword,
     search_type: searchType,
-    fields: "id,username,text,permalink,timestamp",
+    fields: opts.withReplyFlag ? "id,username,text,permalink,timestamp,is_reply" : "id,username,text,permalink,timestamp",
     limit: "25",
     access_token: auth.token,
   }).toString();
   const res = await fetch(u, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), cache: "no-store" });
-  const body = (await res.json().catch(() => null)) as { data?: Partial<ThreadsPost>[]; error?: { message?: string } } | null;
+  const body = (await res.json().catch(() => null)) as { data?: (Partial<ThreadsPost> & { is_reply?: boolean })[]; error?: { message?: string } } | null;
   if (!res.ok || !body) throw new Error(body?.error?.message || `Pencarian Threads membalas ${res.status}`);
   const posts = (body.data ?? [])
-    .filter((p): p is ThreadsPost => typeof p.id === "string" && typeof p.username === "string")
-    .map((p) => ({ ...p, username: p.username.toLowerCase(), text: p.text ?? "", permalink: p.permalink ?? null, timestamp: p.timestamp ?? null }));
+    .filter((p): p is ThreadsPost & { is_reply?: boolean } => typeof p.id === "string" && typeof p.username === "string")
+    .map(({ is_reply, ...p }) => ({
+      ...p,
+      username: p.username.toLowerCase(),
+      text: p.text ?? "",
+      permalink: p.permalink ?? null,
+      timestamp: p.timestamp ?? null,
+      ...(opts.withReplyFlag ? { isReply: is_reply === true } : {}),
+    }));
   return { posts, publicSearch: posts.some((p) => p.username !== auth.username) };
 }
 

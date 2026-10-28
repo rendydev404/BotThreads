@@ -9,6 +9,7 @@ import type { AutopilotOverviewResponse, SlotStatus } from "@/lib/autopilot-type
 import { ContentApiError } from "@/lib/content-client";
 import { AccountsTab } from "@/components/autopilot/accounts-tab";
 import { AffiliateTab } from "@/components/autopilot/affiliate-tab";
+import { AutoCommentTab } from "@/components/autopilot/auto-comment-tab";
 import { AiPipeline } from "@/components/autopilot/ai-pipeline";
 import { ConfirmModal } from "@/components/autopilot/confirm-modal";
 import { HistoryTab } from "@/components/autopilot/history-tab";
@@ -20,13 +21,14 @@ import { useAutopilotOverview } from "@/components/autopilot/use-autopilot-overv
 import { useT } from "@/components/i18n/lang-provider";
 import { tr } from "@/lib/i18n/core";
 
-type TabKey = "akun" | "rencana" | "tinjau" | "komentar" | "riwayat" | "affiliate";
+type TabKey = "akun" | "rencana" | "tinjau" | "komentar" | "autokomentar" | "riwayat" | "affiliate";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "akun", label: "Akun" },
   { key: "rencana", label: "Rencana" },
   { key: "tinjau", label: "Tinjau" },
   { key: "komentar", label: "Komentar" },
+  { key: "autokomentar", label: "Auto Komentar" },
   { key: "riwayat", label: "Riwayat" },
   { key: "affiliate", label: "Affiliate" },
 ];
@@ -101,7 +103,14 @@ function AutopilotInner() {
   const pathname = usePathname();
   const rawTab = searchParams.get("tab");
   const tab: TabKey =
-    rawTab === "rencana" || rawTab === "tinjau" || rawTab === "komentar" || rawTab === "riwayat" || rawTab === "affiliate" ? rawTab : "akun";
+    rawTab === "rencana" ||
+    rawTab === "tinjau" ||
+    rawTab === "komentar" ||
+    rawTab === "autokomentar" ||
+    rawTab === "riwayat" ||
+    rawTab === "affiliate"
+      ? rawTab
+      : "akun";
 
   const [pauseOpen, setPauseOpen] = useState(false);
   const [pauseBusy, setPauseBusy] = useState(false);
@@ -351,6 +360,11 @@ function AutopilotInner() {
         <Activity mode={tab === "komentar" ? "visible" : "hidden"}>
           <div role="tabpanel" id="autopilot-panel-komentar" aria-labelledby="autopilot-tab-komentar">
             <RepliesTab active={tab === "komentar"} canManage />
+          </div>
+        </Activity>
+        <Activity mode={tab === "autokomentar" ? "visible" : "hidden"}>
+          <div role="tabpanel" id="autopilot-panel-autokomentar" aria-labelledby="autopilot-tab-autokomentar">
+            <AutoCommentTab active={tab === "autokomentar"} />
           </div>
         </Activity>
         <Activity mode={tab === "riwayat" ? "visible" : "hidden"}>

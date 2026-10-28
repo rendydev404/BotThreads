@@ -1,6 +1,7 @@
 import { after, NextResponse, type NextRequest } from "next/server";
 import { getRawIntegrations } from "@/lib/integrations";
 import { ingestWebhook, parseWebhook, runReplies, validSignature } from "@/lib/threads-replies";
+import { noteWebhookAccounts } from "@/lib/threads-reply-poll";
 
 /** Balasan dikirim setelah webhook dijawab; batas route juga membatasi pekerjaan `after`. */
 export const maxDuration = 60;
@@ -44,6 +45,8 @@ export async function POST(request: NextRequest) {
   try {
     const items = parseWebhook(body);
     const accounts = items.length ? await ingestWebhook(items, now) : [];
+    // Webhook berjalan untuk akun ini: polling cadangannya berhenti (threads-reply-poll.ts).
+    noteWebhookAccounts(accounts);
     if (accounts.length) {
       after(() => runReplies(new Date(), Date.now() + REPLY_BUDGET_MS, {}));
     }

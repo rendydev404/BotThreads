@@ -27,6 +27,7 @@ import { MEDIA_TMP_PREFIX } from "./post-media";
 import { db, rpc, sqlTs, toDate } from "./supabase";
 import { firstValidTopic, charLength, THREADS_MAX_TEXT } from "./threads-text";
 import { runReplies } from "./threads-replies";
+import { runReplyPolling } from "./threads-reply-poll";
 import { decryptThreadsToken, encryptThreadsToken } from "./threads-token";
 
 const API = "https://graph.threads.net/v1.0";
@@ -50,6 +51,8 @@ const AFFILIATE_RETRY_MS = 5 * 60 * 1000;
 const BRANCH_TAG = /{nama_(?:cabang|outlet)}/g;
 /** Batas waktu putaran sampai balas komentar berhenti mengambil pekerjaan baru. */
 const REPLIES_BUDGET_MS = 45_000;
+/** Polling komentar selesai lebih dulu supaya komentar yang ditemukan sempat dibalas di putaran yang sama. */
+const REPLY_POLL_BUDGET_MS = 25_000;
 /** Dispatch bergambar baru mulai menyiapkan gambar bila putaran belum berjalan selama ini (batas route 60 detik). */
 const MEDIA_START_BUDGET_MS = 30_000;
 /** Dispatch yang menyiapkan gambar bersamaan (maks 4 gambar per dispatch: unduh + sharp + unggah; hemat memori). */
@@ -558,6 +561,11 @@ export async function runPublisher(opts: { now?: Date } = {}): Promise<Publisher
   });
 
   await sendAffiliateReplies(now, counts);
+  // Cadangan webhook (sql/044): ambil komentar baru di postingan 3 hari terakhir, jadwal makin jarang.
+  await runReplyPolling(now, started + REPLY_POLL_BUDGET_MS, counts).catch((err) => {
+    counts.pollingGalat = (counts.pollingGalat ?? 0) + 1;
+    console.error("[publisher] polling komentar:", err instanceof Error ? err.message : err);
+  });
   // Balas komentar otomatis (sql/023); dibatasi waktu supaya putaran selesai sebelum batas route 60 detik.
   await runReplies(now, started + REPLIES_BUDGET_MS, counts);
   // Antrean pengerahan buzzer lintas-niche (sql/029).
