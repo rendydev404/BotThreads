@@ -146,6 +146,36 @@ export const LEGAL_DOCUMENTS_EN: Record<LegalDocId, LegalDocument> = {
           },
         ],
       },
+      {
+        id: "data-publik-threads",
+        index: "06",
+        title: "Public Data from Threads Search and Auto Comment",
+        paragraphs: [
+          "The Radar and Auto Comment features use the official Threads API (the threads_keyword_search permission) to search public posts by keyword. The public data of other people that we handle through these features:",
+        ],
+        rows: [
+          {
+            term: "Search Threads Panel",
+            detail: "Searches you run with your own Threads account. The results (author username, text, link) are only shown to you and are not stored.",
+          },
+          {
+            term: "Automatic Trends",
+            detail: "Our server searches popular posts for a few safe trending topics using one Threads account owned by BotThreads, never a customer account. We store the post text (up to 400 characters), link, time, author username and topic; they are shown for 48 hours and deleted automatically no later than 30 days after that.",
+          },
+          {
+            term: "Auto Comment",
+            detail: "Runs only if you turn it on for your account. We store the post ID, author username, a text excerpt (up to 300 characters), link, keyword, and the comment your account sent with its status. This data is used for your history and to prevent the same post or author from being commented on repeatedly, is kept for at most 90 days, and is deleted earlier if the Threads account is removed from BotThreads or a data deletion request is received.",
+          },
+          {
+            term: "AI Processing",
+            detail: "Post excerpts are sent to the language model provider (Article 05) only to draft a comment or a post idea.",
+          },
+          {
+            term: "What We Do Not Do",
+            detail: "We do not sell or share this data, use it for advertising, build profiles of individuals, train AI models on it, or like, follow, repost or message its authors.",
+          },
+        ],
+      },
     ],
   },
 

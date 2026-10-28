@@ -21,6 +21,7 @@ import { forgetMembership } from "./request-ctx";
 import { db, forgetAccountCaches, nowTs, rpc, sqlTs } from "./supabase";
 import { decryptThreadsToken, encryptThreadsToken, tokenKeyConfigured, tokenKeyMatches } from "./threads-token";
 import type { Failure } from "./threads-publish";
+import { forgetAutoComments } from "./threads-meta-callbacks";
 
 const GRAPH = "https://graph.threads.net";
 const FETCH_TIMEOUT_MS = 10_000;
@@ -468,6 +469,8 @@ export async function removeThreadsAccount(
   }
   if (res.status === "NOT_FOUND") return failure(404, "Akun Threads tidak ditemukan. Muat ulang halaman.");
   if (res.status === "BUKAN_MILIK") return failure(403, "Akun ini milik workspace lain dalam kelompok Anda dan hanya bisa dihapus dari sana.");
+  // Pengaturan & riwayat Auto Komentar (username dan potongan postingan orang lain) ikut dihapus.
+  await forgetAutoComments(params.accountId);
   forgetAll();
   return { ok: true, username: res.username ?? null };
 }

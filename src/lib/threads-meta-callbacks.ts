@@ -78,6 +78,15 @@ export async function deauthorizeThreadsUser(threadsUserId: string, now = new Da
   return (data ?? []).length;
 }
 
+/** Pengaturan & riwayat Auto Komentar akun (sql/045). Skema belum dipasang = tidak ada yang dihapus. */
+export async function forgetAutoComments(accountId: string): Promise<void> {
+  try {
+    await rpc<number>("dash_acmt_forget_account", { p_account: accountId });
+  } catch (err) {
+    if (!/dash_acmt_forget_account|PGRST202|42883/.test(err instanceof Error ? err.message : String(err))) throw err;
+  }
+}
+
 /** Kode konfirmasi alfanumerik untuk halaman status penghapusan. */
 export const newConfirmationCode = (): string => randomBytes(8).toString("hex").toUpperCase();
 
@@ -92,6 +101,7 @@ export async function deleteThreadsUserData(threadsUserId: string, now = new Dat
       p_now: sqlTs(now),
     });
     if (res.status === "OK") removed++;
+    await forgetAutoComments(a.id);
   }
   forgetAll();
   return removed;

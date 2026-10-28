@@ -418,8 +418,24 @@ async function pool<T>(items: T[], limit: number, worker: (item: T) => Promise<v
 }
 
 /** Jalankan jam Auto Komentar yang jatuh tempo. Dipanggil runTick setelah saklar global dan paket diperiksa. */
+/** Riwayat target (data pihak ketiga) dibuang setelah 90 hari; dicek paling sering tiap 6 jam (sql/045). */
+const PRUNE_EVERY_MS = 6 * 60 * 60 * 1000;
+let lastPrune = 0;
+
+async function pruneHistory(now: Date, counts: Counts): Promise<void> {
+  if (now.getTime() - lastPrune < PRUNE_EVERY_MS) return;
+  lastPrune = now.getTime();
+  try {
+    bump(counts, "autoKomentarDibuang", await rpc<number>("dash_acmt_prune", { p_now: sqlTs(now) }));
+  } catch (err) {
+    // sql/045 belum dipasang: dicoba lagi di putaran 6 jam berikutnya.
+    console.warn("[auto-comment] prune:", err instanceof Error ? err.message : err);
+  }
+}
+
 export async function runAutoComments(now: Date, deadline: number, counts: Counts, opts: TickOptions): Promise<void> {
   try {
+    await pruneHistory(now, counts);
     const loaded = await loadAccounts(null, now);
     const jobs: { a: LoadedAccount; dayKey: string; slot: string }[] = [];
     for (const a of loaded) {

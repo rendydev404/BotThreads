@@ -111,7 +111,7 @@ const dict: Record<string, string> = {
   "Tambahkan minimal satu kata kunci.": "Add at least one keyword.",
   "Status saklar tidak valid.": "Invalid switch status.",
   "Jeda antar-komentar workspace 10-1440 menit.": "Workspace gap between comments must be 10-1440 minutes.",
-  "Cooldown penulis 14-365 hari.": "Author cooldown must be 14-365 days.",
+  "Cooldown penulis 14-90 hari.": "Author cooldown must be 14-90 days.",
   "Umur postingan 1-72 jam.": "Post age must be 1-72 hours.",
   "Daftar blokir tidak valid.": "Invalid block list.",
   "Username di daftar blokir tidak valid.": "A username in the block list is invalid.",

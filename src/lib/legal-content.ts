@@ -181,6 +181,36 @@ export const LEGAL_DOCUMENTS: Record<LegalDocId, LegalDocument> = {
           },
         ],
       },
+      {
+        id: "data-publik-threads",
+        index: "06",
+        title: "Data Publik dari Pencarian Threads dan Auto Comment",
+        paragraphs: [
+          "Fitur Radar dan Auto Comment memakai API resmi Threads (izin threads_keyword_search) untuk mencari postingan publik berdasarkan kata kunci. Data publik milik orang lain yang kami tangani dari fitur ini:",
+        ],
+        rows: [
+          {
+            term: "Panel Cari di Threads",
+            detail: "Pencarian yang Anda jalankan dengan akun Threads Anda sendiri. Hasilnya (username penulis, teks, tautan) hanya ditampilkan kepada Anda dan tidak disimpan.",
+          },
+          {
+            term: "Tren Otomatis",
+            detail: "Server kami mencari postingan populer untuk beberapa topik tren yang aman memakai satu akun Threads milik BotThreads, bukan akun pelanggan. Kami menyimpan teks postingan (maksimal 400 karakter), tautan, waktu, username penulis, dan topiknya; ditampilkan selama 48 jam lalu dihapus otomatis paling lambat 30 hari kemudian.",
+          },
+          {
+            term: "Auto Comment",
+            detail: "Hanya berjalan bila Anda mengaktifkannya untuk akun Anda. Kami menyimpan ID postingan, username penulis, potongan teks (maksimal 300 karakter), tautan, kata kunci, serta komentar yang dikirim akun Anda dan statusnya. Data ini dipakai untuk riwayat dan untuk mencegah satu postingan atau penulis dikomentari berulang, disimpan paling lama 90 hari, dan dihapus lebih awal bila akun Threads dihapus dari BotThreads atau permintaan penghapusan data diterima.",
+          },
+          {
+            term: "Pemrosesan AI",
+            detail: "Potongan teks postingan dikirim ke penyedia model bahasa (Pasal 05) hanya untuk menyusun draf komentar atau ide tulisan.",
+          },
+          {
+            term: "Yang Tidak Kami Lakukan",
+            detail: "Kami tidak menjual atau membagikan data ini, tidak memakainya untuk iklan, tidak membuat profil individu, tidak melatih model AI dengannya, dan tidak menyukai, mengikuti, me-repost, atau mengirim pesan kepada penulisnya.",
+          },
+        ],
+      },
     ],
   },
 
