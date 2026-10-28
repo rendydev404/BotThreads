@@ -336,6 +336,32 @@ const dict: Record<string, string> = {
   "Belum ada gambar yang cocok untuk ide ini.": "No matching image for this idea yet.",
   "Teks preview terlalu panjang untuk ditambah keterangan sumber gambar. Tulis ulang preview-nya dulu.":
     "The preview text is too long to add the image credit. Rewrite the preview first.",
+  // Cari di Threads (threads_keyword_search)
+  "Cari di Threads": "Search Threads",
+  "Cari posting publik dengan kata kunci untuk melihat apa yang sedang dibahas di niche Anda. Hasil hanya ditampilkan, tidak disimpan dan tidak dibalas.":
+    "Search public posts by keyword to see what people in your niche are talking about. Results are only shown, never stored or replied to.",
+  "Hubungkan akun Threads dulu di halaman Akun Threads.": "Connect a Threads account first on the Threads Accounts page.",
+  "Cari sebagai": "Search as",
+  "Akun yang dipakai mencari": "Account used for the search",
+  "Kata kunci": "Keyword",
+  "mis. shawarma, kuliner malam": "e.g. shawarma, late-night food",
+  Urutkan: "Sort by",
+  "Urutan hasil": "Result order",
+  Teratas: "Top",
+  Terbaru: "Recent",
+  Cari: "Search",
+  "Pilih akun Threads dulu.": "Choose a Threads account first.",
+  "Kata kunci minimal 2 karakter.": "The keyword needs at least 2 characters.",
+  "Kata kunci 2-100 karakter.": "The keyword must be 2-100 characters.",
+  "Gagal mencari di Threads. Coba lagi.": "Couldn't search Threads. Try again.",
+  "Akun Threads perlu dihubungkan ulang.": "This Threads account needs to be reconnected.",
+  "Akun ini belum memberi izin pencarian. Hubungkan ulang akun Threads-nya.":
+    "This account hasn't granted search permission yet. Reconnect its Threads account.",
+  "Mode uji: sebelum izin pencarian Threads (threads_keyword_search) disetujui Meta, Threads hanya mengembalikan posting milik @{username}. Setelah disetujui, hasilnya posting publik.":
+    "Test mode: until Meta approves Threads search (threads_keyword_search), Threads returns only @{username}'s own posts. After approval, results are public posts.",
+  '{n} hasil untuk "{q}"': '{n} result for "{q}"||{n} results for "{q}"',
+  "Tidak ada posting yang cocok. Selama izin pencarian belum disetujui Meta, yang dicari hanya posting akun ini sendiri.":
+    "No matching posts. Until Meta approves search, only this account's own posts are searched.",
 };
 
 export default dict;

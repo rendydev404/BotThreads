@@ -40,21 +40,24 @@ interface SearchToken {
 }
 
 /**
- * Token untuk pencarian: akun yang izinnya mencakup pencarian dan tidak perlu dihubungkan ulang.
- * `THREADS_SEARCH_USERNAME` memilih akun tertentu; selain itu akun pertama yang memenuhi syarat.
+ * Token untuk pencarian tren otomatis: HANYA akun Threads milik BotThreads yang ditunjuk
+ * `THREADS_SEARCH_USERNAME`. Hasilnya dilihat semua workspace, jadi token akun pelanggan tidak boleh dipakai
+ * di sini (pelanggan memakai tokennya sendiri lewat panel Cari di Threads). Tanpa env ini tidak ada pencarian.
  */
 export async function loadSearchTokens(limit = 3): Promise<SearchToken[]> {
   const preferred = process.env.THREADS_SEARCH_USERNAME?.trim().toLowerCase() || null;
+  if (!preferred) return [];
   const { data, error } = await db()
     .from("ThreadsAccount")
     .select("username, accessToken, scopes, needsReconnect")
     .eq("needsReconnect", false)
+    .eq("username", preferred)
     .not("accessToken", "is", null)
-    .limit(50);
+    .limit(5);
   if (error) throw new Error(`Gagal memuat akun untuk pencarian Threads: ${error.message}`);
-  const rows = ((data ?? []) as { username: string; accessToken: string; scopes: string[] | null }[])
-    .filter((r) => (r.scopes ?? []).includes(SEARCH_SCOPE))
-    .sort((a, b) => Number(b.username === preferred) - Number(a.username === preferred));
+  const rows = ((data ?? []) as { username: string; accessToken: string; scopes: string[] | null }[]).filter(
+    (r) => r.username.toLowerCase() === preferred && (r.scopes ?? []).includes(SEARCH_SCOPE)
+  );
   const out: SearchToken[] = [];
   for (const r of rows) {
     try {
@@ -71,11 +74,22 @@ export async function loadSearchTokens(limit = 3): Promise<SearchToken[]> {
  * Posting paling populer untuk satu kata kunci. `publicSearch` = hasil memuat akun lain, artinya izin
  * pencarian publik sudah aktif. Bila semua hasil milik akun pemegang token, izin belum disetujui.
  */
-export async function searchTopPosts(keyword: string, auth: SearchToken): Promise<{ posts: ThreadsPost[]; publicSearch: boolean }> {
+export function searchTopPosts(keyword: string, auth: SearchToken): Promise<{ posts: ThreadsPost[]; publicSearch: boolean }> {
+  return searchPosts(keyword, auth, "TOP");
+}
+
+export type SearchType = "TOP" | "RECENT";
+
+/** `GET /keyword_search` dengan token satu akun. TOP = paling populer, RECENT = terbaru. */
+export async function searchPosts(
+  keyword: string,
+  auth: SearchToken,
+  searchType: SearchType
+): Promise<{ posts: ThreadsPost[]; publicSearch: boolean }> {
   const u = new URL(`${GRAPH}/keyword_search`);
   u.search = new URLSearchParams({
     q: keyword,
-    search_type: "TOP",
+    search_type: searchType,
     fields: "id,username,text,permalink,timestamp",
     limit: "25",
     access_token: auth.token,
@@ -153,4 +167,56 @@ export async function captureThreadsViral(
     }
   }
   return { signals, status: publicSeen ? "ok" : "not_approved" };
+}
+
+/* ------------------------------------------------------------------ cari langsung (Radar > Cari di Threads) */
+
+export const SEARCH_QUERY_MIN = 2;
+export const SEARCH_QUERY_MAX = 100;
+const SEARCH_TEXT_MAX = 500;
+
+export interface AccountSearchResult {
+  posts: ThreadsPost[];
+  /** Semua hasil milik akun pencari: izin pencarian publik belum disetujui Meta (hasil hanya posting sendiri). */
+  ownOnly: boolean;
+  username: string;
+}
+
+/**
+ * Pencarian kata kunci atas permintaan pemilik, dengan token akun Threads miliknya sendiri. Hasil hanya
+ * ditampilkan (tidak disimpan, tidak dibalas). Pemanggil wajib memastikan akun ada dalam lingkup workspace.
+ */
+export async function searchAsAccount(
+  accountId: string,
+  query: string,
+  searchType: SearchType
+): Promise<{ ok: true; result: AccountSearchResult } | { ok: false; status: number; error: string }> {
+  const { data, error } = await db()
+    .from("ThreadsAccount")
+    .select("username, accessToken, scopes, needsReconnect")
+    .eq("id", accountId)
+    .maybeSingle();
+  if (error) throw new Error(`Gagal memuat akun Threads: ${error.message}`);
+  const row = data as { username: string; accessToken: string | null; scopes: string[] | null; needsReconnect: boolean } | null;
+  if (!row) return { ok: false, status: 404, error: "Akun Threads tidak ditemukan." };
+  if (row.needsReconnect || !row.accessToken) return { ok: false, status: 409, error: "Akun Threads perlu dihubungkan ulang." };
+  if (!(row.scopes ?? []).includes(SEARCH_SCOPE)) {
+    return { ok: false, status: 409, error: "Akun ini belum memberi izin pencarian. Hubungkan ulang akun Threads-nya." };
+  }
+  let token: string;
+  try {
+    token = decryptThreadsToken(row.accessToken);
+  } catch {
+    return { ok: false, status: 409, error: "Akun Threads perlu dihubungkan ulang." };
+  }
+  const username = row.username.toLowerCase();
+  const { posts, publicSearch } = await searchPosts(query, { username, token }, searchType);
+  return {
+    ok: true,
+    result: {
+      posts: posts.map((p) => ({ ...p, text: cleanExternal(p.text, SEARCH_TEXT_MAX) })),
+      ownOnly: posts.length > 0 && !publicSearch,
+      username,
+    },
+  };
 }

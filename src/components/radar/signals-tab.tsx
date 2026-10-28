@@ -22,6 +22,7 @@ import { usePublishAccounts } from "@/components/content/use-publish-accounts";
 import { FormError, TextAreaField, TextField } from "@/components/settings/fields";
 import { MONTH_SHORT, errorDetails, errorStatus, errorText, formatDateWib, pad2, toScore100 } from "@/components/settings/format";
 import { usePaged } from "@/components/settings/use-remote";
+import { ThreadsSearchPanel } from "./threads-search-panel";
 import {
   BTN,
   BTN_OUTLINE,
@@ -516,6 +517,8 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
           {notice.text}
         </Banner>
       )}
+
+      {source === "THREADS_SEARCH" && canEdit && <ThreadsSearchPanel accounts={accounts} onForbidden={onForbidden} />}
 
       {list.loading ? (
         <ListSkeleton label={t("Memuat tren viral")} />

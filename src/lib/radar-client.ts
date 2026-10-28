@@ -88,3 +88,15 @@ export const changeIdeaMedia = (id: string, action: IdeaMediaAction, signal?: Ab
     body: JSON.stringify({ action }),
     signal,
   });
+
+export interface ThreadsSearchResponse {
+  success: true;
+  posts: { id: string; username: string; text: string; permalink: string | null; timestamp: string | null }[];
+  /** Semua hasil milik akun pencari: izin pencarian publik belum disetujui Meta. */
+  ownOnly: boolean;
+  username: string;
+}
+
+/** Cari posting Threads dengan kata kunci memakai akun workspace (hasil tidak disimpan). */
+export const searchThreads = (p: { accountId: string; q: string; type: "TOP" | "RECENT" }, signal?: AbortSignal) =>
+  call<ThreadsSearchResponse>("/api/radar/search", { method: "POST", body: JSON.stringify(p), signal });

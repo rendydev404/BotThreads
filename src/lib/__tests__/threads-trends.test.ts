@@ -33,6 +33,7 @@ const post = (id: string, username: string, text = "Teks posting yang cukup panj
 
 let responses: Record<string, unknown[]>;
 beforeEach(() => {
+  process.env.THREADS_SEARCH_USERNAME = "akunsaya";
   h.accounts = [{ username: "akunsaya", accessToken: "enc", scopes: ["threads_basic", "threads_keyword_search"] }];
   responses = {};
   vi.stubGlobal(
@@ -91,6 +92,15 @@ describe("captureThreadsViral", () => {
     h.accounts = [{ username: "akunsaya", accessToken: "enc", scopes: ["threads_basic"] }];
     const r = await captureThreadsViral([topic("timnas", 1)], NOW);
     expect(r.status).toBe("no_token");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("token akun pelanggan tidak dipakai: hanya akun THREADS_SEARCH_USERNAME, tanpa env tidak mencari", async () => {
+    h.accounts = [{ username: "pelanggan1", accessToken: "enc", scopes: ["threads_basic", "threads_keyword_search"] }];
+    expect((await captureThreadsViral([topic("timnas", 1)], NOW)).status).toBe("no_token");
+    delete process.env.THREADS_SEARCH_USERNAME;
+    h.accounts = [{ username: "akunsaya", accessToken: "enc", scopes: ["threads_basic", "threads_keyword_search"] }];
+    expect((await captureThreadsViral([topic("timnas", 1)], NOW)).status).toBe("no_token");
     expect(fetch).not.toHaveBeenCalled();
   });
 
