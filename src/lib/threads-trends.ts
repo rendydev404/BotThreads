@@ -55,6 +55,8 @@ export async function loadSearchTokens(limit = 3): Promise<SearchToken[]> {
     .eq("needsReconnect", false)
     .eq("username", preferred)
     .not("accessToken", "is", null)
+    // Username sama bisa terhubung lewat app lain (SukaPost); pakai token yang paling baru dihubungkan.
+    .order("updatedAt", { ascending: false })
     .limit(5);
   if (error) throw new Error(`Gagal memuat akun untuk pencarian Threads: ${error.message}`);
   const rows = ((data ?? []) as { username: string; accessToken: string; scopes: string[] | null }[]).filter(

@@ -11,6 +11,7 @@ vi.mock("../supabase", () => {
     select: () => chain,
     eq: () => chain,
     not: () => chain,
+    order: () => chain,
     limit: () => Promise.resolve({ data: h.accounts, error: null }),
   };
   return { db: () => ({ from: () => chain }) };
