@@ -24,6 +24,9 @@ const PUBLIC_API = [
   "/api/threads/oauth/callback",
   // Webhook Threads dari Meta: diamankan tanda tangan X-Hub-Signature-256 (App Secret).
   "/api/webhooks/threads",
+  // Callback Deauthorize & Data Deletion dari Meta: diamankan signed_request (HMAC App Secret Threads).
+  "/api/threads/deauthorize",
+  "/api/threads/data-deletion",
 ];
 
 // Halaman yang dibuka dari tautan undangan/reset oleh orang yang belum punya sesi.
