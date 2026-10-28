@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { Ban, CalendarHeart, Check, Clock, PenLine, Search, ShieldCheck, TrendingUp, Type, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLang, useT } from "@/components/i18n/lang-provider";
 import { PERSONAS, jitter, pad, pickHours } from "./personas";
 
 /**
@@ -12,8 +13,9 @@ import { PERSONAS, jitter, pad, pickHours } from "./personas";
  */
 
 function PersonaTabs({ value, onChange, label }: { value: string; onChange: (key: string) => void; label: string }) {
+  const t = useT();
   return (
-    <div role="tablist" aria-label={label} className="inline-flex max-w-full overflow-x-auto p-1 rounded-xl bg-subtle">
+    <div role="tablist" aria-label={t(label)} className="inline-flex max-w-full overflow-x-auto p-1 rounded-xl bg-subtle">
       {PERSONAS.map((p) => (
         <button
           key={p.key}
@@ -26,7 +28,7 @@ function PersonaTabs({ value, onChange, label }: { value: string; onChange: (key
             value === p.key ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg"
           )}
         >
-          {p.label}
+          {t(p.label)}
         </button>
       ))}
     </div>
@@ -36,6 +38,7 @@ function PersonaTabs({ value, onChange, label }: { value: string; onChange: (key
 /* ------------------------------------------------------------------ peraga: atur jadwal */
 
 export function HoursPlanner() {
+  const t = useT();
   const [key, setKey] = useState(PERSONAS[0].key);
   const [count, setCount] = useState(3);
   const persona = PERSONAS.find((p) => p.key === key) ?? PERSONAS[0];
@@ -47,8 +50,8 @@ export function HoursPlanner() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <PersonaTabs value={key} onChange={setKey} label="Contoh brand untuk jam ramai" />
         <div className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold text-muted">Posting per hari</span>
-          <div role="radiogroup" aria-label="Posting per hari" className="inline-flex p-1 rounded-xl bg-subtle">
+          <span className="text-[13px] font-semibold text-muted">{t("Posting per hari")}</span>
+          <div role="radiogroup" aria-label={t("Posting per hari")} className="inline-flex p-1 rounded-xl bg-subtle">
             {[3, 4, 5, 6].map((n) => (
               <button
                 key={n}
@@ -88,10 +91,10 @@ export function HoursPlanner() {
 
       <p className="mt-5 text-sm text-fg" aria-live="polite">
         <Clock className="inline w-4 h-4 mr-1.5 -mt-0.5 text-accent" />
-        Tayang pukul{" "}
+        {t("Tayang pukul")}{" "}
         {chosen.map((h, i) => (
           <React.Fragment key={h}>
-            {i > 0 && (i === chosen.length - 1 ? " dan " : ", ")}
+            {i > 0 && (i === chosen.length - 1 ? ` ${t("dan")} ` : ", ")}
             <span className="lp-mono font-bold tabular-nums">
               {pad(h)}.{pad(jitter(h, count))}
             </span>
@@ -100,8 +103,9 @@ export function HoursPlanner() {
         WIB.
       </p>
       <p className="mt-1.5 text-[13px] text-muted leading-relaxed">
-        Dipilih dari jam dengan views tertinggi, dijaga berjarak 2,5 jam (bisa diatur), dan menitnya digeser sedikit tiap hari supaya tidak
-        terasa seperti mesin.
+        {t(
+          "Dipilih dari jam dengan views tertinggi, dijaga berjarak 2,5 jam (bisa diatur), dan menitnya digeser sedikit tiap hari supaya tidak terasa seperti mesin."
+        )}
       </p>
     </div>
   );
@@ -153,13 +157,14 @@ const DRAFTS: Draft[] = [
 ];
 
 export function GateDemo() {
+  const { t, lang } = useLang();
   const [at, setAt] = useState(0);
   const draft = DRAFTS[at];
   const passed = draft.checks.every((c) => c.ok);
 
   return (
     <div className="rounded-3xl border border-line bg-surface overflow-hidden">
-      <div role="tablist" aria-label="Contoh draf" className="flex border-b border-line">
+      <div role="tablist" aria-label={t("Contoh draf")} className="flex border-b border-line">
         {DRAFTS.map((d, i) => (
           <button
             key={d.label}
@@ -172,7 +177,7 @@ export function GateDemo() {
               at === i ? "text-accent" : "text-muted hover:text-fg"
             )}
           >
-            {d.label}
+            {t(d.label)}
             {at === i && <span className="absolute bottom-0 inset-x-4 h-0.5 rounded-full bg-accent" />}
           </button>
         ))}
@@ -180,7 +185,7 @@ export function GateDemo() {
 
       <div className="p-4 sm:p-6 grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-5">
         <div>
-          <p className="rounded-2xl bg-subtle p-4 text-[15px] leading-relaxed text-fg">{draft.text}</p>
+          <p className="rounded-2xl bg-subtle p-4 text-[15px] leading-relaxed text-fg">{t(draft.text)}</p>
           <div
             className={cn(
               "mt-3 flex items-start gap-2.5 rounded-xl p-3.5 text-sm font-semibold",
@@ -190,8 +195,8 @@ export function GateDemo() {
           >
             {passed ? <ShieldCheck className="w-[18px] h-[18px] mt-0.5 shrink-0" /> : <Ban className="w-[18px] h-[18px] mt-0.5 shrink-0" />}
             {passed
-              ? `Lolos, nilai editor ${String(draft.score).replace(".", ",")}. Masuk antrean terbit.`
-              : "Ditolak sebelum sampai ke antrean. AI menulis ulang dengan catatan ini."}
+              ? t("Lolos, nilai editor {skor}. Masuk antrean terbit.", { skor: lang === "en" ? String(draft.score) : String(draft.score).replace(".", ",") })
+              : t("Ditolak sebelum sampai ke antrean. AI menulis ulang dengan catatan ini.")}
           </div>
         </div>
 
@@ -207,7 +212,7 @@ export function GateDemo() {
                 {c.ok ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
               </span>
               <p className="text-sm leading-relaxed">
-                <span className="font-bold text-fg">{c.name}.</span> <span className="text-muted">{c.note}</span>
+                <span className="font-bold text-fg">{t(`${c.name}@@cek`)}.</span> <span className="text-muted">{t(c.note)}</span>
               </p>
             </li>
           ))}
@@ -251,12 +256,13 @@ const SOURCES = [
 ];
 
 export function IdeaSources() {
+  const t = useT();
   const [key, setKey] = useState(SOURCES[0].key);
   const source = SOURCES.find((s) => s.key === key) ?? SOURCES[0];
 
   return (
     <div className="grid md:grid-cols-[15rem_minmax(0,1fr)] gap-4">
-      <div role="tablist" aria-label="Sumber ide" aria-orientation="vertical" className="flex md:flex-col gap-2 overflow-x-auto md:overflow-visible -mx-4 px-4 md:mx-0 md:px-0 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div role="tablist" aria-label={t("Sumber ide")} aria-orientation="vertical" className="flex md:flex-col gap-2 overflow-x-auto md:overflow-visible -mx-4 px-4 md:mx-0 md:px-0 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {SOURCES.map(({ key: k, Icon, label }) => (
           <button
             key={k}
@@ -270,24 +276,25 @@ export function IdeaSources() {
             )}
           >
             <Icon className="w-[18px] h-[18px] shrink-0" />
-            <span className="whitespace-nowrap">{label}</span>
+            <span className="whitespace-nowrap">{t(label)}</span>
           </button>
         ))}
       </div>
 
       <div className="rounded-3xl border border-line bg-surface p-5 sm:p-6" role="tabpanel">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-faint">Tren</p>
-        <p className="mt-1.5 text-[15px] leading-relaxed text-fg">{source.signal}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-faint">{t("Tren@@sinyal")}</p>
+        <p className="mt-1.5 text-[15px] leading-relaxed text-fg">{t(source.signal)}</p>
         <div className="my-4 flex items-center gap-3 text-xs font-semibold text-accent">
           <span className="h-px flex-1 bg-line" />
           <PenLine className="w-4 h-4" />
-          menjadi ide
+          {t("menjadi ide")}
           <span className="h-px flex-1 bg-line" />
         </div>
-        <p className="text-[15px] leading-relaxed font-semibold text-fg">{source.idea}</p>
+        <p className="text-[15px] leading-relaxed font-semibold text-fg">{t(source.idea)}</p>
         <p className="mt-4 text-[13px] text-muted leading-relaxed">
-          Tiap ide diberi skor dari seberapa viral trennya, kebaruan, kecocokan dengan akun, dan kinerja pola serupa. Yang mirip posting lama
-          dibuang.
+          {t(
+            "Tiap ide diberi skor dari seberapa viral trennya, kebaruan, kecocokan dengan akun, dan kinerja pola serupa. Yang mirip posting lama dibuang."
+          )}
         </p>
       </div>
     </div>

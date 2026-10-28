@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { AbsoluteFill, Easing, Html5Audio, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { TransitionSeries, linearTiming, type TransitionPresentation } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
 import { slide } from "@remotion/transitions/slide";
 import { wipe } from "@remotion/transitions/wipe";
+import { useLang, useT } from "@/components/i18n/lang-provider";
 import { Ban, BadgeCheck, CalendarClock, Check, Flame, Heart, MessageCircle, PenLine, Radar, Repeat2, Send, ShieldCheck, TrendingUp } from "lucide-react";
 
 /**
@@ -44,7 +45,9 @@ const MONO = "var(--font-jetbrains), ui-monospace, Consolas, monospace";
 
 const CLAMP = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const pad = (n: number) => String(n).padStart(2, "0");
-const idNum = (n: number) => Math.round(n).toLocaleString("id-ID");
+const fmtNum = (n: number, locale: string) => Math.round(n).toLocaleString(locale);
+/** Skor 0-1 dengan dua desimal: koma di bahasa Indonesia ("0,87"), titik di bahasa Inggris ("0.87"). */
+const fmtScore = (n: number, lang: string) => (lang === "en" ? n.toFixed(2) : n.toFixed(2).replace(".", ","));
 
 /** Masuk halus (0 -> 1) setelah `delay` frame. */
 function useEnter(delay = 0, damping = 200) {
@@ -112,6 +115,7 @@ function clockAt(frame: number): string {
 
 function Hud() {
   const frame = useCurrentFrame();
+  const t = useT();
   let scene = 0;
   STARTS.forEach((s, i) => {
     if (frame >= s + T / 2) scene = i;
@@ -169,7 +173,7 @@ function Hud() {
               }}
             >
               {done ? <Check size={14} strokeWidth={3} /> : <span style={{ fontVariantNumeric: "tabular-nums" }}>0{i + 1}</span>}
-              {label.toUpperCase()}
+              {t(`${label}@@pipeline`).toUpperCase()}
             </div>
           );
         })}
@@ -180,15 +184,16 @@ function Hud() {
 
 /** Judul adegan: label mono kecil + judul besar. */
 function SceneTitle({ kicker, title, Icon }: { kicker: string; title: string; Icon: typeof Radar }) {
+  const t = useT();
   const a = useEnter(0);
   const b = useEnter(5);
   return (
     <div style={{ position: "absolute", top: 92, left: 72, right: 72 }}>
       <div style={{ ...rise(a, 14), display: "flex", alignItems: "center", gap: 10, color: C.cyan, fontFamily: MONO, fontSize: 18, fontWeight: 700, letterSpacing: 3 }}>
         <Icon size={20} strokeWidth={2.5} />
-        {kicker}
+        {t(kicker)}
       </div>
-      <div style={{ ...rise(b, 20), marginTop: 10, color: C.fg, fontFamily: DISPLAY, fontSize: 50, fontWeight: 800, letterSpacing: -1.6, lineHeight: 1.02 }}>{title}</div>
+      <div style={{ ...rise(b, 20), marginTop: 10, color: C.fg, fontFamily: DISPLAY, fontSize: 50, fontWeight: 800, letterSpacing: -1.6, lineHeight: 1.02 }}>{t(title)}</div>
     </div>
   );
 }
@@ -215,6 +220,7 @@ const BOOT = ["menghubungkan @kedai.sore", "memuat Pengetahuan brand", "membaca 
 
 function IntroScene() {
   const frame = useCurrentFrame();
+  const t = useT();
   const logo = useEnter(0, 14);
   const head = useEnter(18);
   const sub = useEnter(30);
@@ -236,10 +242,10 @@ function IntroScene() {
         <Img src="/logo.webp" style={{ position: "relative", width: 132, height: 132, borderRadius: 34 }} />
       </div>
       <div style={{ ...rise(head), marginTop: 40, fontFamily: DISPLAY, fontSize: 64, fontWeight: 800, color: C.fg, letterSpacing: -2, textAlign: "center", lineHeight: 1 }}>
-        Satu hari kerja tim konten.
+        {t("Satu hari kerja tim konten.")}
       </div>
       <div style={{ ...rise(sub), marginTop: 14, fontFamily: DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: -1.2, color: C.accent }}>
-        Dikerjakan autopilot, sendiri.
+        {t("Dikerjakan autopilot, sendiri.")}
       </div>
       <div style={{ marginTop: 34, display: "flex", gap: 22, fontFamily: MONO, fontSize: 16, fontWeight: 700 }}>
         {BOOT.map((line, i) => {
@@ -248,7 +254,7 @@ function IntroScene() {
           return (
             <span key={line} style={{ opacity: p, color: last ? C.success : C.muted, display: "flex", alignItems: "center", gap: 6 }}>
               <Check size={15} strokeWidth={3} color={C.success} />
-              {line}
+              {t(line)}
             </span>
           );
         })}
@@ -273,6 +279,7 @@ const IDEAS = [
 
 function ScanScene() {
   const frame = useCurrentFrame();
+  const { t, lang } = useLang();
   const sweep = frame * 5;
   const blips = [
     { x: 58, y: 34, at: 14 },
@@ -329,10 +336,10 @@ function ScanScene() {
           return (
             <Panel key={s.from} style={{ padding: "14px 18px", opacity: p, transform: `translateX(${(1 - p) * -40}px)`, borderColor: `${s.color}55` }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontFamily: MONO, fontSize: 14, fontWeight: 700, color: s.color }}>
-                <span>{s.from.toUpperCase()}</span>
-                <span>{s.stat}</span>
+                <span>{t(s.from).toUpperCase()}</span>
+                <span>{t(s.stat)}</span>
               </div>
-              <div style={{ marginTop: 4, fontSize: 21, fontWeight: 700, color: C.fg }}>{s.text}</div>
+              <div style={{ marginTop: 4, fontSize: 21, fontWeight: 700, color: C.fg }}>{t(s.text)}</div>
             </Panel>
           );
         })}
@@ -341,7 +348,7 @@ function ScanScene() {
       {/* ide dinilai */}
       <div style={{ position: "absolute", right: 72, top: 236, width: 360 }}>
         <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.faint, letterSpacing: 2, opacity: interpolate(frame, [56, 64], [0, 1], CLAMP) }}>
-          IDE DINILAI
+          {t("IDE DINILAI")}
         </div>
         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 12 }}>
           {IDEAS.map((idea, i) => {
@@ -359,13 +366,13 @@ function ScanScene() {
                   boxShadow: glow ? `0 0 ${30 * glow}px rgba(123,138,255,${0.5 * glow})` : undefined,
                 }}
               >
-                <div style={{ fontSize: 18, fontWeight: 700, color: C.fg, lineHeight: 1.25 }}>{idea.text}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.fg, lineHeight: 1.25 }}>{t(idea.text)}</div>
                 <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ flex: 1, height: 6, borderRadius: 6, background: C.line, overflow: "hidden" }}>
                     <div style={{ width: `${bar * 100}%`, height: "100%", background: top ? `linear-gradient(90deg, ${C.accent}, ${C.cyan})` : C.lineStrong }} />
                   </div>
                   <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: top ? C.cyan : C.muted, fontVariantNumeric: "tabular-nums" }}>
-                    {bar.toFixed(2).replace(".", ",")}
+                    {fmtScore(bar, lang)}
                   </span>
                 </div>
               </Panel>
@@ -380,8 +387,6 @@ function ScanScene() {
 /* ------------------------------------------------------------------ 3. AI menulis */
 
 const DRAFT = "tanggal 25, dompet senyum lagi 😌 yang kemarin ngomong mau hemat, malem ini traktir siapa nih? sambal matah baru udah nungguin";
-// Per karakter tampilan (emoji = satu karakter), supaya efek mengetik tidak memotong emoji di tengah.
-const DRAFT_CHARS = Array.from(DRAFT);
 
 function ThreadsCard({ text, cursor, meta, style }: { text: string; cursor?: boolean; meta: string; style?: React.CSSProperties }) {
   return (
@@ -403,33 +408,37 @@ function ThreadsCard({ text, cursor, meta, style }: { text: string; cursor?: boo
 
 function WriteScene() {
   const frame = useCurrentFrame();
-  const chars = Math.floor(interpolate(frame, [18, 98], [0, DRAFT_CHARS.length], CLAMP));
-  const blink = Math.floor(frame / 8) % 2 === 0 || chars < DRAFT_CHARS.length;
+  const t = useT();
+  // Per karakter tampilan (emoji = satu karakter), supaya efek mengetik tidak memotong emoji di tengah.
+  // Dihitung dari teks dalam bahasa aktif; kecepatan mengetik menyesuaikan panjangnya (frame 18-98).
+  const draftChars = useMemo(() => Array.from(t(DRAFT)), [t]);
+  const chars = Math.floor(interpolate(frame, [18, 98], [0, draftChars.length], CLAMP));
+  const blink = Math.floor(frame / 8) % 2 === 0 || chars < draftChars.length;
   const tags = [
     { k: "SUARA BRAND", v: "santai, jenaka" },
     { k: "BAHAN", v: "Momen gajian + menu baru" },
     { k: "JAM TAYANG", v: "12.12 · jam makan siang" },
-  ];
+  ].map((tag) => ({ k: t(tag.k), v: t(tag.v) }));
   const card = useEnter(6);
 
   return (
     <AbsoluteFill style={{ fontFamily: SANS }}>
       <SceneTitle kicker="10.42 · DRAF DITULIS" title="AI menulis dengan suara brand Anda." Icon={PenLine} />
       <div style={{ position: "absolute", left: 72, top: 238, width: 700, ...rise(card, 30) }}>
-        <ThreadsCard text={DRAFT_CHARS.slice(0, chars).join("")} cursor={blink} meta="draf · menulis…" />
+        <ThreadsCard text={draftChars.slice(0, chars).join("")} cursor={blink} meta={t("draf · menulis…")} />
       </div>
       <div style={{ position: "absolute", right: 72, top: 238, width: 380, display: "flex", flexDirection: "column", gap: 14 }}>
-        {tags.map((t, i) => {
+        {tags.map((tag, i) => {
           const p = spring({ frame: frame - (24 + i * 14), fps: FILM_FPS, config: { damping: 200 } });
           return (
-            <Panel key={t.k} style={{ padding: "16px 20px", opacity: p, transform: `translateX(${(1 - p) * 40}px)` }}>
-              <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.cyan, letterSpacing: 2 }}>{t.k}</div>
-              <div style={{ marginTop: 4, fontSize: 22, fontWeight: 700, color: C.fg }}>{t.v}</div>
+            <Panel key={tag.k} style={{ padding: "16px 20px", opacity: p, transform: `translateX(${(1 - p) * 40}px)` }}>
+              <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.cyan, letterSpacing: 2 }}>{tag.k}</div>
+              <div style={{ marginTop: 4, fontSize: 22, fontWeight: 700, color: C.fg }}>{tag.v}</div>
             </Panel>
           );
         })}
         <div style={{ fontFamily: MONO, fontSize: 16, color: C.muted, opacity: interpolate(frame, [70, 80], [0, 1], CLAMP), paddingLeft: 4 }}>
-          {chars} karakter · tanpa harga yang tidak ada di Pengetahuan
+          {t("{n} karakter · tanpa harga yang tidak ada di Pengetahuan", { n: chars })}
         </div>
       </div>
     </AbsoluteFill>
@@ -442,6 +451,7 @@ const CHECKS = ["Bentuk & panjang tulisan", "Harga & promo sesuai Pengetahuan", 
 
 function GateScene() {
   const frame = useCurrentFrame();
+  const { t, lang } = useLang();
   const score = interpolate(frame, [52, 88], [0, 0.87], { ...CLAMP, easing: Easing.out(Easing.cubic) });
   const R = 92;
   const circ = 2 * Math.PI * R;
@@ -474,13 +484,13 @@ function GateScene() {
                   <Check size={22} strokeWidth={3} />
                 </div>
               </div>
-              <div style={{ flex: 1, fontSize: 23, fontWeight: 700, color: C.fg }}>{c}</div>
-              <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: scanning ? C.cyan : C.success, opacity: p }}>{scanning ? "MEMERIKSA" : ok > 0.5 ? "LOLOS" : ""}</div>
+              <div style={{ flex: 1, fontSize: 23, fontWeight: 700, color: C.fg }}>{t(c)}</div>
+              <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: scanning ? C.cyan : C.success, opacity: p }}>{scanning ? t("MEMERIKSA") : ok > 0.5 ? t("LOLOS") : ""}</div>
             </Panel>
           );
         })}
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: MONO, fontSize: 15, color: C.faint, opacity: interpolate(frame, [58, 66], [0, 1], CLAMP) }}>
-          <Ban size={16} color={C.danger} /> 2 draf lain hari ini ditolak dan ditulis ulang
+          <Ban size={16} color={C.danger} /> {t("2 draf lain hari ini ditolak dan ditulis ulang")}
         </div>
       </div>
 
@@ -507,8 +517,8 @@ function GateScene() {
             </defs>
           </svg>
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-            <div style={{ fontFamily: DISPLAY, fontSize: 62, fontWeight: 800, color: C.fg, fontVariantNumeric: "tabular-nums" }}>{score.toFixed(2).replace(".", ",")}</div>
-            <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.muted, letterSpacing: 2 }}>SKOR EDITOR AI</div>
+            <div style={{ fontFamily: DISPLAY, fontSize: 62, fontWeight: 800, color: C.fg, fontVariantNumeric: "tabular-nums" }}>{fmtScore(score, lang)}</div>
+            <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.muted, letterSpacing: 2 }}>{t("SKOR EDITOR AI")}</div>
           </div>
         </div>
         <div
@@ -529,7 +539,7 @@ function GateScene() {
             boxShadow: "0 0 30px rgba(61,214,160,0.5)",
           }}
         >
-          <BadgeCheck size={20} /> LOLOS · MASUK ANTREAN
+          <BadgeCheck size={20} /> {t("LOLOS · MASUK ANTREAN")}
         </div>
       </div>
     </AbsoluteFill>
@@ -547,6 +557,7 @@ const SLOTS = [
 
 function ScheduleScene() {
   const frame = useCurrentFrame();
+  const t = useT();
   const max = Math.max(...HOURS);
   const chartW = 760;
   const chartH = 250;
@@ -558,8 +569,8 @@ function ScheduleScene() {
       <SceneTitle kicker="10.45 · ANTRE DI JAM RAMAI" title="Jam tayang dihitung, bukan ditebak." Icon={CalendarClock} />
       <Panel style={{ position: "absolute", left: 72, top: 236, width: chartW + 56, height: 360, padding: 28 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.faint, letterSpacing: 2 }}>
-          <span>RATA-RATA VIEWS PER JAM · 30 HARI</span>
-          <span style={{ color: C.cyan }}>JEDA MIN. 2,5 JAM</span>
+          <span>{t("RATA-RATA VIEWS PER JAM · 30 HARI")}</span>
+          <span style={{ color: C.cyan }}>{t("JEDA MIN. 2,5 JAM")}</span>
         </div>
         <div style={{ position: "relative", marginTop: 18, height: chartH, display: "flex", alignItems: "flex-end", gap }}>
           {HOURS.map((v, h) => {
@@ -615,14 +626,14 @@ function ScheduleScene() {
       </Panel>
 
       <div style={{ position: "absolute", right: 72, top: 236, width: 300 }}>
-        <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.faint, letterSpacing: 2 }}>ANTREAN HARI INI</div>
+        <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.faint, letterSpacing: 2 }}>{t("ANTREAN HARI INI")}</div>
         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 12 }}>
           {SLOTS.map((s, i) => {
             const p = spring({ frame: frame - (60 + i * 12), fps: FILM_FPS, config: { damping: 200 } });
             return (
               <Panel key={s.label} style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, ...rise(p, 18), borderColor: i === 0 ? C.accent : C.lineStrong }}>
                 <span style={{ fontFamily: MONO, fontSize: 22, fontWeight: 800, color: i === 0 ? C.cyan : C.fg }}>{s.label}</span>
-                <span style={{ fontSize: 16, color: C.muted, fontWeight: 600 }}>{i === 0 ? "draf gajian · lolos" : "ditulis 90 mnt sebelumnya"}</span>
+                <span style={{ fontSize: 16, color: C.muted, fontWeight: 600 }}>{i === 0 ? t("draf gajian · lolos") : t("ditulis 90 mnt sebelumnya")}</span>
               </Panel>
             );
           })}
@@ -636,6 +647,7 @@ function ScheduleScene() {
 
 function PublishScene() {
   const frame = useCurrentFrame();
+  const { t, locale } = useLang();
   const card = useEnter(4, 16);
   const ease = { ...CLAMP, easing: Easing.out(Easing.cubic) };
   const views = interpolate(frame, [24, 110], [0, 48213], ease);
@@ -656,23 +668,23 @@ function PublishScene() {
     <AbsoluteFill style={{ fontFamily: SANS }}>
       <SceneTitle kicker="12.12 · TERBIT DI THREADS" title="Tepat di jamnya. Lalu dipelajari." Icon={Send} />
       <div style={{ position: "absolute", left: 72, top: 236, width: 640, opacity: card, transform: `translateY(${(1 - card) * 60}px) scale(${0.94 + card * 0.06})` }}>
-        <ThreadsCard text={DRAFT} meta="12.12 · baru saja · lewat API resmi Threads" style={{ borderColor: "rgba(123,138,255,0.55)" }} />
+        <ThreadsCard text={t(DRAFT)} meta={t("12.12 · baru saja · lewat API resmi Threads")} style={{ borderColor: "rgba(123,138,255,0.55)" }} />
         <div style={{ marginTop: 16, display: "flex", gap: 26, paddingLeft: 8, fontFamily: MONO, fontSize: 20, fontWeight: 700, color: C.muted }}>
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Heart size={20} color={C.danger} fill={C.danger} /> {idNum(likes)}
+            <Heart size={20} color={C.danger} fill={C.danger} /> {fmtNum(likes, locale)}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <MessageCircle size={20} /> {idNum(replies)}
+            <MessageCircle size={20} /> {fmtNum(replies, locale)}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Repeat2 size={20} /> {idNum(replies * 0.6)}
+            <Repeat2 size={20} /> {fmtNum(replies * 0.6, locale)}
           </span>
         </div>
       </div>
 
       <Panel style={{ position: "absolute", right: 72, top: 236, width: 440, padding: 22 }}>
-        <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.faint, letterSpacing: 2 }}>VIEWS SEJAK TERBIT</div>
-        <div style={{ marginTop: 4, fontFamily: DISPLAY, fontSize: 58, fontWeight: 800, color: C.fg, fontVariantNumeric: "tabular-nums", letterSpacing: -1.5 }}>{idNum(views)}</div>
+        <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.faint, letterSpacing: 2 }}>{t("VIEWS SEJAK TERBIT")}</div>
+        <div style={{ marginTop: 4, fontFamily: DISPLAY, fontSize: 58, fontWeight: 800, color: C.fg, fontVariantNumeric: "tabular-nums", letterSpacing: -1.5 }}>{fmtNum(views, locale)}</div>
         <svg width={400} height={124} viewBox="0 0 400 124" style={{ marginTop: 6, overflow: "visible" }}>
           <defs>
             <linearGradient id="spark" x1="0" y1="0" x2="1" y2="0">
@@ -703,9 +715,9 @@ function PublishScene() {
       >
         <Flame size={28} color={C.warning} />
         <div>
-          <div style={{ fontSize: 19, fontWeight: 800, color: C.fg }}>3,4× di atas rata-rata akun</div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: C.fg }}>{t("3,4× di atas rata-rata akun")}</div>
           <div style={{ fontSize: 15, color: C.muted, display: "flex", alignItems: "center", gap: 6 }}>
-            <TrendingUp size={14} /> ide lanjutan dibuat untuk besok
+            <TrendingUp size={14} /> {t("ide lanjutan dibuat untuk besok")}
           </div>
         </div>
       </div>
@@ -717,6 +729,7 @@ function PublishScene() {
 
 function OutroScene() {
   const frame = useCurrentFrame();
+  const t = useT();
   const a = useEnter(0, 14);
   const b = useEnter(10);
   const c = useEnter(22);
@@ -725,12 +738,12 @@ function OutroScene() {
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", fontFamily: SANS, textAlign: "center" }}>
       <Img src="/logo.webp" style={{ width: 96, height: 96, borderRadius: 26, opacity: a, transform: `scale(${0.7 + a * 0.3})`, boxShadow: `0 0 ${50 * glow}px rgba(123,138,255,0.6)` }} />
       <div style={{ ...rise(b), marginTop: 30, fontFamily: DISPLAY, fontSize: 68, fontWeight: 800, color: C.fg, letterSpacing: -2.2, lineHeight: 1 }}>
-        Threads Anda posting sendiri,
+        {t("Threads Anda posting sendiri,")}
         <br />
-        <span style={{ backgroundImage: `linear-gradient(90deg, ${C.accent}, ${C.cyan})`, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>setiap hari.</span>
+        <span style={{ backgroundImage: `linear-gradient(90deg, ${C.accent}, ${C.cyan})`, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>{t("setiap hari.")}</span>
       </div>
       <div style={{ ...rise(c), marginTop: 22, fontFamily: MONO, fontSize: 20, fontWeight: 700, color: C.muted, letterSpacing: 1 }}>
-        Mulai dari satu akun, mode Tinjau dulu.
+        {t("Mulai dari satu akun, mode Tinjau dulu.")}
       </div>
     </AbsoluteFill>
   );

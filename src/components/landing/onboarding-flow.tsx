@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bell, ChartLine, Check, ClipboardCheck, Clock, Eye, Loader2, RefreshCw, RotateCcw, SlidersHorizontal, UserPlus, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLang, useT } from "@/components/i18n/lang-provider";
 import { ThreadsMark } from "./threads-mark";
 
 /**
@@ -19,6 +20,7 @@ const STEPS = [
 ];
 
 export function OnboardingFlow() {
+  const t = useT();
   const [step, setStep] = useState(0);
   const [auto, setAuto] = useState(true);
   const pick = (i: number) => {
@@ -28,7 +30,7 @@ export function OnboardingFlow() {
 
   return (
     <div className="lp-flow grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-4 lg:gap-6 items-start">
-      <div role="tablist" aria-label="Langkah memulai" aria-orientation="vertical" className="grid gap-2">
+      <div role="tablist" aria-label={t("Langkah memulai")} aria-orientation="vertical" className="grid gap-2">
         {STEPS.map(({ Icon, title, body }, i) => {
           const on = step === i;
           const done = i < step;
@@ -58,7 +60,7 @@ export function OnboardingFlow() {
                 <div className="min-w-0">
                   <p className={cn("flex items-center gap-2 text-[15px] font-bold", !on && "text-muted group-hover:text-fg")}>
                     <Icon className={cn("w-4 h-4 shrink-0", on ? "text-accent" : "text-faint")} />
-                    {title}
+                    {t(title)}
                   </p>
                   <p
                     className={cn(
@@ -66,7 +68,7 @@ export function OnboardingFlow() {
                       on ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
                     )}
                   >
-                    <span className="overflow-hidden text-sm text-muted leading-relaxed pt-1">{body}</span>
+                    <span className="overflow-hidden text-sm text-muted leading-relaxed pt-1">{t(body)}</span>
                   </p>
                 </div>
               </div>
@@ -114,6 +116,7 @@ export function OnboardingFlow() {
 const ACCOUNTS = ["@kedai.sore", "@kedai.sore.bandung", "@kedai.sore.depok"];
 
 function ConnectDemo() {
+  const t = useT();
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
   const connect = () => {
     if (state !== "idle") return;
@@ -123,9 +126,9 @@ function ConnectDemo() {
 
   return (
     <div>
-      <p className="lp-mono text-[11px] font-bold tracking-widest text-faint">AKUN THREADS</p>
-      <h3 className="lp-display mt-2 text-2xl font-extrabold">Sambungkan akun brand Anda</h3>
-      <p className="mt-1.5 text-sm text-muted">Login lewat halaman resmi Threads. Kata sandi tidak pernah kami simpan.</p>
+      <p className="lp-mono text-[11px] font-bold tracking-widest text-faint">{t("AKUN THREADS")}</p>
+      <h3 className="lp-display mt-2 text-2xl font-extrabold">{t("Sambungkan akun brand Anda")}</h3>
+      <p className="mt-1.5 text-sm text-muted">{t("Login lewat halaman resmi Threads. Kata sandi tidak pernah kami simpan.")}</p>
       <button
         type="button"
         onClick={connect}
@@ -133,7 +136,7 @@ function ConnectDemo() {
         className="mt-5 inline-flex items-center gap-2.5 h-11 px-5 rounded-xl bg-fg text-canvas text-sm font-semibold disabled:opacity-70 cursor-pointer disabled:cursor-default"
       >
         {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThreadsMark className="w-4 h-4" />}
-        {state === "done" ? "Terhubung" : state === "loading" ? "Menghubungkan…" : "Hubungkan akun Threads"}
+        {state === "done" ? t("Terhubung") : state === "loading" ? t("Menghubungkan…") : t("Hubungkan akun Threads")}
       </button>
       <ul className="mt-6 grid gap-2">
         {ACCOUNTS.map((a, i) => (
@@ -145,10 +148,10 @@ function ConnectDemo() {
             )}
             style={{ transitionDelay: state === "done" ? `${i * 120}ms` : "0ms" }}
           >
-            <span className="text-sm font-semibold">{state === "done" ? a : "Akun belum terhubung"}</span>
+            <span className="text-sm font-semibold">{state === "done" ? a : t("Akun belum terhubung")}</span>
             {state === "done" && (
               <span className="inline-flex items-center gap-1 text-xs font-bold text-success">
-                <Check className="w-3.5 h-3.5" /> Siap
+                <Check className="w-3.5 h-3.5" /> {t("Siap")}
               </span>
             )}
           </li>
@@ -189,6 +192,14 @@ const SAMPLE: Record<(typeof NICHES)[number], Record<(typeof VOICES)[number], st
   },
 };
 
+/** Label gaya bahasa: pasangan kata ganti Indonesia tetap ditampilkan, EN menambah keterangannya. */
+const VOICE_HINT: Record<(typeof VOICES)[number], string> = {
+  "aku/kamu": "aku/kamu@@gaya",
+  "gue/lo": "gue/lo@@gaya",
+  "saya/Anda": "saya/Anda@@gaya",
+  kita: "kita@@gaya",
+};
+
 function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
@@ -206,39 +217,40 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 }
 
 function BrandDemo() {
+  const t = useT();
   const [niche, setNiche] = useState<(typeof NICHES)[number]>("Kuliner");
   const [voice, setVoice] = useState<(typeof VOICES)[number]>("aku/kamu");
 
   return (
     <div className="grid gap-5">
       <div>
-        <p className="lp-mono text-[11px] font-bold tracking-widest text-faint">NICHE AKUN</p>
+        <p className="lp-mono text-[11px] font-bold tracking-widest text-faint">{t("NICHE AKUN")}</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {NICHES.map((n) => (
             <Chip key={n} on={niche === n} onClick={() => setNiche(n)}>
-              {n}
+              {t(`${n}@@niche`)}
             </Chip>
           ))}
         </div>
       </div>
       <div>
-        <p className="lp-mono text-[11px] font-bold tracking-widest text-faint">GAYA BAHASA</p>
+        <p className="lp-mono text-[11px] font-bold tracking-widest text-faint">{t("GAYA BAHASA")}</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {VOICES.map((v) => (
             <Chip key={v} on={voice === v} onClick={() => setVoice(v)}>
-              {v}
+              {t(VOICE_HINT[v])}
             </Chip>
           ))}
         </div>
       </div>
       <div className="rounded-2xl border border-line bg-surface p-4">
-        <p className="lp-mono text-[11px] font-bold tracking-widest text-accent">CONTOH TULISAN AI</p>
+        <p className="lp-mono text-[11px] font-bold tracking-widest text-accent">{t("CONTOH TULISAN AI")}</p>
         <p key={`${niche}-${voice}`} className="lp-swap mt-2 text-[15px] leading-relaxed">
-          {SAMPLE[niche][voice]}
+          {t(SAMPLE[niche][voice])}
         </p>
       </div>
       <p className="text-[13px] text-muted">
-        Harga dan promo diambil dari halaman Pengetahuan. Yang tidak tercatat di sana tidak akan ditulis AI.
+        {t("Harga dan promo diambil dari halaman Pengetahuan. Yang tidak tercatat di sana tidak akan ditulis AI.")}
       </p>
     </div>
   );
@@ -252,12 +264,13 @@ const MODES = [
 ] as const;
 
 function ModeDemo() {
+  const t = useT();
   const [mode, setMode] = useState<(typeof MODES)[number]["key"]>("tinjau");
   const active = MODES.find((m) => m.key === mode) ?? MODES[0];
 
   return (
     <div>
-      <div role="radiogroup" aria-label="Mode autopilot" className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-subtle">
+      <div role="radiogroup" aria-label={t("Mode autopilot")} className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-subtle">
         {MODES.map(({ key, Icon, label }) => (
           <button
             key={key}
@@ -271,12 +284,12 @@ function ModeDemo() {
             )}
           >
             <Icon className={cn("w-4 h-4", mode === key && "text-accent")} />
-            <span className="truncate">{label}</span>
+            <span className="truncate">{t(label)}</span>
           </button>
         ))}
       </div>
       <p key={mode} className="lp-swap mt-3 text-[13px] text-muted">
-        {active.hint}
+        {t(active.hint)}
       </p>
       <div key={`panel-${mode}`} className="lp-panel mt-5">
         {mode === "tinjau" ? <ReviewDemo /> : <AutoDemo />}
@@ -300,6 +313,7 @@ function AutoDemo() {
 }
 
 function AutoRun({ onReplay }: { onReplay: () => void }) {
+  const t = useT();
   const [done, setDone] = useState(0);
   useEffect(() => {
     const timers = AUTO_STAGES.map((_, i) => window.setTimeout(() => setDone(i + 1), 500 + i * 750));
@@ -315,7 +329,7 @@ function AutoRun({ onReplay }: { onReplay: () => void }) {
           onClick={onReplay}
           className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[11px] font-bold text-muted hover:text-fg hover:bg-subtle cursor-pointer transition-colors"
         >
-          <RotateCcw className="w-3.5 h-3.5" /> Putar ulang
+          <RotateCcw className="w-3.5 h-3.5" /> {t("Putar ulang")}
         </button>
       </div>
       <ol className="mt-4 relative grid gap-3 pl-1">
@@ -333,7 +347,7 @@ function AutoRun({ onReplay }: { onReplay: () => void }) {
                 {ok ? <Check className="w-4 h-4" /> : now ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
               </span>
               <span className={cn("lp-mono text-xs font-bold tabular-nums", ok ? "text-fg" : "text-faint")}>{time}</span>
-              <span className={cn("text-sm transition-colors", ok ? "text-fg font-semibold" : "text-muted")}>{label}</span>
+              <span className={cn("text-sm transition-colors", ok ? "text-fg font-semibold" : "text-muted")}>{t(label)}</span>
             </li>
           );
         })}
@@ -347,11 +361,11 @@ function AutoRun({ onReplay }: { onReplay: () => void }) {
         <div className="flex items-center gap-2 text-xs text-muted">
           <ThreadsMark className="w-4 h-4 text-fg" />
           <span className="font-semibold text-fg">@kedai.sore</span>
-          <span>· 12.12 · baru saja</span>
+          <span>· 12.12 · {t("baru saja")}</span>
         </div>
-        <p className="mt-2 text-[15px] leading-relaxed">{DRAFTS[0]}</p>
+        <p className="mt-2 text-[15px] leading-relaxed">{t(DRAFTS[0])}</p>
       </div>
-      <p className="mt-3 text-[13px] text-muted">Posting tetap bisa dibatalkan dari halaman Jadwal sebelum jam tayangnya.</p>
+      <p className="mt-3 text-[13px] text-muted">{t("Posting tetap bisa dibatalkan dari halaman Jadwal sebelum jam tayangnya.")}</p>
     </div>
   );
 }
@@ -364,6 +378,7 @@ const DRAFTS = [
 ];
 
 function ReviewDemo() {
+  const { t, lang } = useLang();
   const [draft, setDraft] = useState(0);
   const [status, setStatus] = useState<"wait" | "rewriting" | "approved">("wait");
   const rewrite = () => {
@@ -377,7 +392,7 @@ function ReviewDemo() {
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <p className="lp-mono text-[11px] font-bold tracking-widest text-faint">JADWAL HARI INI · @kedai.sore</p>
+        <p className="lp-mono text-[11px] font-bold tracking-widest text-faint">{t("JADWAL HARI INI")} · @kedai.sore</p>
         <span
           className={cn(
             "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[11px] font-bold",
@@ -385,24 +400,24 @@ function ReviewDemo() {
           )}
         >
           {status === "approved" ? <Check className="w-3.5 h-3.5" /> : null}
-          {status === "approved" ? "Dijadwalkan 12.12" : "Menunggu tinjauan"}
+          {status === "approved" ? t("Dijadwalkan {jam}", { jam: "12.12" }) : t("Menunggu tinjauan")}
         </span>
       </div>
       <div className="mt-4 rounded-2xl border border-line bg-surface p-5">
         <div className="flex items-center gap-2 text-xs text-muted">
           <ThreadsMark className="w-4 h-4 text-fg" />
           <span className="font-semibold text-fg">@kedai.sore</span>
-          <span>· tayang 12.12 WIB</span>
+          <span>· {t("tayang {jam} WIB", { jam: "12.12" })}</span>
         </div>
         <p key={draft} className={cn("lp-swap mt-3 text-[15px] leading-relaxed", status === "rewriting" && "opacity-40")}>
-          {DRAFTS[draft]}
+          {t(DRAFTS[draft])}
         </p>
         <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
           <span className="inline-flex items-center gap-1">
-            <Check className="w-3.5 h-3.5 text-success" /> Lolos 4 cek
+            <Check className="w-3.5 h-3.5 text-success" /> {t("Lolos 4 cek")}
           </span>
           <span className="inline-flex items-center gap-1">
-            <Check className="w-3.5 h-3.5 text-success" /> Skor editor 0,86
+            <Check className="w-3.5 h-3.5 text-success" /> {t("Skor editor {skor}", { skor: lang === "en" ? "0.86" : "0,86" })}
           </span>
         </p>
       </div>
@@ -413,7 +428,7 @@ function ReviewDemo() {
           disabled={status !== "wait"}
           className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-accent hover:bg-accent-hover text-on-accent text-sm font-semibold disabled:opacity-60 cursor-pointer disabled:cursor-default transition-colors"
         >
-          <Check className="w-4 h-4" /> Setujui
+          <Check className="w-4 h-4" /> {t("Setujui")}
         </button>
         <button
           type="button"
@@ -422,7 +437,7 @@ function ReviewDemo() {
           className="inline-flex items-center gap-2 h-11 px-5 rounded-xl border border-line bg-surface hover:bg-subtle text-sm font-semibold cursor-pointer disabled:cursor-default transition-colors"
         >
           <RefreshCw className={cn("w-4 h-4", status === "rewriting" && "animate-spin")} />
-          {status === "approved" ? "Batalkan" : "Tulis ulang"}
+          {status === "approved" ? t("Batalkan") : t("Tulis ulang")}
         </button>
       </div>
     </div>
@@ -440,12 +455,13 @@ const INSIGHTS = [
 ];
 
 function MonitorDemo() {
+  const t = useT();
   const max = Math.max(...VIEWS);
 
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <p className="lp-mono text-[11px] font-bold tracking-widest text-faint">VIEWS 7 HARI · CONTOH</p>
+        <p className="lp-mono text-[11px] font-bold tracking-widest text-faint">{t("VIEWS 7 HARI · CONTOH")}</p>
         <span className="lp-mono text-xs font-bold text-success">+147%</span>
       </div>
       <div className="mt-4 flex items-end gap-2 h-32">
@@ -455,7 +471,7 @@ function MonitorDemo() {
               className="w-full rounded-t-md bg-accent/80 origin-bottom transition-transform duration-700"
               style={{ height: `${(v / max) * 100}%`, transitionDelay: `${i * 60}ms` }}
             />
-            <span className="text-[10px] font-semibold text-faint">{DAYS[i]}</span>
+            <span className="text-[10px] font-semibold text-faint">{t(DAYS[i])}</span>
           </div>
         ))}
       </div>
@@ -466,8 +482,8 @@ function MonitorDemo() {
               <Icon className="w-4 h-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-bold">{title}</p>
-              <p className="mt-0.5 text-xs text-muted leading-relaxed">{body}</p>
+              <p className="text-sm font-bold">{t(title)}</p>
+              <p className="mt-0.5 text-xs text-muted leading-relaxed">{t(body)}</p>
             </div>
           </li>
         ))}

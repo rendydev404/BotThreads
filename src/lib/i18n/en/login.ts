@@ -46,6 +46,31 @@ const dict: Record<string, string> = {
   "Akun Threads belum terhubung": "Threads account not connected",
   "Coba lagi dari dashboard": "Try again from the dashboard",
   "Login Threads tidak selesai. Silakan ulangi.": "Threads login didn't finish. Please try again.",
+  // Halaman daftar (/daftar)
+  "Pendaftaran belum dibuka": "Sign-up is not open yet",
+  "Saat ini akun baru dibuat lewat undangan dari pemilik workspace.": "New accounts are currently created through an invitation from a workspace owner.",
+  "Buat akun": "Create an account",
+  "Satu akun, satu workspace untuk brand Anda.": "One account, one workspace for your brand.",
+  "Login Google belum dikonfigurasi. Masukkan Google Client ID & Secret di Dashboard Super Admin (tab Integrasi & API Keys) atau file .env.local.":
+    "Google login isn't configured yet. Enter the Google Client ID & Secret in the Super Admin Dashboard (Integrations & API Keys tab) or the .env.local file.",
+  "Pendaftaran dengan Google dibatalkan.": "Sign-up with Google was cancelled.",
+  "Sesi pendaftaran Google berakhir. Silakan klik Daftar dengan Google sekali lagi.": "The Google sign-up session expired. Please click Sign up with Google again.",
+  "Tidak bisa terhubung ke Google saat ini. Coba lagi sebentar.": "Can't connect to Google right now. Please try again shortly.",
+  "Email akun Google ini belum terverifikasi oleh Google.": "This Google account's email hasn't been verified by Google.",
+  "Akun ini telah dinonaktifkan oleh pengelola platform.": "This account has been deactivated by the platform administrator.",
+  "Nama brand minimal 2 karakter.": "Brand name must be at least 2 characters.",
+  "3-32 karakter: huruf kecil, angka, titik, garis bawah, atau tanda hubung.": "3-32 characters: lowercase letters, numbers, dots, underscores, or hyphens.",
+  "Gagal mendaftar. Coba lagi.": "Sign-up failed. Please try again.",
+  "Daftar dengan Google": "Sign up with Google",
+  "atau isi sendiri": "or fill it in yourself",
+  "Dipakai AI untuk menulis dengan suara brand Anda.": "Used by the AI to write in your brand's voice.",
+  "Nama Anda (opsional)": "Your name (optional)",
+  "Membuat akun...": "Creating account...",
+  "Daftar dan mulai": "Sign up and start",
+  "Dengan mendaftar, Anda menyetujui": "By signing up, you agree to the",
+  serta: "and",
+  " kami.": ".",
+  "Sudah punya akun?": "Already have an account?",
 };
 
 export default dict;

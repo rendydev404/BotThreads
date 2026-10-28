@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { Player, type PlayerRef } from "@remotion/player";
-import { HEADLINE_DURATION, HEADLINE_FPS, HeadlineFilm } from "./headline-film";
+import { HEADLINE_FPS, HeadlineFilm, useHeadlineTiming } from "./headline-film";
 
 /**
  * Player sekali-putar untuk intro judul. Ukuran komposisi = ukuran kotak teks asli (skala 1), jadi
@@ -11,6 +11,8 @@ import { HEADLINE_DURATION, HEADLINE_FPS, HeadlineFilm } from "./headline-film";
  */
 export default function HeadlinePlayer({ width, height, onStart, onDone }: { width: number; height: number; onStart: () => void; onDone: () => void }) {
   const ref = useRef<PlayerRef>(null);
+  // Panjang intro mengikuti jumlah kata deskripsi dalam bahasa aktif.
+  const { duration } = useHeadlineTiming();
 
   useEffect(() => {
     const player = ref.current;
@@ -25,7 +27,7 @@ export default function HeadlinePlayer({ width, height, onStart, onDone }: { wid
     <Player
       ref={ref}
       component={HeadlineFilm}
-      durationInFrames={HEADLINE_DURATION}
+      durationInFrames={duration}
       fps={HEADLINE_FPS}
       compositionWidth={width}
       compositionHeight={height}

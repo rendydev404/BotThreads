@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Easing, interpolate, spring, useCurrentFrame } from "remotion";
+import { useT } from "@/components/i18n/lang-provider";
+import type { TFunction } from "@/lib/i18n/core";
 import { DESC, DESC_CLASS, H1_CLASS, HEADLINE_LINES, SUB, SUB_CLASS } from "../hero-copy-data";
 
 /**
@@ -21,11 +23,12 @@ const WORD_GAP = 1.1;
 
 /** Kata-kata deskripsi; tanda baca yang menempel ke kata sebelumnya digabung supaya pemenggalan baris sama. */
 type Token = { parts: { text: string; key: boolean }[] };
-function tokenize(): { tokens: (Token | string)[]; words: number } {
+function tokenize(t: TFunction): { tokens: (Token | string)[]; words: number } {
   const out: (Token | string)[] = [];
   let words = 0;
   for (const seg of DESC) {
-    for (const piece of seg.text.split(/(\s+)/)) {
+    // Teks diterjemahkan per potongan (kunci sama dengan HTML aslinya), jadi tata letaknya tetap identik.
+    for (const piece of t(seg.text).split(/(\s+)/)) {
       if (!piece) continue;
       if (/^\s+$/.test(piece)) {
         out.push(" ");
@@ -41,12 +44,23 @@ function tokenize(): { tokens: (Token | string)[]; words: number } {
   }
   return { tokens: out, words };
 }
-const { tokens: TOKENS, words: WORDS } = tokenize();
-const SUB_AT = Math.ceil(DESC_AT + WORDS * WORD_GAP + 6);
-export const HEADLINE_DURATION = SUB_AT + 34;
+
+/**
+ * Kata-kata deskripsi dalam bahasa aktif + kapan baris penutup masuk dan panjang total intro (frame).
+ * Panjang intro ikut jumlah kata, jadi dipakai juga oleh Player (headline-player.tsx).
+ */
+export function useHeadlineTiming() {
+  const t = useT();
+  return useMemo(() => {
+    const { tokens, words } = tokenize(t);
+    const subAt = Math.ceil(DESC_AT + words * WORD_GAP + 6);
+    return { t, tokens, subAt, duration: subAt + 34 };
+  }, [t]);
+}
 
 export function HeadlineFilm() {
   const frame = useCurrentFrame();
+  const { t, tokens, subAt } = useHeadlineTiming();
   const fps = HEADLINE_FPS;
 
   // Baris 1: naik + menajam.
@@ -63,11 +77,11 @@ export function HeadlineFilm() {
     <div style={{ position: "absolute", inset: 0 }}>
       <h1 className={H1_CLASS} style={{ marginTop: 0 }}>
         <span className="block w-fit" style={{ opacity: p1, transform: `translateY(${((1 - p1) * 0.45).toFixed(3)}em)`, filter: p1 < 0.99 ? `blur(${((1 - p1) * 10).toFixed(1)}px)` : undefined }}>
-          {HEADLINE_LINES[0].text}
+          {t(HEADLINE_LINES[0].text)}
         </span>
         <span className="block w-fit relative">
           <span className={`block ${HEADLINE_LINES[1].className}`} style={{ clipPath: reveal < 1 ? `inset(-0.15em ${((1 - reveal) * 100).toFixed(2)}% -0.25em 0)` : undefined }}>
-            {HEADLINE_LINES[1].text}
+            {t(HEADLINE_LINES[1].text)}
           </span>
           {reveal > 0 && reveal < 1 ? (
             <span
@@ -86,21 +100,21 @@ export function HeadlineFilm() {
           ) : null}
         </span>
         <span className="block w-fit relative" style={{ opacity: Math.min(1, p3 * 1.4), transform: `translateY(${((1 - p3) * 0.35).toFixed(3)}em) scale(${(0.94 + 0.06 * p3).toFixed(3)})`, transformOrigin: "0% 100%" }}>
-          {HEADLINE_LINES[2].text}
+          {t(HEADLINE_LINES[2].text)}
           {caretOn ? <span aria-hidden="true" style={{ position: "absolute", right: "-0.12em", top: "0.1em", bottom: "0.02em", width: "0.07em", borderRadius: 2, background: "var(--c-accent)" }} /> : null}
         </span>
       </h1>
 
       <p className={DESC_CLASS}>
-        {TOKENS.map((t, i) => {
-          if (typeof t === "string") return t;
+        {tokens.map((tok, i) => {
+          if (typeof tok === "string") return tok;
           const at = DESC_AT + w * WORD_GAP;
           w++;
           const p = spring({ frame: frame - at, fps, config: { damping: 200 }, durationInFrames: 12 });
           const glow = interpolate(frame, [at + 6, at + 16], [0, 1], CLAMP);
           return (
             <span key={i} style={{ display: "inline-block", opacity: p, transform: `translateY(${((1 - p) * 10).toFixed(1)}px)` }}>
-              {t.parts.map((part, j) =>
+              {tok.parts.map((part, j) =>
                 part.key ? (
                   <strong key={j} style={{ fontWeight: 800, color: glow >= 1 ? "var(--c-accent)" : `color-mix(in srgb, var(--c-accent) ${(glow * 100).toFixed(0)}%, var(--c-fg))` }}>
                     {part.text}
@@ -114,17 +128,17 @@ export function HeadlineFilm() {
         })}
       </p>
 
-      <SubLine frame={frame} />
+      <SubLine frame={frame} at={subAt} t={t} />
     </div>
   );
 }
 
-function SubLine({ frame }: { frame: number }) {
-  const p = spring({ frame: frame - SUB_AT, fps: HEADLINE_FPS, config: { damping: 14, stiffness: 150 } });
+function SubLine({ frame, at, t }: { frame: number; at: number; t: TFunction }) {
+  const p = spring({ frame: frame - at, fps: HEADLINE_FPS, config: { damping: 14, stiffness: 150 } });
   return (
     <p className={SUB_CLASS} style={{ opacity: Math.min(1, p * 1.3), transform: `translateY(${((1 - p) * 12).toFixed(1)}px)` }}>
-      {SUB.lead}
-      <span className="lp-gradient-text">{SUB.accent}</span>
+      {t(SUB.lead)}
+      <span className="lp-gradient-text">{t(SUB.accent)}</span>
     </p>
   );
 }

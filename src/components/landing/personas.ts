@@ -4,7 +4,12 @@
  * Threads, dan ide selalu punya sumber. Dipakai peraga interaktif dan animasi Remotion di bagian pembuka.
  */
 
+import { makeT, type TFunction } from "@/lib/i18n/core";
+
 export const pad = (n: number): string => String(n).padStart(2, "0");
+
+/** Bahasa Indonesia apa adanya (kunci = teks): bawaan bila pemanggil tidak memberi fungsi terjemahan. */
+const ID_T: TFunction = makeT("id", null);
 
 export interface Persona {
   key: string;
@@ -73,6 +78,11 @@ const MATCHERS: [RegExp, string][] = [
   [/makan|kuliner|resto|warung|bakso|ayam|mie|kue|roti|bakery|katering|catering|seblak|martabak|sambal|frozen|snack|camilan/, "kuliner"],
   [/baju|fashion|hijab|outfit|sepatu|tas|thrift|kaos|batik|gamis/, "fashion"],
   [/skin|kosmetik|makeup|make up|salon|barber|kecantikan|parfum|spa|nail/, "kecantikan"],
+  // Kata bahasa Inggris (pengunjung EN), dengan batas kata supaya tidak menangkap kata Indonesia ("bagus").
+  [/\b(tea|drinks?|juice)\b/, "kopi"],
+  [/\b(food|restaurant|bread|cake|cookies?|chicken|noodles?|burger|pizza|bbq|meals?)\b/, "kuliner"],
+  [/\b(clothes|clothing|apparel|shoes?|bags?|dress|shirts?|modest wear)\b/, "fashion"],
+  [/\b(beauty|cosmetics?|hair|perfume|nails?)\b/, "kecantikan"],
 ];
 
 const GENERIC_HOURS = [9, 5, 2, 1, 1, 3, 8, 15, 20, 22, 24, 30, 42, 35, 25, 23, 28, 37, 46, 58, 66, 61, 40, 18];
@@ -92,9 +102,12 @@ export function cleanBusiness(text: string): string {
   return text.replace(/\s+/g, " ").trim().slice(0, 24);
 }
 
-/** Persona untuk bisnis yang diketik: posting dari contoh yang mirip, atau tulisan umum yang menyebut bisnisnya. */
-function customPersona(raw: string): Persona {
-  const text = cleanBusiness(raw) || "bisnis Anda";
+/**
+ * Persona untuk bisnis yang diketik: posting dari contoh yang mirip, atau tulisan umum yang menyebut bisnisnya.
+ * `t` menerjemahkan teks posting saat dirender (kunci = teks Indonesia; tanpa `t` hasilnya bahasa Indonesia).
+ */
+function customPersona(raw: string, t: TFunction): Persona {
+  const text = cleanBusiness(raw) || t("bisnis Anda");
   const lower = text.toLowerCase();
   const match = MATCHERS.find(([re]) => re.test(lower))?.[1];
   const base = match ? (PERSONAS.find((p) => p.key === match) ?? EXTRA[match]) : undefined;
@@ -103,18 +116,27 @@ function customPersona(raw: string): Persona {
     label: text,
     handle: handleFor(text),
     hours: base?.hours ?? GENERIC_HOURS,
-    posts: base?.posts ?? [
-      { text: `jujur ya, ${lower} yang bagus tuh kerasa dari hal-hal kecil yang gak pernah dipamerin`, from: "Posting terbaik minggu lalu" },
-      { text: `tanggal muda, rencana banyak. kalo hari ini cuma boleh pilih satu, ${lower} masuk list gak? 👀`, from: "Momen gajian" },
-      { text: `pertanyaan serius nih: kalian pilih ${lower} karena harganya, karena kata temen, atau karena udah terlanjur cocok?`, from: "Tren pencarian" },
-    ],
+    posts: base
+      ? translatePosts(base.posts, t)
+      : [
+          { text: t("jujur ya, {biz} yang bagus tuh kerasa dari hal-hal kecil yang gak pernah dipamerin", { biz: lower }), from: t("Posting terbaik minggu lalu") },
+          { text: t("tanggal muda, rencana banyak. kalo hari ini cuma boleh pilih satu, {biz} masuk list gak? 👀", { biz: lower }), from: t("Momen gajian") },
+          { text: t("pertanyaan serius nih: kalian pilih {biz} karena harganya, karena kata temen, atau karena udah terlanjur cocok?", { biz: lower }), from: t("Tren pencarian") },
+        ],
   };
 }
 
-/** Persona untuk kunci contoh brand, atau untuk bisnis yang diketik pengunjung (key = CUSTOM_KEY). */
-export function personaFor(key: string, custom: string): Persona {
-  if (key === CUSTOM_KEY) return customPersona(custom);
-  return PERSONAS.find((p) => p.key === key) ?? PERSONAS[0];
+const translatePosts = (posts: Persona["posts"], t: TFunction): Persona["posts"] =>
+  posts.map((p) => ({ text: t(p.text), from: t(p.from) }));
+
+/**
+ * Persona untuk kunci contoh brand, atau untuk bisnis yang diketik pengunjung (key = CUSTOM_KEY).
+ * Beri `t` (useT()) agar teks posting ikut bahasa antarmuka; label contoh brand diterjemahkan oleh pemanggil.
+ */
+export function personaFor(key: string, custom: string, t: TFunction = ID_T): Persona {
+  if (key === CUSTOM_KEY) return customPersona(custom, t);
+  const p = PERSONAS.find((x) => x.key === key) ?? PERSONAS[0];
+  return t === ID_T ? p : { ...p, posts: translatePosts(p.posts, t) };
 }
 
 /* ------------------------------------------------------------------ jam ramai */

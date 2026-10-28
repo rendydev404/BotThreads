@@ -1,6 +1,7 @@
 import React from "react";
 import { Heart, MessageCircle, Repeat2, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { T } from "@/components/i18n/t";
 
 /** Logo Threads (merek Meta), dipakai hanya untuk menandai ke mana posting diterbitkan. Mengikuti warna teks. */
 export function ThreadsMark({ className }: { className?: string }) {
@@ -27,7 +28,7 @@ export function ThreadsActions({ className }: { className?: string }) {
  * Tiruan tampilan satu posting di Threads (avatar, nama akun, teks, deretan tindakan). Dipakai sebagai
  * ilustrasi hasil akhir autopilot; bukan tangkapan layar posting sungguhan.
  */
-export function ThreadsPost({ handle, text, time, className }: { handle: string; text: string; time: string; className?: string }) {
+export function ThreadsPost({ handle, text, time, className }: { handle: string; text: React.ReactNode; time: React.ReactNode; className?: string }) {
   const name = handle.replace(/^@/, "");
   return (
     <figure className={cn("rounded-3xl border border-line bg-surface p-5 shadow-pop", className)}>
@@ -43,7 +44,9 @@ export function ThreadsPost({ handle, text, time, className }: { handle: string;
       </div>
       <blockquote className="mt-3.5 text-[15px] leading-relaxed text-fg">{text}</blockquote>
       <ThreadsActions className="mt-4" />
-      <figcaption className="sr-only">Contoh tampilan posting di Threads</figcaption>
+      <figcaption className="sr-only">
+        <T>Contoh tampilan posting di Threads</T>
+      </figcaption>
     </figure>
   );
 }

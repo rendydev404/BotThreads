@@ -5,10 +5,13 @@ import { PAYMENT_METHODS } from "@/lib/billing-types";
 import { LEGAL_DOC_LIST, MERCHANT_INFO } from "@/lib/legal-content";
 import { PaymentLogo } from "@/components/settings/payment-logos";
 import { CopyrightYear } from "@/components/landing/copyright-year";
+import { T } from "@/components/i18n/t";
 
 /**
  * Footer minimalis bergaya editorial: tanpa kotak berlebih, mengandalkan tipografi yang rapi,
  * garis pemisah tipis, dan tautan langsung ke masing-masing halaman dokumen legal mandiri.
+ * Teks lewat <T> (bukan useT) supaya footer tetap bisa dirender server di halaman perkenalan; data legal
+ * lengkap tidak ikut terkirim ke browser di sana.
  */
 export function LandingFooter({ wrap }: { wrap: string }) {
   return (
@@ -21,7 +24,9 @@ export function LandingFooter({ wrap }: { wrap: string }) {
               <Image src="/logo.webp" alt="BotThreads" width={30} height={30} className="w-[30px] h-[30px] rounded-lg" />
               <span className="text-[15px] font-bold tracking-tight text-fg">{MERCHANT_INFO.brandName}</span>
             </Link>
-            <p className="text-[13px] text-muted leading-relaxed">{MERCHANT_INFO.tagline}</p>
+            <p className="text-[13px] text-muted leading-relaxed">
+              <T>{MERCHANT_INFO.tagline}</T>
+            </p>
             <p className="text-xs text-faint leading-relaxed">
               {MERCHANT_INFO.legalName}
               <span className="block">{MERCHANT_INFO.address}</span>
@@ -30,31 +35,33 @@ export function LandingFooter({ wrap }: { wrap: string }) {
 
           {/* Kolom 1: Navigasi */}
           <div>
-            <p className="lp-mono text-[11px] font-bold tracking-widest text-faint uppercase">Platform</p>
+            <p className="lp-mono text-[11px] font-bold tracking-widest text-faint uppercase">
+              <T>Platform</T>
+            </p>
             <ul className="mt-4 space-y-2.5 text-[13px] text-muted">
               <li>
                 <a href="/selamat-datang#cara-kerja" className="hover:text-fg transition-colors">
-                  Cara kerja
+                  <T>Cara kerja</T>
                 </a>
               </li>
               <li>
                 <a href="/selamat-datang#paket" className="hover:text-fg transition-colors">
-                  Harga & Paket
+                  <T>Harga & Paket</T>
                 </a>
               </li>
               <li>
                 <a href="/selamat-datang#tanya" className="hover:text-fg transition-colors">
-                  Tanya jawab
+                  <T>Tanya jawab</T>
                 </a>
               </li>
               <li>
                 <Link href="/login" className="hover:text-fg transition-colors">
-                  Masuk
+                  <T>Masuk</T>
                 </Link>
               </li>
               <li>
                 <Link href="/daftar" className="hover:text-fg transition-colors">
-                  Daftar akun
+                  <T>Daftar akun@@daftar</T>
                 </Link>
               </li>
             </ul>
@@ -62,12 +69,14 @@ export function LandingFooter({ wrap }: { wrap: string }) {
 
           {/* Kolom 2: Halaman Dokumen Legal (Masing-masing punya halaman sendiri) */}
           <div>
-            <p className="lp-mono text-[11px] font-bold tracking-widest text-faint uppercase">Legal & Kebijakan</p>
+            <p className="lp-mono text-[11px] font-bold tracking-widest text-faint uppercase">
+              <T>Legal & Kebijakan</T>
+            </p>
             <ul className="mt-4 space-y-2.5 text-[13px] text-muted">
               {LEGAL_DOC_LIST.filter((d) => d.id !== "kontak").map((doc) => (
                 <li key={doc.id}>
                   <Link href={doc.href} className="hover:text-fg transition-colors">
-                    {doc.shortTitle}
+                    <T>{doc.shortTitle}</T>
                   </Link>
                 </li>
               ))}
@@ -76,11 +85,13 @@ export function LandingFooter({ wrap }: { wrap: string }) {
 
           {/* Kolom 3: Kontak & Layanan Pelanggan */}
           <div>
-            <p className="lp-mono text-[11px] font-bold tracking-widest text-faint uppercase">Kontak & Bantuan</p>
+            <p className="lp-mono text-[11px] font-bold tracking-widest text-faint uppercase">
+              <T>Kontak & Bantuan</T>
+            </p>
             <ul className="mt-4 space-y-2.5 text-[13px] text-muted">
               <li>
                 <Link href="/kontak" className="font-medium text-fg hover:text-accent transition-colors">
-                  Identitas & Kontak Resmi
+                  <T>Identitas & Kontak Resmi</T>
                 </Link>
               </li>
               <li>
@@ -98,7 +109,9 @@ export function LandingFooter({ wrap }: { wrap: string }) {
                   {MERCHANT_INFO.whatsappDisplay}
                 </a>
               </li>
-              <li className="text-xs text-faint pt-0.5">{MERCHANT_INFO.operatingHours}</li>
+              <li className="text-xs text-faint pt-0.5">
+                <T>{MERCHANT_INFO.operatingHours}</T>
+              </li>
             </ul>
           </div>
         </div>
@@ -107,16 +120,18 @@ export function LandingFooter({ wrap }: { wrap: string }) {
         <div className="mt-12 pt-6 border-t border-line flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1 text-xs text-faint">
             <p>
-              © <CopyrightYear /> {MERCHANT_INFO.brandName} · {MERCHANT_INFO.legalName}. Transaksi resmi dalam
-              Rupiah (IDR) melalui Midtrans.
+              © <CopyrightYear /> {MERCHANT_INFO.brandName} · {MERCHANT_INFO.legalName}.{" "}
+              <T>Transaksi resmi dalam Rupiah (IDR) melalui Midtrans.</T>
             </p>
             <p>
-              Jam dan contoh di halaman ini adalah ilustrasi. Threads adalah merek dagang Meta; layanan ini tidak
-              berafiliasi dengan Meta.
+              <T>Jam dan contoh di halaman ini adalah ilustrasi. Threads adalah merek dagang Meta; layanan ini tidak berafiliasi dengan Meta.</T>
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5" aria-label="Metode pembayaran resmi">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="sr-only">
+              <T>Metode pembayaran resmi</T>
+            </span>
             {PAYMENT_METHODS.map((m) => (
               <span key={m.id} title={m.label}>
                 <PaymentLogo id={m.id} className="w-10 h-6 px-1 py-0.5 rounded-md" />

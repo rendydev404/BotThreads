@@ -3,9 +3,11 @@
 import React, { useEffect, useState } from "react";
 import { Sun, Moon } from "lucide-react";
 import { useTheme } from "./theme-provider";
+import { useT } from "@/components/i18n/lang-provider";
 
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const { resolvedTheme, toggleTheme } = useTheme();
+  const t = useT();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -13,7 +15,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
   }, []);
 
   const isDark = mounted && resolvedTheme === "dark";
-  const label = isDark ? "Beralih ke mode terang" : "Beralih ke mode gelap";
+  const label = isDark ? t("Beralih ke mode terang") : t("Beralih ke mode gelap");
 
   return (
     <button

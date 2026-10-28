@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { BadgeCheck, Eye, Heart, MessageCircle, Repeat2, Sparkles } from "lucide-react";
+import { useLang, useT } from "@/components/i18n/lang-provider";
 
 /**
  * Animasi bagian pembuka: robot tertidur di meja, sementara di monitornya Threads berjalan sendiri.
@@ -64,7 +65,7 @@ const FADE: React.CSSProperties = { willChange: "opacity" };
 
 /** Gelombang periodik yang pas dengan satu putaran (k = berapa kali per putaran), supaya perulangan mulus. */
 const wave = (frame: number, k: number, phase = 0) => Math.sin(TAU * (k * (frame / DESK_DURATION) + phase));
-const fmt = (n: number) => Math.round(n).toLocaleString("id-ID");
+const fmt = (n: number, locale: string) => Math.round(n).toLocaleString(locale);
 
 /** Siklus ke-c dimulai di frame c*CYCLE; waktu terbit posting k (boleh negatif = putaran sebelumnya). */
 function pubTime(k: number, frame: number): number {
@@ -366,13 +367,14 @@ const FeedPost = memo(function FeedPost({ handle, text, time, age, k }: { handle
   const replies = REPLIES[k] * ease;
   const liked = age > 14;
   const pop = 1 + 0.35 * Math.sin(Math.PI * interpolate(age, [14, 24], [0, 1], CLAMP));
+  const { t, locale } = useLang();
   return (
     <div style={{ height: POST_H, padding: "14px 18px", display: "flex", gap: 12, borderBottom: `1px solid ${C.line}` }}>
       <Avatar letter={handle[1] ?? "b"} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: SANS, fontSize: 15 }}>
           <span style={{ fontWeight: 800, color: C.fg }}>{handle.slice(1)}</span>
-          <span style={{ color: C.faint }}>{age < 70 ? "baru saja" : time}</span>
+          <span style={{ color: C.faint }}>{age < 70 ? t("baru saja") : time}</span>
         </div>
         <div style={{ marginTop: 3, fontFamily: SANS, fontSize: 15, lineHeight: 1.38, color: C.fg, height: 42, overflow: "hidden" }}>{text}</div>
         <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 18, fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.muted }}>
@@ -380,15 +382,15 @@ const FeedPost = memo(function FeedPost({ handle, text, time, age, k }: { handle
             <span style={{ display: "flex", transform: `scale(${pop.toFixed(3)})` }}>
               <Heart size={16} color={liked ? C.danger : C.muted} fill={liked ? C.danger : "none"} />
             </span>
-            {fmt(likes)}
+            {fmt(likes, locale)}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <MessageCircle size={16} />
-            {fmt(replies)}
+            {fmt(replies, locale)}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <Repeat2 size={16} />
-            {fmt(replies * 0.4)}
+            {fmt(replies * 0.4, locale)}
           </span>
         </div>
       </div>
@@ -412,16 +414,17 @@ function ScreenTopBar({ handle, dot }: { handle: string; dot: number }) {
 
 /** Kolom tulis: berubah hanya saat jumlah huruf/tahap berubah, jadi dibekukan di antaranya. */
 const Composer = memo(function Composer({ handle, text, typing, checking, pressed, caretOn }: { handle: string; text: string; typing: boolean; checking: boolean; pressed: boolean; caretOn: boolean }) {
+  const t = useT();
   return (
     <div style={{ height: 98, padding: "12px 16px", display: "flex", gap: 12, borderBottom: `1px solid ${C.line}`, background: "rgba(123,138,255,0.05)" }}>
       <Avatar letter={handle[1] ?? "b"} />
       <div style={{ minWidth: 0, flex: 1, position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: MONO, fontSize: 11, fontWeight: 700, color: checking ? C.success : C.accent }}>
           {checking ? <BadgeCheck size={13} /> : <Sparkles size={13} />}
-          {checking ? "lolos cek aturan · skor 0,87" : typing || text ? "AI menulis…" : "menunggu jam tayang"}
+          {checking ? t("lolos cek aturan · skor 0,87") : typing || text ? t("AI menulis…") : t("menunggu jam tayang")}
         </div>
         <div style={{ marginTop: 4, fontSize: 14.5, lineHeight: 1.36, color: text ? C.fg : C.faint, height: 40, overflow: "hidden", paddingRight: 86 }}>
-          {text || "Mulai utas baru…"}
+          {text || t("Mulai utas baru…")}
           {text && caretOn ? <span style={{ display: "inline-block", width: 2, height: 16, marginLeft: 2, verticalAlign: "-3px", background: C.accent }} /> : null}
         </div>
         <div
@@ -441,7 +444,7 @@ const Composer = memo(function Composer({ handle, text, typing, checking, presse
             transform: `scale(${pressed ? 0.9 : 1})`,
           }}
         >
-          Posting
+          {t("Posting@@tombol")}
         </div>
       </div>
     </div>
@@ -563,10 +566,11 @@ const NOTES = [
 ];
 
 const NotePill = memo(function NotePill({ note }: { note: (typeof NOTES)[number][number] }) {
+  const t = useT();
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 13px", borderRadius: 999, background: C.fg, color: C.screen, fontFamily: SANS, fontSize: 14, fontWeight: 800, whiteSpace: "nowrap", boxShadow: "0 10px 24px rgba(0,0,0,0.45)" }}>
       <note.Icon size={15} color={note.color} fill={note.Icon === Heart ? note.color : "none"} />
-      {note.text}
+      {t(note.text)}
     </div>
   );
 });
@@ -605,13 +609,14 @@ function Notifications({ frame }: { frame: number }) {
 
 /** Label kecil: menegaskan semuanya berjalan tanpa disentuh. `dot` = opacity titik hijaunya. */
 function Label({ dot }: { dot: number }) {
+  const t = useT();
   return (
     <>
       <div style={{ position: "absolute", left: 300, top: 104, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 12, background: "rgba(20,23,34,0.85)", border: `1px solid ${C.lineStrong}`, color: C.muted, fontFamily: MONO, fontSize: 13, fontWeight: 700 }}>
         <span style={{ ...FADE, width: 8, height: 8, borderRadius: 8, background: C.success, boxShadow: `0 0 10px ${C.success}`, opacity: dot }} />
-        pemilik lagi tidur
+        {t("pemilik lagi tidur")}
       </div>
-      <div style={{ position: "absolute", left: 300, top: 150, color: C.faint, fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>THREADS TETAP JALAN</div>
+      <div style={{ position: "absolute", left: 300, top: 150, color: C.faint, fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>{t("THREADS TETAP JALAN")}</div>
     </>
   );
 }

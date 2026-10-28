@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Player, type PlayerRef } from "@remotion/player";
+import { useT } from "@/components/i18n/lang-provider";
 import { heroStore, useHero } from "../hero-store";
 import { jitter, pad, personaFor, pickHours } from "../personas";
 import { AT, AutopilotDesk, BASE_FPS, CYCLE, DESK_H, DESK_W, deskFrames, toBaseFrame } from "./autopilot-desk";
@@ -30,19 +31,20 @@ export default function DeskPlayer() {
   const box = useRef<HTMLDivElement>(null);
   const key = useHero((s) => s.key);
   const custom = useHero((s) => s.custom);
+  const t = useT();
   // Komponen ini hanya dirender di browser (dimuat tanpa SSR), jadi aman membaca navigator di sini.
   const [fps] = useState(pickFps);
   const stillFrame = Math.round((STILL_BASE_FRAME * fps) / BASE_FPS);
 
   const inputProps = useMemo(() => {
-    const persona = personaFor(key, custom);
+    const persona = personaFor(key, custom, t);
     const hours = pickHours(persona.hours, 3);
     return {
       handle: persona.handle,
       posts: persona.posts.slice(0, 3).map((p) => p.text),
       times: hours.map((h, i) => `${pad(h)}.${pad(jitter(h, i))}`),
     };
-  }, [key, custom]);
+  }, [key, custom, t]);
 
   // Efek ini dijalankan ulang tiap bisnis berganti, jadi animasi mulai lagi dari frame 0 dan posting
   // pertama untuk bisnis itu langsung terlihat diketik.

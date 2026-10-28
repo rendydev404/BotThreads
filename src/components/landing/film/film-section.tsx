@@ -3,15 +3,17 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { Play } from "lucide-react";
+import { useT } from "@/components/i18n/lang-provider";
 
 /** Sampul selagi Player belum dimuat: ukurannya sama dengan film supaya tata letak tidak meloncat. */
 function Poster() {
+  const t = useT();
   return (
     <div className="lp-film-poster absolute inset-0 flex flex-col items-center justify-center gap-4 text-center">
       <span className="w-16 h-16 rounded-full bg-accent text-on-accent flex items-center justify-center shadow-pop">
         <Play className="w-7 h-7 translate-x-0.5" fill="currentColor" />
       </span>
-      <span className="lp-mono text-xs font-bold tracking-widest text-muted">MEMUAT DEMO AUTOPILOT</span>
+      <span className="lp-mono text-xs font-bold tracking-widest text-muted">{t("MEMUAT DEMO AUTOPILOT")}</span>
     </div>
   );
 }

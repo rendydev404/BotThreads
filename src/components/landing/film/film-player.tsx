@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { Player, type PlayerRef } from "@remotion/player";
 import { Volume2, VolumeX } from "lucide-react";
+import { useT } from "@/components/i18n/lang-provider";
 import { AutopilotFilm, FILM_DURATION, FILM_FPS, FILM_HEIGHT, FILM_WIDTH } from "./autopilot-film";
 
 /**
@@ -19,6 +20,7 @@ import { AutopilotFilm, FILM_DURATION, FILM_FPS, FILM_HEIGHT, FILM_WIDTH } from 
 export default function FilmPlayer() {
   const ref = useRef<PlayerRef>(null);
   const box = useRef<HTMLDivElement>(null);
+  const t = useT();
   const [sound, setSound] = useState(false);
   const inputProps = useMemo(() => ({ sound }), [sound]);
   const soundOn = useRef(false);
@@ -114,7 +116,7 @@ export default function FilmPlayer() {
         }`}
       >
         {sound ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-        {sound ? "MATIKAN SUARA" : "NYALAKAN SUARA"}
+        {sound ? t("MATIKAN SUARA") : t("NYALAKAN SUARA")}
         {!sound && <span aria-hidden="true" className="lp-sound-ring" />}
       </button>
     </div>

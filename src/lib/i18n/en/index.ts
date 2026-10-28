@@ -7,9 +7,14 @@ import content from "./content";
 import autopilot from "./autopilot";
 import radar from "./radar";
 import settings from "./settings";
+import landing from "./landing";
+import landingFilm from "./landing-film";
 
 /** Kamus EN gabungan. Dimuat lewat import dinamis (lihat ../core.ts), jadi tidak ikut bundel pengguna ID. */
 const en: Readonly<Record<string, string>> = {
+  // Halaman publik paling awal: bila kunci bentrok, terjemahan aplikasi (di bawah) yang dipakai.
+  ...landingFilm,
+  ...landing,
   ...settings,
   ...radar,
   ...autopilot,

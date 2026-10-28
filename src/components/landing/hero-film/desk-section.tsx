@@ -2,13 +2,15 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/components/i18n/lang-provider";
 
 /** Sampul selagi Player belum dimuat: ruangan gelap dengan siluet monitor, ukurannya sama dengan film. */
 function Poster() {
+  const t = useT();
   return (
     <div className="lp-desk-poster absolute inset-0" aria-hidden="true">
       <div className="lp-desk-poster-monitor" />
-      <p className="lp-mono absolute left-1/2 top-[44%] -translate-x-1/2 text-[11px] font-bold tracking-widest text-[#a0a6bd]">MENYALAKAN AUTOPILOT…</p>
+      <p className="lp-mono absolute left-1/2 top-[44%] -translate-x-1/2 text-[11px] font-bold tracking-widest text-[#a0a6bd]">{t("MENYALAKAN AUTOPILOT…")}</p>
     </div>
   );
 }
@@ -38,6 +40,7 @@ export const isDeskCodeReady = () => codeReady;
 export function DeskSection() {
   const [ready, setReady] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const t = useT();
 
   useEffect(() => {
     const el = ref.current;
@@ -70,7 +73,7 @@ export function DeskSection() {
       ref={ref}
       id="hero-board"
       role="img"
-      aria-label="Animasi: robot tertidur di meja sementara akun Threads di monitornya menulis, memeriksa, dan menerbitkan posting sendiri, lalu suka dan balasan berdatangan."
+      aria-label={t("Animasi: robot tertidur di meja sementara akun Threads di monitornya menulis, memeriksa, dan menerbitkan posting sendiri, lalu suka dan balasan berdatangan.")}
       className="scroll-mt-24 relative w-full aspect-[760/840] rounded-3xl overflow-hidden border border-line shadow-pop bg-[#080a15]"
     >
       {ready ? <DeskPlayer /> : <Poster />}

@@ -13,8 +13,58 @@ import {
 } from "@/lib/legal-content";
 import { LandingFooter } from "@/components/landing/legal-section";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { LangToggle } from "@/components/i18n/lang-toggle";
+import { useLang, useT } from "@/components/i18n/lang-provider";
+import { LANG_COOKIE } from "@/lib/i18n/core";
 import { cn } from "@/lib/utils";
 import "@/app/selamat-datang/landing.css";
+
+/**
+ * Dokumen legal versi EN (./legal-content-en) dimuat lewat import dinamis hanya bila bahasa = EN, jadi
+ * pengguna ID tidak mengunduhnya. Unduhan dimulai sedini mungkin (saat modul ini dievaluasi) bila cookie
+ * `lang` = en, sejajar dengan kamus EN di LangProvider.
+ */
+type LegalEn = typeof import("@/lib/legal-content-en");
+let legalEn: LegalEn | null = null;
+let legalEnPromise: Promise<LegalEn> | null = null;
+function loadLegalEn(): Promise<LegalEn> {
+  if (!legalEnPromise) {
+    legalEnPromise = import("@/lib/legal-content-en").then(
+      (m) => (legalEn = m),
+      (err) => {
+        legalEnPromise = null;
+        throw err;
+      }
+    );
+  }
+  return legalEnPromise;
+}
+if (typeof document !== "undefined" && new RegExp(`(?:^|;\\s*)${LANG_COOKIE}=en(?:;|$)`).test(document.cookie)) {
+  void loadLegalEn().catch(() => {});
+}
+
+/** Dokumen & identitas merchant sesuai bahasa aktif; selama versi EN belum termuat, tetap bahasa Indonesia. */
+function useLegalContent() {
+  const { lang } = useLang();
+  const [en, setEn] = useState<LegalEn | null>(legalEn);
+  useEffect(() => {
+    if (lang !== "en" || en) return;
+    let alive = true;
+    loadLegalEn()
+      .then((m) => {
+        if (alive) setEn(m);
+      })
+      .catch(() => {
+        // Gagal dimuat (jaringan): dokumen tetap tampil dalam bahasa Indonesia.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [lang, en]);
+  return lang === "en" && en
+    ? { docs: en.LEGAL_DOCUMENTS_EN, info: en.MERCHANT_INFO_EN, isEn: true }
+    : { docs: LEGAL_DOCUMENTS, info: MERCHANT_INFO, isEn: false };
+}
 
 const display = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -31,6 +81,7 @@ const mono = JetBrains_Mono({
 const WRAP = "max-w-[1180px] mx-auto px-4 md:px-8";
 
 function CopyInline({ value }: { value: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -44,7 +95,7 @@ function CopyInline({ value }: { value: string }) {
       className="h-7 px-2.5 rounded-md border border-line hover:border-line-strong bg-surface text-[11px] font-medium text-muted hover:text-fg inline-flex items-center gap-1.5 transition-colors cursor-pointer"
     >
       {copied ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
-      <span>{copied ? "Tersalin" : "Salin"}</span>
+      <span>{copied ? t("Tersalin") : t("Salin")}</span>
     </button>
   );
 }
@@ -55,12 +106,21 @@ function CopyInline({ value }: { value: string }) {
  * dilengkapi penanda pasal aktif otomatis (scroll-spy) di sisi kiri.
  */
 export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
-  const doc = LEGAL_DOCUMENTS[docId];
+  const t = useT();
+  const { docs, info: MERCHANT, isEn } = useLegalContent();
+  const doc = docs[docId];
+  const docList = LEGAL_DOC_LIST.map((d) => docs[d.id]);
   const [activeSection, setActiveSection] = useState<string>(doc.articles[0]?.id ?? "");
 
-  const currentIdx = LEGAL_DOC_LIST.findIndex((d) => d.id === docId);
-  const prevDoc = currentIdx > 0 ? LEGAL_DOC_LIST[currentIdx - 1] : null;
-  const nextDoc = currentIdx < LEGAL_DOC_LIST.length - 1 ? LEGAL_DOC_LIST[currentIdx + 1] : null;
+  const currentIdx = docList.findIndex((d) => d.id === docId);
+  const prevDoc = currentIdx > 0 ? docList[currentIdx - 1] : null;
+  const nextDoc = currentIdx < docList.length - 1 ? docList[currentIdx + 1] : null;
+
+  // Judul tab ikut bahasa. Metadata server tetap bahasa Indonesia supaya halaman ini tetap statis.
+  useEffect(() => {
+    const title = `${(isEn ? doc : LEGAL_DOCUMENTS[docId]).title} | BotThreads`;
+    if (document.title !== title) document.title = title;
+  }, [isEn, doc, docId]);
 
   useEffect(() => {
     const elements = doc.articles
@@ -94,21 +154,22 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
           <div className="flex items-center gap-2.5 shrink-0">
             <Link
               href="/selamat-datang"
+              aria-label={t("Beranda")}
               className="group h-9 px-2.5 rounded-lg text-xs font-semibold text-muted hover:text-fg hover:bg-subtle inline-flex items-center gap-1.5 transition-colors shrink-0"
             >
               <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
-              <span>Beranda</span>
+              <span className="hidden min-[400px]:inline">{t("Beranda")}</span>
             </Link>
             <span className="h-4 w-px bg-line hidden sm:block" aria-hidden="true" />
             <Link href="/selamat-datang" className="hidden sm:flex items-center gap-2 shrink-0">
               <Image src="/logo.webp" alt="" width={24} height={24} className="w-6 h-6 rounded-md shrink-0" />
-              <span className="text-sm font-bold tracking-tight whitespace-nowrap">{MERCHANT_INFO.brandName}</span>
+              <span className="text-sm font-bold tracking-tight whitespace-nowrap">{MERCHANT.brandName}</span>
             </Link>
           </div>
 
           {/* Navigasi Antar-Halaman Legal */}
-          <nav className="hidden lg:flex items-center gap-0.5 overflow-x-auto" aria-label="Dokumen Legal">
-            {LEGAL_DOC_LIST.map((item) => {
+          <nav className="hidden lg:flex items-center gap-0.5 overflow-x-auto" aria-label={t("Dokumen Legal")}>
+            {docList.map((item) => {
               const active = item.id === docId;
               return (
                 <Link
@@ -126,18 +187,19 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
           </nav>
 
           <div className="flex items-center gap-1 shrink-0">
+            <LangToggle />
             <ThemeToggle />
             <Link
               href="/login"
-              className="h-9 px-3 rounded-lg text-xs font-semibold text-muted hover:text-fg hover:bg-subtle inline-flex items-center transition-colors"
+              className="max-[340px]:hidden h-9 px-2.5 sm:px-3 rounded-lg text-xs font-semibold text-muted hover:text-fg hover:bg-subtle inline-flex items-center transition-colors"
             >
-              Masuk
+              {t("Masuk")}
             </Link>
             <Link
               href="/daftar"
-              className="h-9 px-3.5 rounded-xl text-xs font-semibold bg-accent hover:bg-accent-hover text-on-accent inline-flex items-center transition-colors"
+              className="h-9 px-3 sm:px-3.5 rounded-xl text-xs font-semibold bg-accent hover:bg-accent-hover text-on-accent inline-flex items-center transition-colors"
             >
-              Daftar
+              {t("Daftar")}
             </Link>
           </div>
         </div>
@@ -162,15 +224,15 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
             {/* Spesifikasi Dokumen di Kanan */}
             <dl className="border-t lg:border-t-0 lg:border-l border-line pt-5 lg:pt-0 lg:pl-6 space-y-3 text-xs">
               <div>
-                <dt className="lp-mono text-[10px] font-bold tracking-wider text-faint uppercase">Kode Dokumen</dt>
+                <dt className="lp-mono text-[10px] font-bold tracking-wider text-faint uppercase">{t("Kode Dokumen")}</dt>
                 <dd className="lp-mono mt-0.5 font-semibold text-fg">{doc.docCode}</dd>
               </div>
               <div>
-                <dt className="lp-mono text-[10px] font-bold tracking-wider text-faint uppercase">Berlaku Efektif</dt>
+                <dt className="lp-mono text-[10px] font-bold tracking-wider text-faint uppercase">{t("Berlaku Efektif")}</dt>
                 <dd className="mt-0.5 font-medium text-fg">{doc.effectiveDate}</dd>
               </div>
               <div>
-                <dt className="lp-mono text-[10px] font-bold tracking-wider text-faint uppercase">Lingkup Kepatuhan</dt>
+                <dt className="lp-mono text-[10px] font-bold tracking-wider text-faint uppercase">{t("Lingkup Kepatuhan")}</dt>
                 <dd className="mt-0.5 font-medium text-muted">{doc.jurisdiction}</dd>
               </div>
             </dl>
@@ -178,7 +240,7 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
 
           {/* Pemilih Halaman untuk Layar Kecil/Tablet */}
           <div className="mt-8 flex lg:hidden items-center gap-1.5 overflow-x-auto pb-1">
-            {LEGAL_DOC_LIST.map((item) => {
+            {docList.map((item) => {
               const active = item.id === docId;
               return (
                 <Link
@@ -223,7 +285,7 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
             {/* Kolom Kiri Sticky: Daftar Isi & Dokumen Lain */}
             <aside className="hidden lg:block sticky top-24 space-y-8">
               <div>
-                <p className="lp-mono text-[10px] font-bold tracking-widest text-faint uppercase">Pada Halaman Ini</p>
+                <p className="lp-mono text-[10px] font-bold tracking-widest text-faint uppercase">{t("Pada Halaman Ini")}</p>
                 <ul className="mt-3 border-l border-line space-y-0.5 text-[13px]">
                   {doc.articles.map((art) => {
                     const isCurrent = activeSection === art.id;
@@ -249,9 +311,9 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
               </div>
 
               <div className="pt-6 border-t border-line">
-                <p className="lp-mono text-[10px] font-bold tracking-widest text-faint uppercase">Dokumen Resmi</p>
+                <p className="lp-mono text-[10px] font-bold tracking-widest text-faint uppercase">{t("Dokumen Resmi")}</p>
                 <ul className="mt-3 space-y-1.5 text-[13px]">
-                  {LEGAL_DOC_LIST.map((item) => {
+                  {docList.map((item) => {
                     const active = item.id === docId;
                     return (
                       <li key={item.id}>
@@ -279,28 +341,30 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
                 <div className="mb-12 pb-12 border-b border-line">
                   <div className="flex items-baseline justify-between gap-4 mb-4">
                     <h2 className="lp-display text-xl md:text-2xl font-bold tracking-tight text-fg">
-                      Identitas Penyelenggara & Saluran Langsung
+                      {t("Identitas Penyelenggara & Saluran Langsung")}
                     </h2>
                     <span className="lp-mono text-[11px] font-bold text-accent">VERIFIED MERCHANT</span>
                   </div>
                   <p className="text-[15px] text-muted leading-[1.8] mb-6">
-                    Informasi di bawah ini merupakan identitas operasional resmi penyelenggara layanan {MERCHANT_INFO.brandName}{" "}
-                    di Indonesia untuk keperluan layanan pelanggan, administrasi penagihan, dan korespondensi resmi.
+                    {t(
+                      "Informasi di bawah ini merupakan identitas operasional resmi penyelenggara layanan {brand} di Indonesia untuk keperluan layanan pelanggan, administrasi penagihan, dan korespondensi resmi.",
+                      { brand: MERCHANT.brandName }
+                    )}
                   </p>
 
                   <dl className="border-t border-line divide-y divide-line">
                     <div className="py-4 grid sm:grid-cols-[200px_minmax(0,1fr)] gap-1 sm:gap-6 items-baseline">
-                      <dt className="text-[13px] font-semibold text-fg">Nama Platform</dt>
-                      <dd className="text-[14px] text-muted">{MERCHANT_INFO.brandName}</dd>
+                      <dt className="text-[13px] font-semibold text-fg">{t("Nama Platform")}</dt>
+                      <dd className="text-[14px] text-muted">{MERCHANT.brandName}</dd>
                     </div>
                     <div className="py-4 grid sm:grid-cols-[200px_minmax(0,1fr)] gap-1 sm:gap-6 items-baseline">
-                      <dt className="text-[13px] font-semibold text-fg">Entitas Penyelenggara</dt>
+                      <dt className="text-[13px] font-semibold text-fg">{t("Entitas Penyelenggara")}</dt>
                       <dd className="text-[14px] text-muted">
-                        {MERCHANT_INFO.legalName} ({MERCHANT_INFO.unitName})
+                        {MERCHANT.legalName} ({MERCHANT.unitName})
                       </dd>
                     </div>
                     <div className="py-4 grid sm:grid-cols-[200px_minmax(0,1fr)] gap-1 sm:gap-6 items-center">
-                      <dt className="text-[13px] font-semibold text-fg">Email Resmi</dt>
+                      <dt className="text-[13px] font-semibold text-fg">{t("Email Resmi")}</dt>
                       <dd className="text-[14px] text-fg font-medium flex flex-wrap items-center justify-between gap-2">
                         <a href={`mailto:${MERCHANT_INFO.supportEmail}`} className="hover:text-accent underline">
                           {MERCHANT_INFO.supportEmail}
@@ -309,7 +373,7 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
                       </dd>
                     </div>
                     <div className="py-4 grid sm:grid-cols-[200px_minmax(0,1fr)] gap-1 sm:gap-6 items-center">
-                      <dt className="text-[13px] font-semibold text-fg">WhatsApp Pelanggan</dt>
+                      <dt className="text-[13px] font-semibold text-fg">{t("WhatsApp Pelanggan")}</dt>
                       <dd className="text-[14px] text-fg font-medium flex flex-wrap items-center justify-between gap-2">
                         <a
                           href={MERCHANT_INFO.whatsappHref}
@@ -324,18 +388,18 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
                       </dd>
                     </div>
                     <div className="py-4 grid sm:grid-cols-[200px_minmax(0,1fr)] gap-1 sm:gap-6 items-baseline">
-                      <dt className="text-[13px] font-semibold text-fg">Jam Operasional</dt>
-                      <dd className="text-[14px] text-muted">{MERCHANT_INFO.operatingHours}</dd>
+                      <dt className="text-[13px] font-semibold text-fg">{t("Jam Operasional")}</dt>
+                      <dd className="text-[14px] text-muted">{MERCHANT.operatingHours}</dd>
                     </div>
                     <div className="py-4 grid sm:grid-cols-[200px_minmax(0,1fr)] gap-1 sm:gap-6 items-baseline">
-                      <dt className="text-[13px] font-semibold text-fg">Mata Uang & Pembayaran</dt>
+                      <dt className="text-[13px] font-semibold text-fg">{t("Mata Uang & Pembayaran")}</dt>
                       <dd className="text-[14px] text-muted">
-                        {MERCHANT_INFO.currency} · {MERCHANT_INFO.paymentGateway}
+                        {MERCHANT.currency} · {MERCHANT.paymentGateway}
                       </dd>
                     </div>
                     <div className="py-4 grid sm:grid-cols-[200px_minmax(0,1fr)] gap-1 sm:gap-6 items-baseline">
-                      <dt className="text-[13px] font-semibold text-fg">Alamat Operasional</dt>
-                      <dd className="text-[14px] text-muted leading-relaxed">{MERCHANT_INFO.address}</dd>
+                      <dt className="text-[13px] font-semibold text-fg">{t("Alamat Operasional")}</dt>
+                      <dd className="text-[14px] text-muted leading-relaxed">{MERCHANT.address}</dd>
                     </div>
                   </dl>
                 </div>
@@ -351,7 +415,7 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
                   >
                     <div className="flex items-baseline gap-3.5">
                       <span className="lp-mono text-xs font-bold text-accent tabular-nums shrink-0">
-                        PASAL {art.index}
+                        {t("PASAL {n}", { n: art.index })}
                       </span>
                       <h2 className="lp-display text-xl md:text-2xl font-bold tracking-tight text-fg">
                         {art.title}
@@ -383,7 +447,7 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
 
               {/* Navigasi Dokumen Sebelumnya / Selanjutnya */}
               <nav
-                aria-label="Navigasi dokumen legal"
+                aria-label={t("Navigasi dokumen legal")}
                 className="mt-10 pt-8 border-t border-line grid sm:grid-cols-2 gap-4"
               >
                 {prevDoc ? (
@@ -393,7 +457,7 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
                   >
                     <span className="lp-mono text-[10px] font-bold tracking-widest text-faint uppercase inline-flex items-center gap-1.5">
                       <ArrowLeft className="w-3 h-3 transition-transform group-hover:-translate-x-0.5" />
-                      Sebelumnya ({prevDoc.order})
+                      {t("Sebelumnya ({n})", { n: prevDoc.order })}
                     </span>
                     <span className="mt-1 text-base font-bold text-fg group-hover:text-accent transition-colors">
                       {prevDoc.title}
@@ -409,7 +473,7 @@ export function LegalPageLayout({ docId }: { docId: LegalDocId }) {
                     className="group py-3 sm:pl-4 sm:text-right flex flex-col sm:items-end justify-between transition-colors"
                   >
                     <span className="lp-mono text-[10px] font-bold tracking-widest text-faint uppercase inline-flex items-center gap-1.5">
-                      Selanjutnya ({nextDoc.order})
+                      {t("Selanjutnya ({n})", { n: nextDoc.order })}
                       <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
                     </span>
                     <span className="mt-1 text-base font-bold text-fg group-hover:text-accent transition-colors">
