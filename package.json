@@ -11,6 +11,7 @@
     "auth:secret": "node scripts/gen-secret.mjs",
     "user:create": "node scripts/create-user.mjs",
     "env:push": "node scripts/push-env-to-coolify.mjs",
+    "env:copy": "node scripts/copy-coolify-env.mjs",
     "test": "vitest run"
   },
   "dependencies": {

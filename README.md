@@ -110,6 +110,10 @@ Jalankan berurutan di SQL Editor Supabase setelah `sql/002` dan `sql/003`. Semua
 
 `sql/008` mengganti tiga fungsi daftar antrean (`dash_post_list`, `dash_posts_by_ids`, `dash_post_summary`) dengan versi berparameter tambahan yang bernilai bawaan, jadi aman dipasang sebelum maupun sesudah kode baru di-deploy.
 
+### Pindah server
+
+Langkah memindahkan aplikasi ke VPS lain tanpa downtime (salin env, Scheduled Task, cutover domain, rollback) ada di [`docs/migrasi-vps.md`](docs/migrasi-vps.md).
+
 ### Penjadwal (wajib supaya autopilot berjalan)
 
 Autopilot digerakkan satu endpoint yang dipanggil tiap 5 menit. Di Coolify, buka aplikasi `wargi-dashboard` > Scheduled Tasks > tambah tugas:
