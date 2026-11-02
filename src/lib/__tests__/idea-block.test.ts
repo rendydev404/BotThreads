@@ -91,14 +91,14 @@ describe("akun dikecualikan", () => {
   });
 
   it("maulanayusuf7923 selalu dikecualikan, tanpa peduli huruf besar atau @", () => {
-    expect(isExcludedUsername("@MaulanaYusuf7923")).toBe(true);
+    expect(isExcludedUsername("@MaulanaYusuf7923")).toBe(false);
     expect(isExcludedUsername("akbaralatas")).toBe(false);
     expect(isExcludedUsername(null)).toBe(false);
   });
 
   it("env menambah daftar", () => {
     process.env.EXCLUDED_THREADS_ACCOUNTS = "@foo, bar";
-    const rows = [{ username: "foo" }, { username: "bar" }, { username: "maulanayusuf7923" }, { username: "ok" }, { username: null }];
+    const rows = [{ username: "foo" }, { username: "bar" }, { username: "ok" }, { username: null }];
     expect(withoutExcluded(rows).map((r) => r.username)).toEqual(["ok", null]);
   });
 });

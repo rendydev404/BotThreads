@@ -7,6 +7,8 @@
 import { MEDIA_BUCKET, MEDIA_MIN_SOURCE_WIDTH, MEDIA_WIDTH } from "./post-media";
 import { db, rpc, sqlTs } from "./supabase";
 
+export { MEDIA_BUCKET };
+
 /** Batas objek per panggilan hapus Storage. */
 const REMOVE_CHUNK = 1000;
 

@@ -6,7 +6,7 @@
  * Env opsional EXCLUDED_THREADS_ACCOUNTS: daftar username tambahan, dipisah koma.
  */
 
-const DEFAULT_EXCLUDED = ["maulanayusuf7923"];
+const DEFAULT_EXCLUDED: string[] = [];
 
 const norm = (s: string) => s.trim().replace(/^@/, "").toLowerCase();
 

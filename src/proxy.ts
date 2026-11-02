@@ -30,7 +30,7 @@ const PUBLIC_API = [
 ];
 
 // Halaman yang dibuka dari tautan undangan/reset oleh orang yang belum punya sesi.
-const PUBLIC_PAGE_PREFIXES = ["/undangan/", "/reset-password/"];
+const PUBLIC_PAGE_PREFIXES = ["/undangan/", "/reset-password/", "/api/media/"];
 // Halaman pemasaran, pendaftaran, dan dokumen kebijakan legal (wajib publik untuk verifikasi Payment Gateway & OAuth).
 const LANDING_PATH = "/selamat-datang";
 const PUBLIC_PAGES = [

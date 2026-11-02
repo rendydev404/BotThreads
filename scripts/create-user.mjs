@@ -1,13 +1,12 @@
-// Membuat / memperbarui pengguna login dashboard di database (lewat Supabase REST).
+// Membuat / memperbarui pengguna login dashboard di database PostgreSQL VPS (DATABASE_URL).
 //
 //   npm run user:create -- --username admin --password "rahasia-panjang" [--email a@b.com] [--name "Nama"]
 //   npm run user:create -- --username admin --disable        (nonaktifkan akun)
 //   npm run user:create -- --list                            (daftar pengguna)
 //
-// Butuh SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY (dibaca dari .env.local).
-// Jika username sudah ada, password/email/nama diperbarui (akun lama tetap sama).
+// Butuh DATABASE_URL di .env.local.
 import { randomBytes, randomUUID, scrypt } from "node:crypto";
-import { createClient } from "@supabase/supabase-js";
+import pg from "pg";
 import nextEnv from "@next/env";
 
 nextEnv.loadEnvConfig(process.cwd());
@@ -31,88 +30,77 @@ function hashPassword(password) {
   });
 }
 
-const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error("Set SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY di .env.local");
+const dbUrl = (process.env.DATABASE_URL || process.env.DIRECT_URL || "").trim();
+if (!dbUrl) {
+  console.error("Set DATABASE_URL di .env.local");
   process.exit(1);
 }
-const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
-const must = ({ data, error }) => {
-  if (error) throw new Error(`Supabase: ${error.message}`);
-  return data;
-};
+
+const pool = new pg.Pool({ connectionString: dbUrl, max: 2 });
 const now = () => new Date().toISOString().replace("Z", "");
-const SEL = "username, email, name, isActive, lastLoginAt";
 
-if (flag("list")) {
-  console.table(
-    must(await db.from("DashboardUser").select(SEL).order("createdAt", { ascending: true }))
-  );
-} else {
-  const username = opt("username")?.trim().toLowerCase();
-  if (!username) {
-    console.error("Wajib: --username <nama>");
-    process.exit(1);
-  }
-
-  if (flag("disable")) {
-    const rows = must(
-      await db
-        .from("DashboardUser")
-        .update({ isActive: false, updatedAt: now() })
-        .eq("username", username)
-        .select("id")
+try {
+  if (flag("list")) {
+    const res = await pool.query(
+      `SELECT username, email, name, "isActive", "lastLoginAt" FROM "DashboardUser" ORDER BY "createdAt" ASC`
     );
-    console.log(rows.length ? `Akun "${username}" dinonaktifkan.` : "Pengguna tidak ditemukan.");
+    console.table(res.rows);
   } else {
-    const password = opt("password");
-    if (!password || password.length < 6) {
-      console.error("Wajib: --password <minimal 6 karakter>");
+    const username = opt("username")?.trim().toLowerCase();
+    if (!username) {
+      console.error("Wajib: --username <nama>");
       process.exit(1);
     }
-    if (password.length < 10) {
-      console.warn("PERINGATAN: password kurang dari 10 karakter, mudah ditebak. Pakai yang lebih kuat untuk produksi.");
-    }
-    const email = opt("email")?.trim().toLowerCase() || null;
-    const name = opt("name")?.trim() || null;
-    const passwordHash = await hashPassword(password);
 
-    const existing = must(
-      await db.from("DashboardUser").select("id").eq("username", username).maybeSingle()
-    );
-    const user = existing
-      ? must(
-          await db
-            .from("DashboardUser")
-            .update({
-              passwordHash,
-              isActive: true,
-              updatedAt: now(),
-              ...(email && { email }),
-              ...(name && { name }),
-            })
-            .eq("id", existing.id)
-            .select("username, email, name, isActive")
-            .single()
-        )
-      : must(
-          await db
-            .from("DashboardUser")
-            .insert({
-              id: randomUUID(),
-              username,
-              email,
-              name,
-              passwordHash,
-              isActive: true,
-              createdAt: now(),
-              updatedAt: now(),
-            })
-            .select("username, email, name, isActive")
-            .single()
+    if (flag("disable")) {
+      const res = await pool.query(
+        `UPDATE "DashboardUser" SET "isActive" = false, "updatedAt" = $1 WHERE username = $2 RETURNING id`,
+        [now(), username]
+      );
+      console.log(res.rowCount ? `Akun "${username}" dinonaktifkan.` : "Pengguna tidak ditemukan.");
+    } else {
+      const password = opt("password");
+      if (!password || password.length < 6) {
+        console.error("Wajib: --password <minimal 6 karakter>");
+        process.exit(1);
+      }
+      if (password.length < 10) {
+        console.warn("PERINGATAN: password kurang dari 10 karakter, mudah ditebak. Pakai yang lebih kuat untuk produksi.");
+      }
+      const email = opt("email")?.trim().toLowerCase() || null;
+      const name = opt("name")?.trim() || null;
+      const passwordHash = await hashPassword(password);
+      const stamp = now();
+
+      const existing = await pool.query(`SELECT id FROM "DashboardUser" WHERE username = $1 LIMIT 1`, [username]);
+      if (existing.rows[0]) {
+        const sets = [`"passwordHash" = $1`, `"isActive" = true`, `"updatedAt" = $2`];
+        const vals = [passwordHash, stamp];
+        if (email) {
+          vals.push(email);
+          sets.push(`email = $${vals.length}`);
+        }
+        if (name) {
+          vals.push(name);
+          sets.push(`name = $${vals.length}`);
+        }
+        vals.push(existing.rows[0].id);
+        const upd = await pool.query(
+          `UPDATE "DashboardUser" SET ${sets.join(", ")} WHERE id = $${vals.length} RETURNING username, email, name, "isActive"`,
+          vals
         );
-    console.log("Tersimpan:", user);
+        console.log("Pengguna diperbarui:", upd.rows[0]);
+      } else {
+        const ins = await pool.query(
+          `INSERT INTO "DashboardUser" (id, username, email, name, "passwordHash", "isActive", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, true, $6, $6)
+           RETURNING username, email, name, "isActive"`,
+          [randomUUID(), username, email, name, passwordHash, stamp]
+        );
+        console.log("Pengguna dibuat:", ins.rows[0]);
+      }
+    }
   }
+} finally {
+  await pool.end();
 }

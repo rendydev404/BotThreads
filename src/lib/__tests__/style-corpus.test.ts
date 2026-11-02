@@ -280,14 +280,21 @@ describe("rankExemplars / profileOf (murni)", () => {
   });
 
   it("buildCorpus membuang akun yang dikecualikan dan menebak format manual yang rusak", () => {
-    const pool = buildCorpus({
-      posts: [
-        { id: "p1", aid: "x", handle: "maulanayusuf7923", source: "WORKSPACE", text: "teks akun yang dikecualikan dashboard", views: 9, likes: 0, replies: 0, reposts: 0, medViews: 1, medReplies: 0 },
-      ],
-      manual: [{ id: "m1", accountId: null, text: "tips:\n1. satu hal\n2. dua hal", format: "ANEH", note: null }],
-    });
-    expect(pool.map((e) => [e.id, e.format])).toEqual([["m1", "TIPS_LIST"]]);
-    expect(profileOf(pool)).toBeNull();
+    const prev = process.env.EXCLUDED_THREADS_ACCOUNTS;
+    process.env.EXCLUDED_THREADS_ACCOUNTS = "maulanayusuf7923";
+    try {
+      const pool = buildCorpus({
+        posts: [
+          { id: "p1", aid: "x", handle: "maulanayusuf7923", source: "WORKSPACE", text: "teks akun yang dikecualikan dashboard", views: 9, likes: 0, replies: 0, reposts: 0, medViews: 1, medReplies: 0 },
+        ],
+        manual: [{ id: "m1", accountId: null, text: "tips:\n1. satu hal\n2. dua hal", format: "ANEH", note: null }],
+      });
+      expect(pool.map((e) => [e.id, e.format])).toEqual([["m1", "TIPS_LIST"]]);
+      expect(profileOf(pool)).toBeNull();
+    } finally {
+      if (prev === undefined) delete process.env.EXCLUDED_THREADS_ACCOUNTS;
+      else process.env.EXCLUDED_THREADS_ACCOUNTS = prev;
+    }
   });
 });
 

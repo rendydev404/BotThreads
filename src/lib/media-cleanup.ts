@@ -8,6 +8,9 @@
  */
 import { rpc, sqlTs } from "@/lib/supabase";
 import { deleteMediaFiles } from "./media-store";
+import { listLocalTmpOrphans } from "./pg-direct";
+
+const DEFAULT_MEDIA_BUCKET = "threads-media";
 
 /** Berkas sementara lebih muda dari ini tidak disentuh (mungkin baru diunggah penerbit yang sedang berjalan). */
 export const TMP_MIN_AGE_MS = 2 * 60 * 60 * 1000;
@@ -17,11 +20,13 @@ export const CLEANUP_MAX_PATHS = 50;
 export async function runMediaCleanup(now: Date, counts: Record<string, number>, deadlineMs: number): Promise<void> {
   if (Date.now() >= deadlineMs) return;
   try {
+    const cutoffMs = now.getTime() - TMP_MIN_AGE_MS;
     const paths = await rpc<string[] | null>("dash_media_tmp_orphans", {
-      p_before: sqlTs(new Date(now.getTime() - TMP_MIN_AGE_MS)),
+      p_before: sqlTs(new Date(cutoffMs)),
       p_limit: CLEANUP_MAX_PATHS,
     });
-    const list = (paths ?? []).slice(0, CLEANUP_MAX_PATHS);
+    const merged = [...new Set([...(paths ?? []), ...(await listLocalTmpOrphans(DEFAULT_MEDIA_BUCKET, cutoffMs, CLEANUP_MAX_PATHS))])];
+    const list = merged.slice(0, CLEANUP_MAX_PATHS);
     if (!list.length || Date.now() >= deadlineMs) return;
     await deleteMediaFiles(list);
     counts.mediaDihapus = (counts.mediaDihapus ?? 0) + list.length;

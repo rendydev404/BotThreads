@@ -12,14 +12,18 @@ import nextEnv from "@next/env";
 
 nextEnv.loadEnvConfig(process.cwd());
 
-const BASE = (process.env.COOLIFY_URL || "https://coolify.sukashawarma.tech").replace(/\/$/, "");
-const APP = process.env.COOLIFY_APP_UUID || "0rrjnshh4h4gravrer3pgbpz";
+const BASE = (process.env.COOLIFY_URL || "http://31.97.67.66:8000").replace(/\/$/, "");
+const APP = process.env.COOLIFY_APP_UUID || "s5fenfcufdedg7l6hco0k4xj";
 const TOKEN = process.env.COOLIFY_API_TOKEN;
 const args = process.argv.slice(2);
 const dry = args.includes("--dry-run");
 const deploy = args.includes("--deploy");
 
 const KEYS = [
+  "DATABASE_URL",
+  "DIRECT_URL",
+  "PG_POOL_MAX",
+  "MEDIA_STORAGE_DIR",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "GEMINI_API_KEY",

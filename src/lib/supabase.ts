@@ -1,26 +1,40 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { isExcludedUsername } from "@/lib/account-visibility";
+import { createPgClient, getPgPool } from "@/lib/pg-direct";
 import { inScope } from "@/lib/tenant-scope";
 
 /**
- * Akses database lewat Supabase REST memakai service role key.
- * Key ini melewati RLS, jadi HANYA boleh dipakai di server (API route,
- * proxy, server component). Jangan pernah diberi prefix NEXT_PUBLIC_.
- * Agregasi (SUM/GROUP BY) dikerjakan fungsi SQL di supabase/setup.sql.
+ * Akses database utama BotThreads:
+ * - Di produksi / VPS mandiri: koneksi TCP langsung ke PostgreSQL via `DATABASE_URL` (`pg-direct.ts`)
+ *   tanpa overhead HTTP PostgREST / container Supabase.
+ * - Di uji unit (PGlite mock `http://uji.lokal`) atau mode warisan: kompatibel dengan `createClient`.
  */
 
 let client: SupabaseClient | null = null;
+let clientMode: string | null = null;
 
 export function db(): SupabaseClient {
-  if (client) return client;
+  const isMockTest = process.env.SUPABASE_URL === "http://uji.lokal";
+  const pgUrl = !isMockTest ? (process.env.DATABASE_URL || process.env.DIRECT_URL || "").trim() : "";
+  const mode = pgUrl ? `pg:${pgUrl}` : `sb:${process.env.SUPABASE_URL ?? ""}`;
+
+  if (client && clientMode === mode) return client;
+
+  if (pgUrl) {
+    client = createPgClient(getPgPool()) as unknown as SupabaseClient;
+    clientMode = mode;
+    return client;
+  }
+
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY belum diatur");
+    throw new Error("DATABASE_URL (PostgreSQL VPS) atau SUPABASE_URL belum diatur");
   }
   client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
+  clientMode = mode;
   return client;
 }
 
