@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
-import { AlertCircle, CalendarClock, Info, Loader2, Send, Sparkles } from "lucide-react";
+import { AlertCircle, CalendarClock, Info, Loader2, MessageSquareLock, Send, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContentApiError, createPosts, newIdempotencyKey, recommend } from "@/lib/content-client";
 import type { BestHourDTO, PublishAccountDTO, PublishLimitsDTO } from "@/lib/content-types";
 import { MAX_RECOMMEND_ACCOUNTS } from "@/lib/content-config";
+import type { ReplyControl } from "@/lib/content-validation";
 import { useT } from "@/components/i18n/lang-provider";
 import { AccountPicker } from "./account-picker";
 import { ModalButton, ModalShell } from "./modal-shell";
@@ -24,6 +25,15 @@ interface ComposerModalProps {
 
 const EMPTY: PostTextState = { text: "", topic: "" };
 
+/** Pilihan reply_control Threads API (izin threads_manage_replies). */
+const REPLY_OPTIONS: { value: ReplyControl; label: string }[] = [
+  { value: "everyone", label: "Semua orang" },
+  { value: "accounts_you_follow", label: "Akun yang Anda ikuti" },
+  { value: "followers_only", label: "Pengikut Anda saja" },
+  { value: "mentioned_only", label: "Hanya akun yang disebut (@)" },
+  { value: "parent_post_author_only", label: "Hanya Anda" },
+];
+
 /** Pembuat postingan manual (dengan bantuan AI) untuk satu atau banyak akun, maksimal 10 per kirim. */
 export function ComposerModal({ open, onClose, accounts, publishEnabled, limits, onCreated }: ComposerModalProps) {
   const t = useT();
@@ -34,6 +44,7 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
   const [shared, setShared] = useState<PostTextState>(EMPTY);
   const [per, setPer] = useState<Record<string, PostTextState>>({});
   const [schedule, setSchedule] = useState<ScheduleValue>({ mode: "at", at: null });
+  const [replyControl, setReplyControl] = useState<ReplyControl>("everyone");
   const [hours, setHours] = useState<BestHourDTO[]>([]);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -60,6 +71,7 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
     setShared(EMPTY);
     setPer({});
     setSchedule({ mode: "at", at: null });
+    setReplyControl("everyone");
     setHours([]);
     setAiError(null);
     setError(null);
@@ -123,6 +135,7 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
       publishAt,
       aiModel: null,
       aiEdited: false,
+      ...(replyControl !== "everyone" ? { replyControl } : {}),
     }));
     const sig = JSON.stringify(items);
     if (keyRef.current?.sig !== sig) keyRef.current = { sig, key: newIdempotencyKey() };
@@ -250,6 +263,27 @@ export function ComposerModal({ open, onClose, accounts, publishEnabled, limits,
           <div>
             <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">{t("Waktu posting")}</p>
             <SchedulePicker value={schedule} onChange={setSchedule} bestHours={hours} disabled={busy} />
+          </div>
+
+          <div>
+            <label htmlFor="composer-reply-control" className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted">
+              <MessageSquareLock className="w-3.5 h-3.5" />
+              {t("Siapa yang boleh membalas")}
+            </label>
+            <select
+              id="composer-reply-control"
+              value={replyControl}
+              onChange={(e) => setReplyControl(e.target.value as ReplyControl)}
+              disabled={busy}
+              className="w-full h-11 px-3 rounded-xl border border-line-strong bg-surface text-sm text-fg focus:outline-none focus:border-accent cursor-pointer disabled:opacity-50"
+            >
+              {REPLY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {t(o.label)}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-xs text-muted">{t("Dikirim ke Threads saat postingan terbit. Yang tidak diizinkan tidak bisa membalas di aplikasi Threads.")}</p>
           </div>
 
           {!publishEnabled && (

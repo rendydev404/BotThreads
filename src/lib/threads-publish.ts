@@ -521,6 +521,8 @@ async function commitPrepared(
       action: p.immediate ? "CREATE_NOW" : "CREATE_SCHEDULED",
       aiModel: p.item.aiModel ?? null,
       aiEdited: p.item.aiModel ? p.item.aiEdited : null,
+      // Hanya dikirim bila dibatasi; tanpa kolom ini = bawaan Threads (semua orang boleh membalas).
+      ...(p.item.replyControl ? { replyControl: p.item.replyControl } : {}),
       // Hanya postingan bergambar yang mengirim kolom media; postingan teks tetap persis seperti sebelumnya.
       ...(p.media
         ? {

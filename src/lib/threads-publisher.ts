@@ -117,6 +117,11 @@ export const threads = {
     const body = new URLSearchParams({ access_token: token, creation_id: containerId });
     return (await graph<{ id: string }>(`${API}/${userId}/threads_publish`, { method: "POST", body })).id;
   },
+  /** Sembunyikan / tampilkan lagi balasan di postingan milik akun (izin threads_manage_replies). */
+  async manageReply(replyId: string, token: string, hide: boolean): Promise<void> {
+    const body = new URLSearchParams({ access_token: token, hide: String(hide) });
+    await graph<{ success?: boolean }>(`${API}/${replyId}/manage_reply`, { method: "POST", body });
+  },
   async repost(mediaId: string, token: string): Promise<string> {
     const body = new URLSearchParams({ access_token: token });
     return (await graph<{ id: string }>(`${API}/${mediaId}/repost`, { method: "POST", body })).id;
@@ -159,6 +164,8 @@ interface ClaimedDispatch {
   mediaUrls: string[];
   /** Path berkas sementara yang tercatat di posting (sql/040); kosong bila belum ada. */
   mediaPaths?: string[];
+  /** Siapa yang boleh membalas (sql/046); null/everyone = bawaan Threads. */
+  replyControl?: string | null;
   outletNama: string | null;
   account: AccountRow | null;
 }
@@ -399,6 +406,7 @@ export async function processDispatch(d: ClaimedDispatch, now: Date, mediaDeadli
   }
   const topic = firstValidTopic(d.hashtags);
   const extra: Record<string, string> = topic ? { topic_tag: topic } : {};
+  if (d.replyControl && d.replyControl !== "everyone") extra.reply_control = d.replyControl;
 
   // Gambar: unduh dari sumber dan unggah sementara (URL publik untuk Threads).
   let kind = mediaType;

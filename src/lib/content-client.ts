@@ -2,6 +2,7 @@
  * Klien fetch bertipe untuk API konten/posting Threads. Aman dipakai di komponen "use client"
  * (hanya mengimpor tipe). Semua galat dilempar sebagai `ContentApiError` dengan pesan Indonesia.
  */
+import type { ReplyControl } from "./content-validation";
 import type {
   AccountsResponse,
   CreatePostsResponse,
@@ -70,6 +71,8 @@ export interface CreateItemRequest {
   publishAt: string;
   aiModel?: string | null;
   aiEdited?: boolean;
+  /** Siapa yang boleh membalas (reply_control); tanpa = semua orang. */
+  replyControl?: ReplyControl;
 }
 
 /** `partial`: item bermasalah dilewati dan dilaporkan di `skipped`, sisanya tetap dijadwalkan. */

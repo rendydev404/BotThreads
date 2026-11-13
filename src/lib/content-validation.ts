@@ -28,7 +28,13 @@ export interface CreateItemInput {
   publishAt: string;
   aiModel: string | null;
   aiEdited: boolean;
+  /** Siapa yang boleh membalas (reply_control Threads API); undefined/null = bawaan (semua orang). */
+  replyControl?: ReplyControl | null;
 }
+
+export const REPLY_CONTROLS = ["everyone", "accounts_you_follow", "mentioned_only", "parent_post_author_only", "followers_only"] as const;
+export type ReplyControl = (typeof REPLY_CONTROLS)[number];
+export const isReplyControl = (v: unknown): v is ReplyControl => typeof v === "string" && (REPLY_CONTROLS as readonly string[]).includes(v);
 
 export interface CreateBody {
   idempotencyKey: string;
@@ -83,6 +89,11 @@ export function parseCreateBody(body: unknown): Parsed<CreateBody> {
       return fail(`Item ${n}: aiModel tidak valid.`);
     }
 
+    const replyControl = raw.replyControl;
+    if (replyControl !== undefined && replyControl !== null && !isReplyControl(replyControl)) {
+      return fail(`Item ${n}: pengaturan siapa yang boleh membalas tidak valid.`);
+    }
+
     items.push({
       threadsAccountId,
       text,
@@ -90,6 +101,7 @@ export function parseCreateBody(body: unknown): Parsed<CreateBody> {
       publishAt,
       aiModel: typeof aiModel === "string" && aiModel ? aiModel : null,
       aiEdited: raw.aiEdited === true,
+      ...(replyControl && replyControl !== "everyone" ? { replyControl } : {}),
     });
   }
   return {

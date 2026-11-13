@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ExternalLink, MessageCircle, RotateCw } from "lucide-react";
+import { Eye, EyeOff, ExternalLink, Loader2, MessageCircle, Reply, RotateCw, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CommentDTO, CommentStatus, RepliesResponse } from "@/lib/replies-service";
 import { AccountAvatar } from "@/components/content/post-status-chip";
@@ -26,6 +26,16 @@ function whenText(raw: string): string {
   const p = wibParts(d);
   return `${p.d} ${tr(MONTH_SHORT[p.m])}, ${pad2(p.h)}.${pad2(p.min)} WIB`;
 }
+
+/** Aksi moderasi per komentar (izin threads_manage_replies). */
+interface Moderation {
+  canManage: boolean;
+  busyId: string | null;
+  hide: (c: CommentDTO, hidden: boolean) => Promise<void>;
+  reply: (c: CommentDTO, text: string) => Promise<boolean>;
+}
+
+const THREADS_MAX = 500;
 
 async function call<T>(init?: RequestInit, signal?: AbortSignal): Promise<T> {
   const res = await fetch("/api/autopilot/replies", { ...init, signal, cache: "no-store", headers: { "Content-Type": "application/json" } });
@@ -83,9 +93,19 @@ function flatten(n: ThreadNode, root = true, out: Message[] = []): Message[] {
   return out;
 }
 
-function MessageRow({ m, account, last }: { m: Message; account: Account | undefined; last: boolean }) {
+function MessageRow({ m, account, last, mod }: { m: Message; account: Account | undefined; last: boolean; mod: Moderation }) {
   const t = useT();
   const c = m.c;
+  const [composing, setComposing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const busy = mod.busyId === c.id;
+  const len = [...draft.trim()].length;
+  const send = async () => {
+    if (await mod.reply(c, draft)) {
+      setDraft("");
+      setComposing(false);
+    }
+  };
   const mine = m.kind === "balasan";
   const name = mine ? (account ? accountHandle(account) : t("@akun")) : `@${c.username ?? t("pengguna")}`;
   const s = STATUS[c.status];
@@ -105,10 +125,18 @@ function MessageRow({ m, account, last }: { m: Message; account: Account | undef
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted min-h-8">
           <span className="font-semibold text-fg">{name}</span>
           {mine ? (
-            <span className="h-5 px-1.5 rounded-full text-[10px] font-semibold inline-flex items-center bg-accent-soft text-accent">AI</span>
+            <span className="h-5 px-1.5 rounded-full text-[10px] font-semibold inline-flex items-center bg-accent-soft text-accent">
+              {c.manualReply ? t("Manual") : "AI"}
+            </span>
           ) : (
             <>
               <span className="tabular-nums">{whenText(c.commentedAt)}</span>
+              {c.hidden && (
+                <span className="h-5 px-2 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 bg-subtle text-muted">
+                  <EyeOff className="w-3 h-3" />
+                  {t("Disembunyikan")}
+                </span>
+              )}
               {c.status !== "DIBALAS" && (
                 <span className={cn("h-5 px-2 rounded-full text-[11px] font-semibold inline-flex items-center", s.cls)}>{t(s.label)}</span>
               )}
@@ -122,19 +150,89 @@ function MessageRow({ m, account, last }: { m: Message; account: Account | undef
           )}
           {mine && c.repliedAt && <span className="tabular-nums">{whenText(c.repliedAt)}</span>}
         </div>
-        <p className="text-sm text-fg break-words">{(mine ? c.replyText : c.text) || <span className="text-muted">{t("(tanpa teks)")}</span>}</p>
+        <p className={cn("text-sm break-words", !mine && c.hidden ? "text-muted line-through" : "text-fg")}>
+          {(mine ? c.replyText : c.text) || <span className="text-muted">{t("(tanpa teks)")}</span>}
+        </p>
         {!mine && c.error && c.status !== "DIBALAS" && <p className="mt-1 text-xs text-muted">{t(c.error)}</p>}
+        {!mine && mod.canManage && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setComposing((v) => !v)}
+              disabled={busy || c.status === "MENULIS"}
+              title={t("Tulis balasan sendiri untuk komentar ini")}
+              className="h-8 px-3 rounded-full border border-line-strong text-xs font-semibold text-fg inline-flex items-center gap-1.5 hover:border-accent hover:text-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Reply className="w-3.5 h-3.5" />
+              {t("Balas")}
+            </button>
+            <button
+              type="button"
+              onClick={() => void mod.hide(c, !c.hidden)}
+              disabled={busy}
+              title={c.hidden ? t("Tampilkan lagi komentar ini di postingan Threads") : t("Sembunyikan komentar ini dari postingan Threads")}
+              className="h-8 px-3 rounded-full border border-line-strong text-xs font-semibold text-fg inline-flex items-center gap-1.5 hover:border-accent hover:text-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {busy && !composing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : c.hidden ? (
+                <Eye className="w-3.5 h-3.5" />
+              ) : (
+                <EyeOff className="w-3.5 h-3.5" />
+              )}
+              {c.hidden ? t("Tampilkan") : t("Sembunyikan")}
+            </button>
+          </div>
+        )}
+        {!mine && composing && (
+          <div className="mt-2 rounded-xl border border-line p-2 space-y-2">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={2}
+              autoFocus
+              disabled={busy}
+              aria-label={t("Balasan untuk @{user}", { user: c.username ?? t("pengguna") })}
+              placeholder={t("Balasan untuk @{user}", { user: c.username ?? t("pengguna") })}
+              className="w-full resize-none bg-transparent text-sm text-fg placeholder:text-muted focus:outline-none"
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className={cn("text-xs tabular-nums", len > THREADS_MAX ? "text-danger" : "text-muted")}>
+                {len}/{THREADS_MAX}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setComposing(false)}
+                  disabled={busy}
+                  className="h-8 px-3 rounded-full text-xs font-semibold text-muted hover:text-fg cursor-pointer"
+                >
+                  {t("Batal")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void send()}
+                  disabled={busy || len === 0 || len > THREADS_MAX}
+                  className="h-8 px-3.5 rounded-full bg-accent text-on-accent text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  {t("Kirim balasan")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function CommentThread({ node, account }: { node: ThreadNode; account: Account | undefined }) {
+function CommentThread({ node, account, mod }: { node: ThreadNode; account: Account | undefined; mod: Moderation }) {
   const messages = flatten(node);
   return (
     <li className="p-4">
       {messages.map((m, i) => (
-        <MessageRow key={`${m.kind}-${m.c.id}`} m={m} account={account} last={i === messages.length - 1} />
+        <MessageRow key={`${m.kind}-${m.c.id}`} m={m} account={account} last={i === messages.length - 1} mod={mod} />
       ))}
     </li>
   );
@@ -147,6 +245,8 @@ export function RepliesTab({ active, canManage }: { active: boolean; canManage: 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [okNotice, setOkNotice] = useState<string | null>(null);
+  const [modBusy, setModBusy] = useState<string | null>(null);
   const loaded = useRef(false);
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -181,6 +281,45 @@ export function RepliesTab({ active, canManage }: { active: boolean; canManage: 
     } finally {
       setBusy(null);
     }
+  };
+
+  const patchItem = (id: string, patch: Partial<CommentDTO>) =>
+    setData((d) => d && { ...d, items: d.items.map((x) => (x.id === id ? { ...x, ...patch } : x)) });
+
+  const moderate = async (c: CommentDTO, body: Record<string, unknown>, okText: string): Promise<boolean> => {
+    setModBusy(c.id);
+    setNotice(null);
+    setOkNotice(null);
+    try {
+      await call({ method: "PATCH", body: JSON.stringify({ id: c.id, ...body }) });
+      setOkNotice(okText);
+      return true;
+    } catch (err) {
+      setNotice(err instanceof Error ? apiErrorText(err.message) : tr("Gagal menyimpan."));
+      return false;
+    } finally {
+      setModBusy(null);
+    }
+  };
+
+  const mod: Moderation = {
+    canManage,
+    busyId: modBusy,
+    hide: async (c, hidden) => {
+      const user = c.username ?? tr("pengguna");
+      const ok = await moderate(
+        c,
+        { action: hidden ? "hide" : "unhide" },
+        hidden ? tr("Komentar @{user} disembunyikan di Threads.", { user }) : tr("Komentar @{user} ditampilkan lagi di Threads.", { user })
+      );
+      if (ok) patchItem(c.id, { hidden, ...(hidden && c.status === "BARU" ? { status: "DILEWATI" as const } : {}) });
+    },
+    reply: async (c, text) => {
+      const body = text.trim();
+      const ok = await moderate(c, { action: "reply", text: body }, tr("Balasan terkirim ke @{user} di Threads.", { user: c.username ?? tr("pengguna") }));
+      if (ok) patchItem(c.id, { status: "DIBALAS", replyText: body, manualReply: true, repliedAt: new Date().toISOString(), error: null });
+      return ok;
+    },
   };
 
   if (!data) {
@@ -230,6 +369,7 @@ export function RepliesTab({ active, canManage }: { active: boolean; canManage: 
       </div>
 
       {notice && <Banner tone="danger">{notice}</Banner>}
+      {okNotice && <Banner tone="success">{okNotice}</Banner>}
 
       <div className="grid grid-cols-4 gap-2 sm:gap-3">
         <Stat label={t("Dibalas 7 hari")} value={data.counts.dibalas7} tone="success" />
@@ -274,7 +414,7 @@ export function RepliesTab({ active, canManage }: { active: boolean; canManage: 
         ) : (
           <ul className="divide-y divide-line">
             {buildThreads(data.items).map((t) => (
-              <CommentThread key={t.c.id} node={t} account={byId.get(t.c.accountId)} />
+              <CommentThread key={t.c.id} node={t} account={byId.get(t.c.accountId)} mod={mod} />
             ))}
           </ul>
         )}
