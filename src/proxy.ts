@@ -35,6 +35,11 @@ const PUBLIC_PAGE_PREFIXES = ["/undangan/", "/reset-password/", "/api/media/"];
 const LANDING_PATH = "/selamat-datang";
 const PUBLIC_PAGES = [
   LANDING_PATH,
+  // Halaman informasi publik (calon sitelink Google), lihat PUBLIC_NAV di lib/site.ts.
+  "/fitur",
+  "/cara-kerja-botthreads",
+  "/harga",
+  "/faq",
   "/daftar",
   "/kebijakan-privasi",
   "/syarat-ketentuan",

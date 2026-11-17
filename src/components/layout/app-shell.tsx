@@ -22,6 +22,11 @@ const BARE_PAGES = [
   "/login",
   "/daftar",
   "/selamat-datang",
+  // Halaman informasi publik (PUBLIC_NAV di lib/site.ts).
+  "/fitur",
+  "/cara-kerja-botthreads",
+  "/harga",
+  "/faq",
   "/kebijakan-privasi",
   "/syarat-ketentuan",
   "/kebijakan-pengembalian",

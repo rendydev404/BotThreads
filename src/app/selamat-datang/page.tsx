@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -29,17 +27,14 @@ import { LandingMotion, Magnetic, Tilt } from "@/components/landing/motion";
 import { Pricing } from "@/components/landing/pricing";
 import { FAQ } from "@/components/landing/faq-data";
 import { JsonLd } from "@/components/seo/json-ld";
-import { LANDING_PATH, OG_IMAGE, SITE_DEFINITION, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, landingJsonLd } from "@/lib/site";
+import { FAQ_PATH, FEATURES_PATH, HOW_PATH, LANDING_PATH, OG_IMAGE, SITE_DEFINITION, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, landingJsonLd } from "@/lib/site";
 import { SystemFlow } from "@/components/flow/system-flow";
 import { ThreadsMark, ThreadsPost } from "@/components/landing/threads-mark";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { LangToggle } from "@/components/i18n/lang-toggle";
+import { SiteHeader } from "@/components/landing/site-header";
+import { BTN, LANDING_FONTS, WRAP } from "@/components/landing/fonts";
+import { COMPARISON } from "@/components/landing/public-data";
 import { DocTitle, T } from "@/components/i18n/t";
 import "./landing.css";
-
-// Dua huruf khusus halaman ini: judul yang berkarakter dan angka jam ala papan jadwal.
-const display = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-bricolage", display: "swap" });
-const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", weight: ["500", "700"], display: "swap" });
 
 const TITLE = SITE_TITLE;
 
@@ -93,18 +88,6 @@ const LEARNING = [
 ];
 
 
-// Perbandingan untuk bagian "Apa itu BotThreads?". Kolom BotThreads mengikuti perilaku sistem (lihat faq-data.ts).
-const COMPARISON: { row: string; manual: string; scheduler: string; bot: string }[] = [
-  { row: "Mencari ide", manual: "Anda cari sendiri", scheduler: "Anda cari sendiri", bot: "Otomatis dari tren Google Indonesia, berita niche, dan posting Threads populer" },
-  { row: "Menulis posting", manual: "Anda tulis sendiri", scheduler: "Anda tulis sendiri", bot: "AI menulis dengan gaya bahasa brand Anda" },
-  { row: "Pemeriksaan sebelum terbit", manual: "Tidak ada", scheduler: "Tidak ada", bot: "4 cek plus skor editor AI minimal 0,7 dari 1" },
-  { row: "Jam tayang", manual: "Kira-kira", scheduler: "Anda pilih sendiri", bot: "Dihitung dari jam ramai pengikut tiap akun" },
-  { row: "Belajar dari hasil", manual: "Lihat statistik sendiri", scheduler: "Laporan saja", bot: "Pola yang berhasil dipakai lagi, akun dijeda bila kinerja turun" },
-];
-
-const WRAP = "max-w-[1180px] mx-auto px-4 md:px-8";
-const BTN = "lp-cta inline-flex items-center justify-center gap-2 h-12 px-6 rounded-xl text-[15px] font-semibold transition-colors";
-
 /** Kepala bagian: cap waktu ala papan jadwal + judul. `time` adalah jam pada hari simulasi. */
 function SectionHead({ time, label, title, body }: { time: string; label: string; title: string; body: string }) {
   return (
@@ -125,57 +108,11 @@ function SectionHead({ time, label, title, body }: { time: string; label: string
 
 export default function LandingPage() {
   return (
-    <LandingMotion className={`${display.variable} ${mono.variable} flex-1 w-full min-h-screen bg-canvas text-fg overflow-x-clip`}>
+    <LandingMotion className={`${LANDING_FONTS} flex-1 w-full min-h-screen bg-canvas text-fg overflow-x-clip`}>
       <DocTitle title={TITLE} />
       <JsonLd data={landingJsonLd(FAQ)} />
       {/* Header mengambang: jam simulasi ikut bergerak saat halaman digulir (06.00 di atas, 22.00 di bawah). */}
-      <header className="sticky top-3 z-30 px-3 md:px-6">
-        <div className="lp-nav relative max-w-[1180px] mx-auto h-14 pl-3 pr-2 rounded-2xl border backdrop-blur-md flex items-center justify-between gap-3 overflow-hidden">
-          <Link href="/selamat-datang" className="flex items-center gap-2.5 min-w-0">
-            <Image src="/logo.webp" alt="" width={34} height={34} priority className="w-[34px] h-[34px] rounded-xl shrink-0" />
-            <span className="text-[15px] font-bold truncate hidden sm:block">BotThreads</span>
-          </Link>
-
-          <p
-            className="lp-mono hidden lg:flex items-center gap-2 h-8 px-3 rounded-lg bg-subtle text-xs font-bold text-fg"
-            title="Gulir halaman untuk menjalani satu hari autopilot"
-            aria-hidden="true"
-          >
-            <span className="lp-live w-1.5 h-1.5 rounded-full bg-success" />
-            <span data-clock className="tabular-nums">
-              06.00
-            </span>
-            <span className="text-faint font-medium">WIB</span>
-          </p>
-
-          <nav className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-            <a href="#cara-kerja" className="hidden md:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
-              <T>Cara kerja</T>
-            </a>
-            <a href="#demo" className="hidden lg:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
-              <T>Demo</T>
-            </a>
-            <a href="#cara-mulai" className="hidden xl:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
-              <T>Cara mulai</T>
-            </a>
-            <a href="#paket" className="hidden sm:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
-              <T>Harga & Paket</T>
-            </a>
-            <a href="#tanya" className="hidden md:inline-flex h-10 px-3 rounded-lg text-sm font-semibold text-muted hover:text-fg items-center transition-colors">
-              <T>Tanya jawab</T>
-            </a>
-            <LangToggle className="mr-0.5" />
-            <ThemeToggle />
-            <Link href="/login" className="max-[340px]:hidden h-10 px-2.5 sm:px-4 rounded-lg text-sm font-semibold hover:bg-subtle inline-flex items-center transition-colors">
-              <T>Masuk</T>
-            </Link>
-            <Link href="/daftar" className="h-10 px-3 sm:px-4 rounded-xl text-sm font-semibold bg-accent hover:bg-accent-hover text-on-accent inline-flex items-center transition-colors">
-              <T>Daftar</T>
-            </Link>
-          </nav>
-          <span aria-hidden="true" className="lp-progress absolute left-0 bottom-0 h-[2px] w-full bg-accent" />
-        </div>
-      </header>
+      <SiteHeader clock />
 
       <main>
         {/* ---------- pembuka ---------- */}
@@ -275,6 +212,10 @@ export default function LandingPage() {
               <p className="mt-5 text-[15px] md:text-base text-muted leading-relaxed">
                 <T>{SITE_DEFINITION}</T>
               </p>
+              <Link href={FEATURES_PATH} className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline">
+                <T>Lihat semua fitur</T>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </div>
             <div className="min-w-0" data-reveal style={{ "--i": 1 } as React.CSSProperties}>
               <h3 className="text-base font-bold">
@@ -378,6 +319,10 @@ export default function LandingPage() {
           <div className="mt-10" data-reveal style={{ "--i": 1 } as React.CSSProperties}>
             <SystemFlow variant="landing" />
           </div>
+          <Link href={HOW_PATH} className="mt-8 inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline">
+            <T>Baca cara kerja selengkapnya</T>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
         </section>
 
         {/* ---------- film demo: satu hari autopilot dalam 23 detik (Remotion, dimuat saat mendekati layar) ---------- */}
@@ -595,6 +540,10 @@ export default function LandingPage() {
               <p className="mt-4 text-[15px] text-muted leading-relaxed">
                 <T>Jawaban apa adanya, termasuk batasannya.</T>
               </p>
+              <Link href={FAQ_PATH} className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline">
+                <T>Buka halaman tanya jawab</T>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </div>
             <div className="divide-y divide-line border-y border-line" data-reveal style={{ "--i": 1 } as React.CSSProperties}>
               {FAQ.map((f) => (

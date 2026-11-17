@@ -50,9 +50,30 @@ export const SITE_KEYWORDS = [
 export const SITE_DEFINITION =
   "BotThreads adalah aplikasi autopilot berbasis AI untuk akun Meta Threads, dibuat di Indonesia oleh PT Suka Profit Berkah. Setiap hari BotThreads mencari ide dari posting terbaik akun, tren pencarian Google Indonesia, berita seputar niche akun, dan posting Threads populer. Dari ide itu AI menulis posting dengan gaya bahasa brand, memeriksa harga, promo, topik sensitif, kemiripan, dan panjang tulisan, lalu meminta editor AI memberi skor minimal 0,7 dari 1. Draf yang lolos diterbitkan lewat API resmi Threads di jam ketika pengikut akun paling aktif, bawaannya 3 kali sehari dengan jeda 2,5 jam. Pemilik akun memilih mode Tinjau dulu, yang menunggu persetujuan untuk setiap posting, atau mode Otomatis. Setelah angka views masuk, sistem belajar dari pola yang berhasil dan menjeda akun bila kinerjanya turun tajam. Akun dihubungkan lewat login resmi Threads tanpa memberikan kata sandi, dan pembayaran dalam Rupiah lewat Midtrans.";
 
+/**
+ * Halaman informasi publik yang berdiri sendiri (calon sitelink Google). `/cara-kerja` sudah dipakai halaman
+ * dashboard, jadi halaman publiknya `/cara-kerja-botthreads`.
+ */
+export const FEATURES_PATH = "/fitur";
+export const HOW_PATH = "/cara-kerja-botthreads";
+export const PRICING_PATH = "/harga";
+export const FAQ_PATH = "/faq";
+
+/** Menu utama di header dan footer setiap halaman publik. `headerClass`: mulai lebar layar berapa tautan tampil di header. */
+export const PUBLIC_NAV: { path: string; label: string; headerClass: string }[] = [
+  { path: FEATURES_PATH, label: "Fitur@@menu", headerClass: "hidden md:inline-flex" },
+  { path: HOW_PATH, label: "Cara kerja", headerClass: "hidden lg:inline-flex" },
+  { path: PRICING_PATH, label: "Harga@@menu", headerClass: "hidden sm:inline-flex" },
+  { path: FAQ_PATH, label: "Tanya jawab", headerClass: "hidden md:inline-flex" },
+];
+
 /** Halaman publik yang boleh diindeks, beserta prioritas relatifnya di sitemap. */
 export const PUBLIC_ROUTES: { path: string; title: string; priority: number; changeFrequency: "daily" | "weekly" | "monthly" | "yearly" }[] = [
   { path: LANDING_PATH, title: "Halaman utama BotThreads: fitur, cara kerja, harga, dan tanya jawab", priority: 1, changeFrequency: "weekly" },
+  { path: FEATURES_PATH, title: "Fitur BotThreads: ide otomatis, penulisan gaya brand, pemeriksaan, jadwal jam ramai, analitik", priority: 0.9, changeFrequency: "monthly" },
+  { path: HOW_PATH, title: "Cara kerja BotThreads: dari tren sampai terbit, dan cara mulai", priority: 0.9, changeFrequency: "monthly" },
+  { path: PRICING_PATH, title: "Harga dan paket langganan BotThreads dalam Rupiah", priority: 0.9, changeFrequency: "weekly" },
+  { path: FAQ_PATH, title: "Tanya jawab (FAQ) seputar BotThreads", priority: 0.8, changeFrequency: "monthly" },
   { path: "/daftar", title: "Daftar akun dan buat workspace", priority: 0.8, changeFrequency: "monthly" },
   { path: "/kontak", title: "Kontak dan dukungan", priority: 0.6, changeFrequency: "monthly" },
   { path: "/kebijakan-privasi", title: "Kebijakan Privasi", priority: 0.4, changeFrequency: "yearly" },
@@ -219,6 +240,39 @@ export function offersJsonLd(plans: { id: string; nama: string; deskripsi?: stri
         : {}),
       seller: { "@id": ORG_ID },
     })),
+  };
+}
+
+/** FAQPage untuk halaman /faq (halaman perkenalan memuat FAQPage yang sama di dalam @graph-nya). */
+export function faqPageJsonLd(faq: { q: string; a: string }[], path: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": `${SITE_URL}${path}#faq`,
+    url: `${SITE_URL}${path}`,
+    inLanguage: "id-ID",
+    about: { "@id": APP_ID },
+    mainEntity: faq.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
+}
+
+/** WebPage untuk halaman informasi publik, ditautkan ke aplikasi dan situs lewat @id. */
+export function webPageJsonLd(name: string, description: string, path: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${SITE_URL}${path}#webpage`,
+    url: `${SITE_URL}${path}`,
+    name,
+    description,
+    inLanguage: "id-ID",
+    isPartOf: { "@id": SITE_ID },
+    about: { "@id": APP_ID },
+    primaryImageOfPage: `${SITE_URL}/opengraph-image`,
   };
 }
 

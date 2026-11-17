@@ -6,6 +6,7 @@ import { LEGAL_DOC_LIST, MERCHANT_INFO } from "@/lib/legal-content";
 import { PaymentLogo } from "@/components/settings/payment-logos";
 import { CopyrightYear } from "@/components/landing/copyright-year";
 import { T } from "@/components/i18n/t";
+import { PUBLIC_NAV } from "@/lib/site";
 
 /**
  * Footer minimalis bergaya editorial: tanpa kotak berlebih, mengandalkan tipografi yang rapi,
@@ -39,21 +40,13 @@ export function LandingFooter({ wrap }: { wrap: string }) {
               <T>Platform</T>
             </p>
             <ul className="mt-4 space-y-2.5 text-[13px] text-muted">
-              <li>
-                <a href="/selamat-datang#cara-kerja" className="hover:text-fg transition-colors">
-                  <T>Cara kerja</T>
-                </a>
-              </li>
-              <li>
-                <a href="/selamat-datang#paket" className="hover:text-fg transition-colors">
-                  <T>Harga & Paket</T>
-                </a>
-              </li>
-              <li>
-                <a href="/selamat-datang#tanya" className="hover:text-fg transition-colors">
-                  <T>Tanya jawab</T>
-                </a>
-              </li>
+              {PUBLIC_NAV.map((n) => (
+                <li key={n.path}>
+                  <Link href={n.path} className="hover:text-fg transition-colors">
+                    <T>{n.label}</T>
+                  </Link>
+                </li>
+              ))}
               <li>
                 <Link href="/login" className="hover:text-fg transition-colors">
                   <T>Masuk</T>

@@ -8,6 +8,7 @@ import autopilot from "./autopilot";
 import radar from "./radar";
 import settings from "./settings";
 import landing from "./landing";
+import publicPages from "./public-pages";
 import landingFilm from "./landing-film";
 import autoComment from "./auto-comment";
 
@@ -17,6 +18,7 @@ const en: Readonly<Record<string, string>> = {
   ...autoComment,
   // Halaman publik paling awal: bila kunci bentrok, terjemahan aplikasi (di bawah) yang dipakai.
   ...landingFilm,
+  ...publicPages,
   ...landing,
   ...settings,
   ...radar,
