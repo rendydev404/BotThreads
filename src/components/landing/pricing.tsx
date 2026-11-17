@@ -5,6 +5,8 @@ import { publicPlans } from "@/lib/plan";
 import { formatRupiah, type PublicPlansResponse } from "@/lib/plan-types";
 import { cn } from "@/lib/utils";
 import { getT } from "@/lib/i18n/server";
+import { offersJsonLd } from "@/lib/site";
+import { JsonLd } from "@/components/seo/json-ld";
 
 const FALLBACK_PLANS: PublicPlansResponse["items"] = [
   {
@@ -63,6 +65,8 @@ export async function Pricing({ wrap }: { wrap: string }) {
 
   return (
     <section id="paket" className={`${wrap} py-16 md:py-24 scroll-mt-24`}>
+      {/* Harga yang sama dengan kartu di bawah, sebagai Offer schema.org (digabung ke SoftwareApplication lewat @id). */}
+      <JsonLd data={offersJsonLd(items)} />
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6" data-reveal>
         <div className="max-w-2xl">
           <p className="lp-mono text-xs font-bold tracking-widest text-accent">{t("HARGA & PAKET LANGGANAN")}</p>

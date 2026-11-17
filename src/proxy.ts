@@ -44,6 +44,12 @@ const PUBLIC_PAGES = [
   "/kontak",
   // Hasil hubungkan akun Threads bila login selesai di browser tanpa sesi dashboard.
   "/threads-terhubung",
+  // Untuk mesin pencari dan mesin AI (app/robots.ts, app/sitemap.ts, app/llms.txt, app/opengraph-image.tsx).
+  // Tanpa ini semuanya dialihkan ke /login dan Google maupun ChatGPT tidak bisa membacanya.
+  "/robots.txt",
+  "/sitemap.xml",
+  "/llms.txt",
+  "/opengraph-image",
 ];
 
 export async function proxy(request: NextRequest) {

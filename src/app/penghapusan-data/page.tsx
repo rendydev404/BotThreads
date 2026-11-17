@@ -3,10 +3,13 @@ import { Suspense } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { LegalPageLayout } from "@/components/landing/legal-page-layout";
 import { LEGAL_DOCUMENTS } from "@/lib/legal-content";
+import { JsonLd } from "@/components/seo/json-ld";
+import { breadcrumbJsonLd } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: `${LEGAL_DOCUMENTS.penghapusan.title} | BotThreads`,
   description: LEGAL_DOCUMENTS.penghapusan.subtitle,
+  alternates: { canonical: LEGAL_DOCUMENTS.penghapusan.href },
 };
 
 type Props = { searchParams: Promise<{ kode?: string }> };
@@ -38,6 +41,7 @@ async function DeletionStatus({ searchParams }: Props) {
 export default function DataDeletionPage({ searchParams }: Props) {
   return (
     <>
+      <JsonLd data={breadcrumbJsonLd(LEGAL_DOCUMENTS.penghapusan.title, LEGAL_DOCUMENTS.penghapusan.href)} />
       <Suspense fallback={null}>
         <DeletionStatus searchParams={searchParams} />
       </Suspense>

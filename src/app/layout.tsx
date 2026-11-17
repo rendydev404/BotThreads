@@ -5,6 +5,8 @@ import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { LangProvider } from "@/components/i18n/lang-provider";
+import { MERCHANT_INFO } from "@/lib/legal-content";
+import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta",
@@ -12,10 +14,37 @@ const plusJakarta = Plus_Jakarta_Sans({
   weight: ["400", "500", "600", "700", "800"],
 });
 
+// Bawaan untuk semua halaman; halaman publik menimpa judul, deskripsi, dan URL kanonisnya sendiri.
+// Gambar pratinjau datang dari app/opengraph-image.tsx (dipasang otomatis oleh Next).
 export const metadata: Metadata = {
-  title: "BotThreads",
-  description:
-    "Autopilot konten dan analitik untuk akun Threads: ide, tulisan, dan jadwal dikerjakan AI.",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: SITE_KEYWORDS,
+  authors: [{ name: MERCHANT_INFO.legalName, url: SITE_URL }],
+  creator: MERCHANT_INFO.legalName,
+  publisher: MERCHANT_INFO.legalName,
+  category: "technology",
+  formatDetection: { telephone: false, email: false, address: false },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    locale: "id_ID",
+    alternateLocale: ["en_US"],
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
+  },
 };
 
 export default function RootLayout({

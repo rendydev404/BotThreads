@@ -27,6 +27,9 @@ import { LandingFooter } from "@/components/landing/legal-section";
 import { HeroDesc, HeroHeadline, HeroStatus, HeroSub, HeroTry } from "@/components/landing/hero-interactive";
 import { LandingMotion, Magnetic, Tilt } from "@/components/landing/motion";
 import { Pricing } from "@/components/landing/pricing";
+import { FAQ } from "@/components/landing/faq-data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { LANDING_PATH, OG_IMAGE, SITE_DEFINITION, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, landingJsonLd } from "@/lib/site";
 import { SystemFlow } from "@/components/flow/system-flow";
 import { ThreadsMark, ThreadsPost } from "@/components/landing/threads-mark";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -38,13 +41,27 @@ import "./landing.css";
 const display = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-bricolage", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", weight: ["500", "700"], display: "swap" });
 
-const TITLE = "BotThreads: Threads Anda posting sendiri, setiap hari";
+const TITLE = SITE_TITLE;
 
 // Metadata tetap bahasa Indonesia (halaman di-prerender); judul tab pengguna EN diganti di klien (DocTitle).
+// URL kanonis = alamat halaman ini sendiri: beranda "/" hanya mengalihkan (307) pengunjung tanpa sesi ke sini.
 export const metadata: Metadata = {
-  title: TITLE,
-  description:
-    "AI mencari ide dari tren dan posting terbaik Anda, menulis, lalu menjadwalkan posting Threads setiap hari di jam ramai tiap akun. Jumlah posting per hari Anda yang atur.",
+  title: { absolute: TITLE },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: LANDING_PATH },
+  // openGraph/twitter di halaman menimpa SELURUH objek bawaan layout (bukan digabung), jadi semua isinya ditulis
+  // lengkap di sini, termasuk gambar: tanpa itu pratinjau tautan beranda tampil tanpa gambar.
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    locale: "id_ID",
+    alternateLocale: ["en_US"],
+    url: LANDING_PATH,
+    title: TITLE,
+    description: SITE_DESCRIPTION,
+    images: [OG_IMAGE],
+  },
+  twitter: { card: "summary_large_image", title: TITLE, description: SITE_DESCRIPTION, images: [OG_IMAGE] },
 };
 
 const PIPELINE = ["Tren", "Ide", "Tulis", "Periksa", "Antre", "Terbit"];
@@ -75,49 +92,14 @@ const LEARNING = [
   },
 ];
 
-// Setiap jawaban mengikuti perilaku sistem yang sebenarnya (autopilot-config, autopilot-gate, radar, midtrans,
-// legal-content). Ubah bersama kodenya bila aturannya berubah.
-const FAQ = [
-  {
-    q: "BotThreads itu sebenarnya apa?",
-    a: "Asisten AI untuk akun Threads. Setiap hari ia mencari ide, menulis posting dengan gaya akun Anda, memeriksanya, lalu memposting di jam ketika pengikut akun itu paling aktif. Anda cukup menghubungkan akun dan mengisi profil brand sekali di awal. Setelah itu Anda tinggal memantau hasilnya, atau ikut menyetujui setiap posting bila mau.",
-  },
-  {
-    q: "Apakah saya harus memberikan kata sandi Threads?",
-    a: "Tidak. Akun dihubungkan lewat halaman login resmi Threads, jadi kata sandi Anda tidak pernah kami terima. Memposting, membaca statistik, dan mencari posting populer semuanya memakai API resmi Threads. Permintaan penghapusan data bisa diajukan kapan saja lewat halaman Penghapusan Data di bagian bawah situs ini.",
-  },
-  {
-    q: "Apakah setiap posting harus saya setujui dulu?",
-    a: "Anda yang memilih, per akun. Mode Tinjau dulu: AI menulis sekitar 6 jam sebelum jam tayang, lalu Anda menyetujui, mengedit, atau menolak. Draf yang belum disetujui sampai 15 menit sebelum jamnya dilewati, tidak diterbitkan. Mode Otomatis: AI menulis sekitar 90 menit sebelum jam tayang, dan draf yang lolos pemeriksaan terbit sendiri. Beberapa paket hanya menyediakan mode Tinjau dulu.",
-  },
-  {
-    q: "Apakah AI bisa memposting sesuatu yang memalukan brand saya?",
-    a: "Setiap draf diperiksa dulu: harga, persen, dan kata promo hanya boleh muncul bila ada di data brand Anda. Topik sensitif dan kata terlarang diblokir, draf tidak boleh mirip posting akun lain Anda di hari yang sama, dan panjangnya dicek. Setelah itu draf dinilai editor AI dan harus mendapat skor minimal 0,7 dari 1. Draf yang gagal ditulis ulang. Kalau tetap gagal, jadwal itu dilewati, bukan dipaksa terbit.",
-  },
-  {
-    q: "Dari mana AI tahu harga, menu, dan promo saya?",
-    a: "Dari menu Pengetahuan yang Anda isi sendiri, dengan empat jenis isian: fakta brand, produk dan harga, promo beserta tanggal berakhirnya, serta larangan. Draf yang menyebut harga atau promo yang tidak tertulis di sana tidak lolos pemeriksaan.",
-  },
-  {
-    q: "Dari mana ide postingannya?",
-    a: "Dari posting akun Anda yang paling ramai, tren pencarian Google di Indonesia, berita terbaru seputar niche akun Anda, posting Threads paling populer untuk topik yang sedang naik, momen kalender seperti gajian, tanggal tua, akhir pekan, dan momen yang Anda tambahkan sendiri, serta catatan inspirasi yang Anda tulis sendiri. Semua ide masuk ke menu Radar lengkap dengan skor dan contoh tulisannya. Sumbernya hanya dijadikan bahan, teksnya tidak disalin.",
-  },
-  {
-    q: "Berapa kali sehari akun saya posting, dan jam berapa?",
-    a: "Bawaannya 3 kali sehari per akun. Jumlahnya bisa Anda ubah sampai batas paket. Jamnya dipilih dari jam ketika pengikut akun itu paling aktif, dengan jeda antarposting bawaan 2,5 jam (bisa diatur 2 sampai 8 jam), jadi akun tidak terlihat seperti spam.",
-  },
-  {
-    q: "Kalau hasilnya tidak cocok, bagaimana menghentikannya?",
-    a: "Satu tombol di menu Autopilot menjeda semua akun sekaligus, dan autopilot tiap akun juga bisa dimatikan satu per satu. Posting yang sudah terjadwal tetap bisa diubah atau dibatalkan dari menu Jadwal. Sistem juga punya rem sendiri: akun yang gagal terbit tiga kali berturut-turut dijeda otomatis. Kalau views seminggu turun lebih dari separuh, akun itu pindah ke mode Tinjau dulu dan Anda diberi tahu.",
-  },
-  {
-    q: "Bagaimana cara bayar, dan kapan paket aktif?",
-    a: "Pembayaran dalam Rupiah lewat Midtrans: QRIS, GoPay, ShopeePay, Virtual Account (BCA, BNI, BRI, Permata, CIMB Niaga), atau Mandiri Bill. Paket aktif otomatis begitu pembayaran lunas. Tidak ada potongan otomatis tiap bulan, jadi Anda memperpanjang sendiri bila ingin lanjut, dan sisa hari tidak hangus. Kalau paket habis, autopilot berhenti, tetapi data dan statistik Anda tetap bisa dibuka.",
-  },
-  {
-    q: "Bisakah uang saya dikembalikan (refund)?",
-    a: "Hanya bila ada kendala teknis yang bisa dibuktikan: pembayaran sudah lunas tetapi paket tidak aktif lebih dari 24 jam karena kesalahan sistem kami, atau saldo terpotong dua kali untuk tagihan yang sama. Pengajuan wajib menyertakan Order ID dan bukti pembayaran, lalu kami cocokkan dengan data Midtrans. Berubah pikiran atau tidak memakai layanan bukan alasan refund. Rinciannya ada di halaman Kebijakan Pengembalian.",
-  },
+
+// Perbandingan untuk bagian "Apa itu BotThreads?". Kolom BotThreads mengikuti perilaku sistem (lihat faq-data.ts).
+const COMPARISON: { row: string; manual: string; scheduler: string; bot: string }[] = [
+  { row: "Mencari ide", manual: "Anda cari sendiri", scheduler: "Anda cari sendiri", bot: "Otomatis dari tren Google Indonesia, berita niche, dan posting Threads populer" },
+  { row: "Menulis posting", manual: "Anda tulis sendiri", scheduler: "Anda tulis sendiri", bot: "AI menulis dengan gaya bahasa brand Anda" },
+  { row: "Pemeriksaan sebelum terbit", manual: "Tidak ada", scheduler: "Tidak ada", bot: "4 cek plus skor editor AI minimal 0,7 dari 1" },
+  { row: "Jam tayang", manual: "Kira-kira", scheduler: "Anda pilih sendiri", bot: "Dihitung dari jam ramai pengikut tiap akun" },
+  { row: "Belajar dari hasil", manual: "Lihat statistik sendiri", scheduler: "Laporan saja", bot: "Pola yang berhasil dipakai lagi, akun dijeda bila kinerja turun" },
 ];
 
 const WRAP = "max-w-[1180px] mx-auto px-4 md:px-8";
@@ -145,6 +127,7 @@ export default function LandingPage() {
   return (
     <LandingMotion className={`${display.variable} ${mono.variable} flex-1 w-full min-h-screen bg-canvas text-fg overflow-x-clip`}>
       <DocTitle title={TITLE} />
+      <JsonLd data={landingJsonLd(FAQ)} />
       {/* Header mengambang: jam simulasi ikut bergerak saat halaman digulir (06.00 di atas, 22.00 di bawah). */}
       <header className="sticky top-3 z-30 px-3 md:px-6">
         <div className="lp-nav relative max-w-[1180px] mx-auto h-14 pl-3 pr-2 rounded-2xl border backdrop-blur-md flex items-center justify-between gap-3 overflow-hidden">
@@ -278,6 +261,101 @@ export default function LandingPage() {
             ))}
           </div>
         </div>
+
+        {/* ---------- apa itu: definisi utuh yang bisa dikutip mesin pencari dan AI, plus perbandingan ---------- */}
+        <section id="apa-itu" className={`${WRAP} pt-16 md:pt-24 scroll-mt-24`} aria-labelledby="apa-itu-judul">
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-10 lg:gap-14 items-start">
+            <div data-reveal>
+              <p className="lp-mono text-xs font-bold tracking-widest text-accent">
+                <T>APA ITU BOTTHREADS?</T>
+              </p>
+              <h2 id="apa-itu-judul" className="lp-display mt-4 text-[2rem] leading-[1.05] md:text-[2.75rem] font-extrabold">
+                <T>Apa itu BotThreads?</T>
+              </h2>
+              <p className="mt-5 text-[15px] md:text-base text-muted leading-relaxed">
+                <T>{SITE_DEFINITION}</T>
+              </p>
+            </div>
+            <div className="min-w-0" data-reveal style={{ "--i": 1 } as React.CSSProperties}>
+              <h3 className="text-base font-bold">
+                <T>BotThreads dibandingkan cara lain mengelola Threads</T>
+              </h3>
+              {/* Ponsel: kartu bertumpuk supaya kolom BotThreads tidak tersembunyi di balik gulir mendatar. */}
+              <ul className="mt-4 space-y-3 md:hidden">
+                {COMPARISON.map((c) => (
+                  <li key={c.row} className="rounded-2xl border border-line bg-surface p-4">
+                    <p className="text-sm font-bold">
+                      <T>{c.row}</T>
+                    </p>
+                    <p className="mt-2.5 rounded-xl bg-accent-soft px-3 py-2 text-[13px] font-medium text-fg leading-snug">
+                      <span className="block text-[11px] font-bold text-accent">BotThreads</span>
+                      <T>{c.bot}</T>
+                    </p>
+                    <dl className="mt-2.5 grid grid-cols-2 gap-3 text-[12px] leading-snug">
+                      <div>
+                        <dt className="font-semibold text-faint">
+                          <T>Posting manual</T>
+                        </dt>
+                        <dd className="mt-0.5 text-muted">
+                          <T>{c.manual}</T>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="font-semibold text-faint">
+                          <T>Penjadwal biasa</T>
+                        </dt>
+                        <dd className="mt-0.5 text-muted">
+                          <T>{c.scheduler}</T>
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 hidden md:block overflow-x-auto rounded-2xl border border-line bg-surface">
+                <table className="w-full min-w-[560px] text-left text-[13px] leading-snug">
+                  <caption className="sr-only">
+                    <T>Perbandingan posting manual, aplikasi penjadwal biasa, dan BotThreads</T>
+                  </caption>
+                  <thead>
+                    <tr className="border-b border-line text-xs text-muted">
+                      <th scope="col" className="p-3 font-semibold w-[24%]">
+                        <span className="sr-only">
+                          <T>Pekerjaan</T>
+                        </span>
+                      </th>
+                      <th scope="col" className="p-3 font-semibold">
+                        <T>Posting manual</T>
+                      </th>
+                      <th scope="col" className="p-3 font-semibold">
+                        <T>Penjadwal biasa</T>
+                      </th>
+                      <th scope="col" className="p-3 font-bold text-accent bg-accent-soft">BotThreads</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {COMPARISON.map((c) => (
+                      <tr key={c.row} className="border-b border-line last:border-0 align-top">
+                        <th scope="row" className="p-3 font-semibold text-fg">
+                          <T>{c.row}</T>
+                        </th>
+                        <td className="p-3 text-muted">
+                          <T>{c.manual}</T>
+                        </td>
+                        <td className="p-3 text-muted">
+                          <T>{c.scheduler}</T>
+                        </td>
+                        <td className="p-3 font-medium text-fg bg-accent-soft">
+                          <T>{c.bot}</T>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* ---------- cara kerja: peta alur yang sama dengan di dalam aplikasi (lib/system-flow) ---------- */}
         <section id="cara-kerja" className={`${WRAP} py-16 md:py-24 scroll-mt-24`}>

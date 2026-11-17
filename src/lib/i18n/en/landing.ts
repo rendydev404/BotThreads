@@ -375,6 +375,32 @@ const dict: Record<string, string> = {
   "Navigasi dokumen legal": "Legal document navigation",
   "Sebelumnya ({n})": "Previous ({n})",
   "Selanjutnya ({n})": "Next ({n})",
+
+  // Bagian "Apa itu BotThreads?" dan judul tab (SEO/GEO)
+  "BotThreads: Autopilot AI untuk Posting Threads Otomatis": "BotThreads: AI autopilot for automatic Threads posting",
+  "APA ITU BOTTHREADS?": "WHAT IS BOTTHREADS?",
+  "Apa itu BotThreads?": "What is BotThreads?",
+  "BotThreads adalah aplikasi autopilot berbasis AI untuk akun Meta Threads, dibuat di Indonesia oleh PT Suka Profit Berkah. Setiap hari BotThreads mencari ide dari posting terbaik akun, tren pencarian Google Indonesia, berita seputar niche akun, dan posting Threads populer. Dari ide itu AI menulis posting dengan gaya bahasa brand, memeriksa harga, promo, topik sensitif, kemiripan, dan panjang tulisan, lalu meminta editor AI memberi skor minimal 0,7 dari 1. Draf yang lolos diterbitkan lewat API resmi Threads di jam ketika pengikut akun paling aktif, bawaannya 3 kali sehari dengan jeda 2,5 jam. Pemilik akun memilih mode Tinjau dulu, yang menunggu persetujuan untuk setiap posting, atau mode Otomatis. Setelah angka views masuk, sistem belajar dari pola yang berhasil dan menjeda akun bila kinerjanya turun tajam. Akun dihubungkan lewat login resmi Threads tanpa memberikan kata sandi, dan pembayaran dalam Rupiah lewat Midtrans.": "BotThreads is an AI-powered autopilot app for Meta Threads accounts, built in Indonesia by PT Suka Profit Berkah. Every day BotThreads finds ideas from the account's best posts, Google search trends in Indonesia, news about the account's niche, and popular Threads posts. From those ideas, the AI writes posts in the brand's own voice, checks prices, promos, sensitive topics, similarity, and length, then has an AI editor give it a score of at least 0.7 out of 1. Drafts that pass are published through the official Threads API at the hours when the account's followers are most active, 3 times a day by default with a 2.5-hour gap. The account owner chooses Review first mode, which waits for approval on every post, or Automatic mode. Once views come in, the system learns from what worked and pauses the account if its performance drops sharply. Accounts are connected through the official Threads login without sharing a password, and payment is in Rupiah via Midtrans.",
+  "BotThreads dibandingkan cara lain mengelola Threads": "BotThreads compared with other ways to run Threads",
+  "Perbandingan posting manual, aplikasi penjadwal biasa, dan BotThreads": "Comparison of manual posting, a regular scheduler app, and BotThreads",
+  "Pekerjaan": "Task",
+  "Posting manual": "Manual posting",
+  "Penjadwal biasa": "Regular scheduler",
+  "Anda cari sendiri": "You find them yourself",
+  "Otomatis dari tren Google Indonesia, berita niche, dan posting Threads populer": "Automatic, from Google trends in Indonesia, niche news, and popular Threads posts",
+  "Menulis posting": "Writing posts",
+  "Anda tulis sendiri": "You write them yourself",
+  "AI menulis dengan gaya bahasa brand Anda": "AI writes in your brand's voice",
+  "Pemeriksaan sebelum terbit": "Checks before publishing",
+  "Tidak ada": "None",
+  "4 cek plus skor editor AI minimal 0,7 dari 1": "4 checks plus an AI editor score of at least 0.7 out of 1",
+  "Kira-kira": "A rough guess",
+  "Anda pilih sendiri": "You pick it yourself",
+  "Dihitung dari jam ramai pengikut tiap akun": "Calculated from each account's peak follower hours",
+  "Belajar dari hasil": "Learning from results",
+  "Lihat statistik sendiri": "You check the stats yourself",
+  "Laporan saja": "Reports only",
+  "Pola yang berhasil dipakai lagi, akun dijeda bila kinerja turun": "Winning patterns are reused; the account is paused if performance drops",
 };
 
 export default dict;

@@ -6,7 +6,8 @@ import { signupOpen } from "@/lib/team-service";
 
 export const metadata: Metadata = {
   title: "Daftar | BotThreads",
-  description: "Buat akun dan workspace untuk mengelola konten Threads brand Anda dengan AI.",
+  description: "Buat akun BotThreads dan workspace untuk menjalankan autopilot AI di akun Threads brand Anda: ide, tulisan, jadwal, dan analitik.",
+  alternates: { canonical: "/daftar" },
 };
 
 /** Saklar pendaftaran dibaca dari env saat permintaan datang, bukan saat image dibangun. */
