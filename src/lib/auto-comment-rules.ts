@@ -384,7 +384,23 @@ export function pickKeywords(keywords: string[], seed: string, n = SEARCHES_PER_
 
 const URL_LIKE = /https?:\/\/|www\.|(?<![\p{L}\p{N}@])[\p{L}\p{N}-]+\.(?:com|co\.id|id|net|org|ly|me|shop|link|ee|io|app|xyz|store)(?![\p{L}\p{N}])/iu;
 const MONEY = /\d[\d.,]*\s*(?:rb|k|ribu|jt|juta)(?![\p{L}])|(?<![\p{L}])rp\.?(?![\p{L}])/iu;
-const AI_WORDS = /(?<![\p{L}\p{N}])(?:ai|a\.i\.|bot|chatgpt|gpt|robot|otomatis|automated)(?![\p{L}\p{N}])/iu;
+/**
+ * Komentar yang mengaku atau menyiratkan dibuat mesin. Membahas topik AI tetap boleh ("AI sekarang bantu banget
+ * buat riset"), karena kata kunci akun bisa saja "AI"; yang ditolak hanya pengakuan diri seperti "aku cuma AI",
+ * "dibuat oleh ChatGPT", atau "dibalas otomatis".
+ */
+const AI_TERM = String.raw`(?:ai|a\.i\.|bot|chatbot|robot|asisten virtual|virtual assistant|language model|model bahasa)`;
+const SELF_AI = new RegExp(
+  String.raw`(?<![\p{L}\p{N}])(?:aku|saya|gue|gw|gua|i\s+am|i'?m|as\s+an?|sebagai)\s+(?:(?:cuma|cuman|hanya|adalah|sebuah|seorang|bukan|just|only|not|an?)\s+){0,2}${AI_TERM}(?![\p{L}\p{N}])`,
+  "iu"
+);
+const MADE_BY_AI = new RegExp(
+  String.raw`(?<![\p{L}\p{N}])(?:dibuat|ditulis|dibalas|dikirim|dijawab|digenerate|di-generate|generated|written|created|powered)\s+(?:(?:oleh|pakai|pake|dengan|lewat|via|by|with|using)\s+)?(?:${AI_TERM}|chatgpt|gpt|gemini|mesin)(?![\p{L}\p{N}])`,
+  "iu"
+);
+const AUTO_REPLY =
+  /(?<![\p{L}\p{N}])(?:(?:balasan|komentar|pesan|dibalas|dikirim|dijawab|reply|comment)\s+(?:secara\s+)?otomatis|automated\s+(?:reply|comment|message|response)|auto[-\s]?(?:reply|comment|komen|balas))(?![\p{L}\p{N}])/iu;
+const claimsMachine = (text: string): boolean => SELF_AI.test(text) || MADE_BY_AI.test(text) || AUTO_REPLY.test(text);
 const CODE = /`|=>|\b\w+\.\w+\([^)]*\)|[;{}][ \t]*$|<\/?[a-z][a-z0-9]*[\s>/]/im;
 /** Ajakan, promosi, dan klaim menjadi orang lain. */
 const FORBIDDEN_PHRASES = [
@@ -408,7 +424,7 @@ export function validateComment(raw: unknown): CommentCheck {
   if (text.includes("@")) return { ok: false, reason: "Komentar memuat mention." };
   if (text.includes("#")) return { ok: false, reason: "Komentar memuat hashtag." };
   if (MONEY.test(text)) return { ok: false, reason: "Komentar memuat harga." };
-  if (AI_WORDS.test(text)) return { ok: false, reason: "Komentar menyebut AI atau bot." };
+  if (claimsMachine(text)) return { ok: false, reason: "Komentar mengaku sebagai AI atau bot." };
   if (CODE.test(text)) return { ok: false, reason: "Komentar memuat kode." };
   if (bannedHits(text, FORBIDDEN_PHRASES).length) return { ok: false, reason: "Komentar memuat promosi atau ajakan." };
   if ((text.match(/[.!?]+(?=\s|$)/g) ?? []).length > 3) return { ok: false, reason: "Komentar terlalu panjang." };

@@ -228,6 +228,16 @@ describe("validasi komentar", () => {
   });
 
   it.each([
+    "AI sekarang memang bantu banget buat riset, tapi hasilnya tetap harus dicek ulang.",
+    "Setuju, ChatGPT enak buat brainstorming tapi jangan ditelan mentah-mentah.",
+    "Saya pakai AI buat ngerangkum materi kuliah, lumayan hemat waktu.",
+    "Bot trading begini memang perlu backtest yang serius dulu.",
+    "Transmisi otomatis di mobil listrik memang makin halus sekarang.",
+  ])("menerima komentar yang membahas topik AI: %j", (text) => {
+    expect(validateComment(text)).toEqual({ ok: true, text });
+  });
+
+  it.each([
     ["mampir ke https://toko.id ya", "Komentar memuat link."],
     ["cek toko.com deh", "Komentar memuat link."],
     ["halo @temen ini enak", "Komentar memuat mention."],
@@ -236,7 +246,13 @@ describe("validasi komentar", () => {
     ["harganya 20k aja", "Komentar memuat harga."],
     ["paling 10 ribu sih", "Komentar memuat harga."],
     ["Rp 15.000 doang", "Komentar memuat harga."],
-    ["aku cuma AI tapi setuju", "Komentar menyebut AI atau bot."],
+    ["aku cuma AI tapi setuju", "Komentar mengaku sebagai AI atau bot."],
+    ["Saya bukan bot kok, setuju banget", "Komentar mengaku sebagai AI atau bot."],
+    ["As an AI, I totally agree with this", "Komentar mengaku sebagai AI atau bot."],
+    ["Komentar ini dibuat oleh AI ya", "Komentar mengaku sebagai AI atau bot."],
+    ["ditulis pakai ChatGPT tapi isinya bener", "Komentar mengaku sebagai AI atau bot."],
+    ["maaf ini balasan otomatis", "Komentar mengaku sebagai AI atau bot."],
+    ["auto-reply aktif kak", "Komentar mengaku sebagai AI atau bot."],
     ["boleh cek bio kami ya", "Komentar memuat promosi atau ajakan."],
     ["DM aja kak", "Komentar memuat promosi atau ajakan."],
     ["aku pelanggan setia di sana", "Komentar memuat promosi atau ajakan."],

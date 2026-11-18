@@ -133,7 +133,9 @@ const dict: Record<string, string> = {
   "Komentar memuat mention.": "The comment contains a mention.",
   "Komentar memuat hashtag.": "The comment contains a hashtag.",
   "Komentar memuat harga.": "The comment contains a price.",
+  // Alasan lama, masih tersimpan di catatan sebelum aturan dilonggarkan.
   "Komentar menyebut AI atau bot.": "The comment mentions AI or a bot.",
+  "Komentar mengaku sebagai AI atau bot.": "The comment claims to be AI or a bot.",
   "Komentar memuat kode.": "The comment contains code.",
   "Komentar memuat promosi atau ajakan.": "The comment contains a promotion or call to action.",
   "Komentar terlalu panjang.": "The comment is too long.",
