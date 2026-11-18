@@ -1,5 +1,5 @@
-import { randomBytes } from "node:crypto";
-import { NextResponse, type NextRequest } from "next/server";
+import { randomBytes, randomUUID } from "node:crypto";
+import { NextResponse, after, type NextRequest } from "next/server";
 import { authConfigured } from "@/lib/auth";
 import {
   OAUTH_COOKIE,
@@ -10,6 +10,7 @@ import {
   stateMatches,
   usernameFromEmail,
 } from "@/lib/google-oauth";
+import { pixelSignup } from "@/lib/meta-pixel-signup";
 import { hashPassword } from "@/lib/password";
 import { clientIp, setSessionCookie } from "@/lib/session-cookie";
 import { db, nowTs } from "@/lib/supabase";
@@ -65,6 +66,8 @@ export async function GET(request: NextRequest) {
     const now = new Date();
 
     let user: { id: string; passwordHash: string } | null = null;
+    /** Akun baru dibuat lewat Google pada permintaan ini (untuk event daftar Meta Pixel). */
+    let createdEmail: string | null = null;
     if (saved.invite) {
       const hash = hashToken(saved.invite);
       const invite = await peekInvite(hash, now);
@@ -114,6 +117,7 @@ export async function GET(request: NextRequest) {
           );
           if (made.status === "OK") {
             user = { id: made.userId, passwordHash: made.passwordHash };
+            createdEmail = profile.email;
             // Tautkan googleSub ke akun yang baru dibuat
             await findGoogleUser(profile.sub, profile.email, now).catch(() => null);
           } else if (made.status === "EMAIL") {
@@ -133,6 +137,7 @@ export async function GET(request: NextRequest) {
     await setSessionCookie(res, request, user.id, user.passwordHash);
     clearCookies(res);
     res.headers.set("Cache-Control", "no-store");
+    if (createdEmail) await pixelSignup(res, request, createdEmail, randomUUID(), after);
     return res;
   } catch (err) {
     return fail("google_gagal", err instanceof Error ? err.message.slice(0, 200) : "galat tak dikenal");

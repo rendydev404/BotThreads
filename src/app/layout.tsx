@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
+import { MetaPixel } from "@/components/analytics/meta-pixel";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { LangProvider } from "@/components/i18n/lang-provider";
 import { MERCHANT_INFO } from "@/lib/legal-content";
@@ -73,6 +74,8 @@ export default function RootLayout({
               diketahui saat permintaan datang, jadi butuh batas Suspense agar bisa di-prerender. */}
           <Suspense fallback={null}>
             <AppShell>{children}</AppShell>
+            {/* Meta Pixel (iklan): hanya dimuat bila super admin menyalakannya di /admin/pixel. */}
+            <MetaPixel />
           </Suspense>
           </LangProvider>
         </ThemeProvider>

@@ -1,6 +1,8 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
+import { NextResponse, after, type NextRequest } from "next/server";
 import { jsonError, readJson } from "@/lib/api-auth";
 import { authConfigured } from "@/lib/auth";
+import { pixelSignup } from "@/lib/meta-pixel-signup";
 import { isSameOrigin } from "@/lib/same-origin";
 import { clientIp, setSessionCookie } from "@/lib/session-cookie";
 import { registerAccount, signupOpen } from "@/lib/team-service";
@@ -22,10 +24,14 @@ export async function POST(request: NextRequest) {
   if (!limit.ok) return jsonError(429, "Terlalu banyak percobaan mendaftar. Coba lagi nanti.", undefined, { "Retry-After": String(limit.retryAfter) });
 
   try {
-    const result = await registerAccount(await readJson(request));
+    const body = await readJson(request);
+    const result = await registerAccount(body);
     if (!result.ok) return jsonError(result.status, result.error, undefined, NO_STORE);
     const res = NextResponse.json({ success: true }, { status: 201, headers: NO_STORE });
     await setSessionCookie(res, request, result.session.userId, result.session.passwordHash);
+    // Meta Pixel: CompleteRegistration (peramban + Conversions API, satu eventId). Tidak pernah menggagalkan daftar.
+    const email = body && typeof body === "object" && typeof (body as { email?: unknown }).email === "string" ? (body as { email: string }).email : null;
+    await pixelSignup(res, request, email, randomUUID(), after);
     return res;
   } catch (err) {
     console.error("[auth/register]", err instanceof Error ? err.message : "galat tak dikenal");

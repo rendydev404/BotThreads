@@ -26,6 +26,7 @@ export type AdminTabKey =
   | "buzzer"
   | "sumber"
   | "integrasi"
+  | "pixel"
   | "sistem"
   | "akses"
   | "audit";

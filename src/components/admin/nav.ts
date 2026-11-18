@@ -14,6 +14,7 @@ import {
   ScrollText,
   ShieldCheck,
   SlidersHorizontal,
+  Target,
   Users,
 } from "lucide-react";
 import type { AdminPerm } from "@/lib/admin-perms";
@@ -135,6 +136,16 @@ export const ADMIN_MODULES: AdminModuleDef[] = [
     Icon: KeyRound,
     perm: "integrasi.lihat",
     keywords: "api key midtrans google oauth meta threads",
+  },
+  {
+    key: "pixel",
+    href: "/admin/pixel",
+    label: "Meta Pixel",
+    subtitle: "Pasang Pixel Meta di bottrit.com supaya iklan Facebook & Instagram bisa mengukur dan mengoptimalkan pendaftaran.",
+    group: "Platform",
+    Icon: Target,
+    perm: "integrasi.lihat",
+    keywords: "facebook instagram iklan ads pixel conversions api capi tracking konversi",
   },
   {
     key: "sistem",

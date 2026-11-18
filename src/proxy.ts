@@ -18,6 +18,8 @@ const PUBLIC_API = [
   "/api/auth/register",
   // Daftar paket untuk halaman perkenalan (hanya paket aktif yang publik).
   "/api/plans",
+  // Pixel ID Meta untuk iklan (hanya ID, memang terlihat di halaman mana pun yang memasang Pixel).
+  "/api/pixel",
   // Notifikasi pembayaran Midtrans: signature dicek, lalu status diverifikasi ulang ke API Midtrans.
   "/api/billing/webhook",
   // Callback OAuth Threads: di HP bisa selesai di browser/aplikasi lain tanpa sesi; diamankan state bertanda tangan.
