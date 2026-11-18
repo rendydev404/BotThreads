@@ -631,6 +631,8 @@ const dict: Record<string, string> = {
   "Link ini tidak bisa dikirim ulang: sudah lewat 2 hari atau statusnya sudah berubah. Muat ulang halaman.":
     "This link can't be resent: more than 2 days have passed or its status changed. Reload the page.",
   "Id tidak valid.": "Invalid ID.",
+  "Autopilot dijeda": "Autopilot paused",
+  "Autopilot berjalan": "Autopilot running",
 };
 
 export default dict;

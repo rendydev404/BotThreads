@@ -236,7 +236,7 @@ function StatusCard({ data, canAdmin, onSaved }: { data: AutoCommentOverview; ca
           {error}
         </Banner>
       )}
-      <div className="grid grid-cols-4 border-t border-line divide-x divide-line">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-line border-t border-line [&>*]:bg-surface">
         <Stat label={t("Terkirim")} value={data.counts.terkirim7} tone="success" />
         <Stat label={t("Menunggu Anda")} value={data.counts.draf} tone={data.counts.draf ? "warning" : undefined} />
         <Stat label={t("Dilewati")} value={data.counts.dilewati7} />

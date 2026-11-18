@@ -170,7 +170,13 @@ const AccountRow = memo(function AccountRow({
 
       <p className="hidden xl:block text-sm font-semibold text-fg text-center tabular-nums">{config.postsPerDay}</p>
 
-      <div className="min-w-0 max-lg:col-span-full max-lg:row-start-4 max-lg:-mt-1 lg:max-xl:col-start-3 lg:max-xl:col-span-2 lg:max-xl:row-start-2">
+      {/* HP: garis waktu akun yang Mati kosong dan hanya membingungkan, jadi disembunyikan. */}
+      <div
+        className={cn(
+          "min-w-0 max-lg:col-span-full max-lg:row-start-4 max-lg:-mt-1 lg:max-xl:col-start-3 lg:max-xl:col-span-2 lg:max-xl:row-start-2",
+          config.mode === "MATI" && "max-lg:hidden"
+        )}
+      >
         <SlotTimeline slots={slots} dayLabel={dayLabel} nowMs={nowMs} dimmed={config.mode === "MATI"} />
         <TimelineScale className="xl:hidden" />
       </div>
@@ -188,7 +194,8 @@ const AccountRow = memo(function AccountRow({
         }
       >
         <span className="xl:hidden">
-          <span className="font-semibold text-fg tabular-nums">{config.postsPerDay}</span> {t("posting/hari")} ·{" "}
+          <span className="font-semibold text-fg tabular-nums">{config.postsPerDay}</span> {t("posting/hari")}
+          {stats7d ? " · " : " "}
         </span>
         {stats7d ? (
           <>
@@ -198,9 +205,7 @@ const AccountRow = memo(function AccountRow({
             <span className="xl:block">{t("≥ 3 posting")}</span>
           </>
         ) : (
-          <>
-            <span className="xl:hidden">{t("kepatuhan 7 hari:")} </span>-
-          </>
+          <span className="max-lg:hidden">-</span>
         )}
       </p>
 

@@ -2,7 +2,7 @@
 
 import React, { Activity, Suspense, useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { AlertTriangle, Bot, Database, Pause, Play, RotateCw } from "lucide-react";
+import { AlertTriangle, CalendarClock, ClipboardCheck, Database, History, Link2, MessageCircle, MessageSquareText, Pause, Play, RotateCw, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setAutopilotActive } from "@/lib/autopilot-client";
 import type { AutopilotOverviewResponse, SlotStatus } from "@/lib/autopilot-types";
@@ -19,42 +19,28 @@ import { ReviewTab } from "@/components/autopilot/review-tab";
 import { Banner, accountHandle, apiErrorText, durationText, timeOf } from "@/components/autopilot/shared";
 import { useAutopilotOverview } from "@/components/autopilot/use-autopilot-overview";
 import { useT } from "@/components/i18n/lang-provider";
+import { PageIntro, PageTabs, type PageTab } from "@/components/layout/page-tabs";
 import { tr } from "@/lib/i18n/core";
 
 type TabKey = "akun" | "rencana" | "tinjau" | "komentar" | "autokomentar" | "riwayat" | "affiliate";
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "akun", label: "Akun" },
-  { key: "rencana", label: "Rencana" },
-  { key: "tinjau", label: "Tinjau" },
-  { key: "komentar", label: "Komentar" },
-  { key: "autokomentar", label: "Auto Komentar" },
-  { key: "riwayat", label: "Riwayat" },
-  { key: "affiliate", label: "Affiliate" },
+const TABS: PageTab<TabKey>[] = [
+  { key: "akun", label: "Akun@@jumlah", icon: Users },
+  { key: "rencana", label: "Rencana", icon: CalendarClock },
+  { key: "tinjau", label: "Tinjau", icon: ClipboardCheck },
+  { key: "komentar", label: "Komentar", icon: MessageCircle },
+  { key: "autokomentar", label: "Auto Komentar", icon: MessageSquareText },
+  { key: "riwayat", label: "Riwayat", icon: History },
+  { key: "affiliate", label: "Affiliate", icon: Link2 },
 ];
 
 function PageHeader({ children }: { children?: React.ReactNode }) {
-  const t = useT();
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      {/* Di layar kecil judul sudah tampil di bilah atas; di sini cukup untuk pembaca layar. */}
-      <div className="flex items-center gap-3 min-w-0 max-sm:sr-only">
-        <div className="w-11 h-11 rounded-2xl bg-accent-soft text-accent flex items-center justify-center shrink-0">
-          <Bot className="w-5 h-5" />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-xl font-bold text-fg leading-tight">Autopilot</h2>
-          <p className="text-sm text-muted">{t("AI menulis dan menjadwalkan posting setiap hari di jam ramai tiap akun.")}</p>
-        </div>
-      </div>
-      {children}
-    </div>
-  );
+  return <PageIntro text="AI menulis dan menjadwalkan posting setiap hari di jam ramai tiap akun.">{children}</PageIntro>;
 }
 
 function SummaryTile({ label, value, tone }: { label: string; value: string | number; tone?: "accent" | "success" | "danger" }) {
   return (
-    <div className="card p-2.5 sm:p-4 min-w-0 flex flex-col">
+    <div className="p-3 sm:p-4 min-w-0 flex flex-col">
       <p className="text-[11px] sm:text-xs font-semibold text-muted leading-tight line-clamp-2">{label}</p>
       <p
         className={cn(
@@ -129,14 +115,6 @@ function AutopilotInner() {
     window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
   };
 
-  const onTabKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-    e.preventDefault();
-    const at = TABS.findIndex((x) => x.key === tab);
-    const next = TABS[(at + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
-    setTab(next.key);
-    document.getElementById(`autopilot-tab-${next.key}`)?.focus();
-  };
 
   const handles = useMemo(() => new Map((data?.accounts ?? []).map((a) => [a.id, accountHandle(a)])), [data?.accounts]);
   const summary = useMemo(() => {
@@ -226,7 +204,12 @@ function AutopilotInner() {
   return (
     <div className="space-y-5">
       <PageHeader>
-        <div className="flex flex-row-reverse sm:flex-col items-center sm:items-end justify-between gap-x-3 gap-y-1 shrink-0">
+        {/* HP: status dalam kalimat biasa di kiri, saklarnya di kanan. */}
+        <p className="sm:hidden min-w-0 flex items-center gap-2 text-sm font-semibold text-fg">
+          <span className={cn("w-2 h-2 rounded-full shrink-0", paused ? "bg-danger" : "bg-success")} aria-hidden />
+          {paused ? t("Autopilot dijeda") : t("Autopilot berjalan")}
+        </p>
+        <div className="flex flex-col items-end justify-between gap-y-1 shrink-0">
           <button
             type="button"
             role="switch"
@@ -237,7 +220,7 @@ function AutopilotInner() {
               setPauseOpen(true);
             }}
             className={cn(
-              "shrink-0 h-10 pl-2.5 pr-4 rounded-full border bg-surface inline-flex items-center gap-2.5 text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer",
+              "shrink-0 h-10 pl-2.5 pr-4 max-sm:h-9 max-sm:text-[13px] rounded-full border bg-surface inline-flex items-center gap-2.5 text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer",
               paused ? "border-danger text-danger" : "border-line-strong text-fg hover:border-accent"
             )}
           >
@@ -247,13 +230,22 @@ function AutopilotInner() {
             {paused ? t("Lanjutkan") : t("Jeda semua")}
           </button>
           {health.lastRunAt && (
-            <p className="text-xs text-muted tabular-nums">
+            <p className="text-xs text-muted tabular-nums max-sm:hidden">
               Tick <span className="max-sm:sr-only">{t("terakhir")} </span>
               {timeOf(health.lastRunAt)} WIB{health.lastRunMs !== null ? `, ${health.lastRunMs} ms` : ""}
             </p>
           )}
         </div>
       </PageHeader>
+
+      <PageTabs
+        tabs={TABS.map((tb) => (tb.key === "tinjau" ? { ...tb, badge: data.reviewCount, badgeLabel: "draf menunggu tinjauan" } : tb))}
+        value={tab}
+        onChange={setTab}
+        idPrefix="autopilot"
+        ariaLabel="Bagian autopilot"
+        tourId="autopilot-tabs"
+      />
 
       {/* Banner keadaan */}
       {error && (
@@ -284,66 +276,21 @@ function AutopilotInner() {
       {!health.stale && health.lastRunError && <Banner tone="danger">{t("Galat tick terakhir:")} {health.lastRunError}</Banner>}
       {paused && <Banner tone="danger">{t("Autopilot sedang dijeda untuk semua akun.")}</Banner>}
 
-      {/* Ringkasan */}
-      {summary && (
-        <div className="grid grid-cols-4 gap-2 sm:gap-3">
-          <SummaryTile label={t("Akun aktif")} value={`${summary.active}/${summary.total}`} tone="accent" />
-          <SummaryTile label={t("Slot hari ini")} value={summary.slotsToday} />
-          <SummaryTile label={t("Terbit hari ini")} value={summary.publishedToday} tone="success" />
-          <SummaryTile label={t("Perlu perhatian")} value={summary.attention} tone={summary.attention > 0 ? "danger" : undefined} />
-        </div>
-      )}
-
-      <AiPipeline slots={data.slots} today={data.today} paused={paused} handles={handles} />
-
-      {/* Tab */}
-      {/* Layar sempit: bar tab digeser di dalam barnya sendiri, halaman tidak ikut melebar. */}
-      <div
-        role="tablist"
-        data-tour="autopilot-tabs"
-        aria-label={t("Bagian autopilot")}
-        onKeyDown={onTabKey}
-        className="flex gap-5 sm:gap-6 border-b border-line overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-4 px-4 sm:mx-0 sm:px-0"
-      >
-        {TABS.map((tb) => {
-          const active = tab === tb.key;
-          return (
-            <button
-              key={tb.key}
-              type="button"
-              role="tab"
-              id={`autopilot-tab-${tb.key}`}
-              aria-selected={active}
-              aria-controls={`autopilot-panel-${tb.key}`}
-              tabIndex={active ? 0 : -1}
-              onClick={() => setTab(tb.key)}
-              className={cn(
-                "relative h-11 shrink-0 inline-flex items-center gap-2 text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer",
-                active ? "text-accent" : "text-muted hover:text-fg"
-              )}
-            >
-              {t(tb.key === "akun" ? "Akun@@jumlah" : tb.label)}
-              {tb.key === "tinjau" && data.reviewCount > 0 && (
-                <span
-                  className={cn(
-                    "min-w-5 h-5 px-1.5 rounded-full text-[11px] font-bold inline-flex items-center justify-center tabular-nums",
-                    active ? "bg-accent text-on-accent" : "bg-warning-soft text-warning"
-                  )}
-                >
-                  {data.reviewCount}
-                  <span className="sr-only"> {t("draf menunggu tinjauan")}</span>
-                </span>
-              )}
-              {active && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />}
-            </button>
-          );
-        })}
-      </div>
 
       {/* Panel tetap terpasang (isian tidak hilang saat pindah tab); efek, termasuk fetch, hanya jalan saat terlihat. */}
       <div>
         <Activity mode={tab === "akun" ? "visible" : "hidden"}>
-          <div role="tabpanel" id="autopilot-panel-akun" aria-labelledby="autopilot-tab-akun">
+          <div role="tabpanel" id="autopilot-panel-akun" aria-labelledby="autopilot-tab-akun" className="space-y-5">
+            {/* Ringkasan hari ini dan kerja AI hanya di bagian Akun; bagian lain langsung menampilkan isinya. */}
+            {summary && (
+              <div className="card grid grid-cols-2 sm:grid-cols-4 gap-px bg-line overflow-hidden [&>*]:bg-surface">
+                <SummaryTile label={t("Akun aktif")} value={`${summary.active}/${summary.total}`} tone="accent" />
+                <SummaryTile label={t("Slot hari ini")} value={summary.slotsToday} />
+                <SummaryTile label={t("Terbit hari ini")} value={summary.publishedToday} tone="success" />
+                <SummaryTile label={t("Perlu perhatian")} value={summary.attention} tone={summary.attention > 0 ? "danger" : undefined} />
+              </div>
+            )}
+            <AiPipeline slots={data.slots} today={data.today} paused={paused} handles={handles} />
             <AccountsTab data={data} loadedAt={loadedAt} refetch={refetch} patch={patch} />
           </div>
         </Activity>

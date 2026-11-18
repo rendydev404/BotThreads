@@ -319,7 +319,7 @@ export const AiPipeline = memo(function AiPipeline({
         })}
       </ol>
 
-      <div className="mt-2 min-h-32 max-h-44 rounded-xl bg-subtle p-3 overflow-hidden">
+      <div className="mt-2 min-h-20 sm:min-h-32 max-h-44 rounded-xl bg-subtle p-3 overflow-hidden">
         <Stage key={`${focus.mode}-${viewStep}-${run}`} step={viewStep} focus={focus} work={shownWork} handle={handle} />
       </div>
       <p className="mt-2 text-xs text-muted leading-relaxed" aria-live="polite">
