@@ -11,6 +11,8 @@ import { WeeklyActivityChart } from "@/components/dashboard/weekly-activity-char
 import { PeriodFilter, periodLabelText, type PeriodValue } from "@/components/dashboard/period-filter";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { useLang } from "@/components/i18n/lang-provider";
+import { useMe } from "@/components/layout/use-me";
+import { FirstSteps } from "@/components/layout/first-steps";
 import type { TFunction } from "@/lib/i18n/core";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -25,6 +27,7 @@ const LIVE_PENDING_RETRY_MS = 2_500;
 
 export default function DashboardPage() {
   const { t, locale } = useLang();
+  const { me } = useMe();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -118,7 +121,7 @@ export default function DashboardPage() {
   };
   const stats = data?.stats ?? {};
   const isAll = currentAccount.isAll;
-  const accountCount = accounts.length || stats.activeAccounts || 32;
+  const accountCount = accounts.length || stats.activeAccounts || 0;
   const info = data?.period as
     | {
         label: string;
@@ -138,6 +141,9 @@ export default function DashboardPage() {
       ? t("Aktivitas {label} & 6 hari sebelumnya", { label: periodText.toLowerCase() })
       : t("Aktivitas {label}", { label: `${periodText.charAt(0).toLowerCase()}${periodText.slice(1)}` })
     : t("Aktivitas");
+
+  // Belum ada akun Threads: tampilkan jalan pendek ke posting pertama, bukan dasbor penuh angka 0.
+  if (me?.accountCount === 0) return <FirstSteps canConnect={me.role === "OWNER" || me.role === "ADMIN"} />;
 
   return (
     <div className="space-y-6">

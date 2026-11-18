@@ -67,21 +67,22 @@ export function PageGuide({ pathname }: { pathname: string }) {
   const close = () => writeRaw(JSON.stringify([...hidden, step.id]));
 
   return (
-    <div role="note" className="mb-5 relative rounded-xl border border-line bg-surface p-3.5 pr-11 text-sm">
-      <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4">
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="inline-flex items-center h-6 px-2 rounded-md bg-subtle text-[11px] font-bold text-fg tabular-nums">
-            {t("Langkah {no} dari {total}", { no: step.no, total: FLOW_STEPS.length })}
+    <div role="note" className="mb-5 relative rounded-2xl border border-line bg-surface px-4 py-3 pr-11 text-sm">
+      <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+        {/* Posisi di alur sebagai titik kemajuan: lebih cepat dibaca daripada label teks. */}
+        <div className="flex items-center gap-2.5 shrink-0" aria-label={t("Langkah {no} dari {total}", { no: step.no, total: FLOW_STEPS.length })}>
+          <span className="flex items-center gap-1" aria-hidden>
+            {FLOW_STEPS.map((s) => (
+              <span
+                key={s.id}
+                className={cn("h-1.5 rounded-full transition-all", s.no === step.no ? "w-5 bg-accent" : s.no < step.no ? "w-1.5 bg-accent/50" : "w-1.5 bg-line-strong")}
+              />
+            ))}
           </span>
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 h-6 px-2 rounded-md text-[11px] font-bold",
-              auto ? "bg-accent-soft text-accent" : "bg-warning-soft text-warning"
-            )}
-          >
-            {auto ? <Bot className="w-3.5 h-3.5" /> : <Hand className="w-3.5 h-3.5" />}
-            {auto ? t("Otomatis") : t("Tugas Anda")}
+          <span className="text-[11px] font-semibold text-muted tabular-nums">
+            {step.no}/{FLOW_STEPS.length}
           </span>
+          {auto ? <Bot className="w-4 h-4 text-accent" aria-label={t("Otomatis")} /> : <Hand className="w-4 h-4 text-warning" aria-label={t("Tugas Anda")} />}
         </div>
         <p className="min-w-0 flex-1 text-fg leading-relaxed">
           <span className="font-semibold">{t(step.title)}.</span> <span className="text-muted">{t(step.you ?? step.short)}</span>
@@ -93,7 +94,7 @@ export function PageGuide({ pathname }: { pathname: string }) {
           </Link>
           {next && (
             <Link href={nextHref ?? next.href} className="inline-flex items-center gap-1 text-accent hover:text-accent-hover transition-colors">
-              {t("Berikutnya: {title}", { title: t(next.title) })}
+              {t("Berikutnya")}
               <ArrowRight className="w-4 h-4" />
             </Link>
           )}
@@ -104,7 +105,7 @@ export function PageGuide({ pathname }: { pathname: string }) {
         onClick={close}
         aria-label={t("Tutup panduan halaman ini")}
         title={t("Tutup panduan ini (bisa dibuka lagi di Panduan Cara Kerja)")}
-        className="absolute top-2.5 right-2.5 w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-fg hover:bg-subtle transition-colors cursor-pointer"
+        className="absolute top-2 right-2 w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-fg hover:bg-subtle transition-colors cursor-pointer"
       >
         <X className="w-4 h-4" />
       </button>

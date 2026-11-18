@@ -200,6 +200,22 @@ const dict: Record<string, string> = {
   "Siap! Sisanya serahkan padaku": "All set! Leave the rest to me",
   "Hubungkan akun, isi Profil AI, lalu nyalakan Autopilot. Tur ini bisa diputar lagi kapan saja dari menu profil di kanan atas.":
     "Connect an account, fill in the AI Profile, then turn on Autopilot. You can replay this tour anytime from the profile menu in the top right.",
+  // Penyederhanaan UI (Ringkasan kosong, panduan, Auto Komentar)
+  "Satu langkah lagi: hubungkan akun Threads Anda": "One more step: connect your Threads account",
+  "Cukup sekali, sekitar 1 menit. Setelah itu AI mulai menulis, menjadwalkan, dan melaporkan hasilnya.": "Just once, about 1 minute. Then AI starts writing, scheduling and reporting results.",
+  "Lihat paket": "See plans",
+  "Buat akun BotThreads": "Create a BotThreads account",
+  "Selesai. Selamat datang!": "Done. Welcome!",
+  "Login resmi lewat Threads, sekitar 1 menit. Kata sandi Anda tidak pernah kami lihat.": "Official Threads login, about 1 minute. We never see your password.",
+  "Kenalkan bisnis Anda ke AI": "Introduce your business to the AI",
+  "Isi siapa akunnya dan gaya bahasanya, supaya tulisan AI terdengar seperti Anda.": "Describe the account and its tone so the AI sounds like you.",
+  "Nyalakan Autopilot": "Turn on Autopilot",
+  "AI mencari ide, menulis, lalu memposting di jam ramai. Anda tinggal memantau.": "AI finds ideas, writes, and posts at peak hours. You just keep an eye on it.",
+  "Mulai pakai BotThreads": "Get started with BotThreads",
+  "{done} dari {total} langkah selesai": "{done} of {total} steps done",
+  "Tinggal 3 langkah sampai posting pertama Anda": "3 steps to your first post",
+  "Angka performa akan muncul di halaman ini begitu akun Threads terhubung dan posting pertama terbit.": "Performance numbers appear here once a Threads account is connected and the first post is published.",
+  "Terbuka setelah langkah {n}": "Unlocks after step {n}",
 };
 
 export default dict;

@@ -2,7 +2,7 @@
 
 import React, { memo, useCallback, useLayoutEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, Ban, CheckCircle2, ChevronDown, Clock, Lightbulb, Loader2, Pin, PinOff, Sparkles, Users } from "lucide-react";
+import { AlertCircle, ArrowRight, Ban, CheckCircle2, ChevronDown, Clock, Lightbulb, Loader2, Pin, PinOff, Sparkles, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { actOnIdea, listIdeas, type IdeaListItem, type IdeaListWithMedia } from "@/lib/radar-client";
 import {
@@ -372,7 +372,8 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
         </div>
       </div>
 
-      {view === "ready" && (
+      {/* Penjelasan cara memilih ide hanya berguna kalau ada ide; daftar kosong cukup dengan keadaan kosongnya. */}
+      {view === "ready" && items.length > 0 && (
         <p className="flex items-start gap-2 text-[13px] text-muted leading-relaxed">
           <Lightbulb className="w-4 h-4 mt-0.5 text-accent shrink-0" />
           <span>
@@ -412,13 +413,16 @@ export function IdeasTab({ canEdit, onForbidden }: IdeasTabProps) {
               }
             >
               {view === "ready" && (
-                <p>
-                  {t("Autopilot memantau apa yang sedang viral, lalu AI menyusun ide untuk akun yang autopilotnya menyala. Ide baru muncul di sini dengan sendirinya. Mode tiap akun diatur di halaman")}{" "}
-                  <Link href="/autopilot" className="font-semibold text-accent hover:underline">
-                    Autopilot
+                <>
+                  <p>{t("AI memantau yang sedang viral dan menyusun ide untuk akun yang Autopilot-nya menyala. Anda tidak perlu melakukan apa-apa, ide baru muncul di sini sendiri.")}</p>
+                  <Link
+                    href="/autopilot"
+                    className="mt-3 inline-flex items-center gap-1.5 h-10 px-4 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover transition-colors"
+                  >
+                    {t("Atur Autopilot")}
+                    <ArrowRight className="w-4 h-4" />
                   </Link>
-                  .
-                </p>
+                </>
               )}
               {view === "used" && <p>{t("Ide pindah ke sini setelah autopilot menulis posting darinya.")}</p>}
               {view === "dropped" && (

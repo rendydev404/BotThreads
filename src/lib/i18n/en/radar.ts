@@ -387,6 +387,8 @@ const dict: Record<string, string> = {
     "Posts for a trending topic appear here once Meta approves the Threads Trending Topics feature for BotThreads. Meanwhile, open the topic directly on Threads.",
   "Topik tren tidak valid.": "Invalid trending topic.",
   "Negara tren tidak didukung.": "This trend country isn't supported.",
+  // Penyederhanaan UI (Ringkasan kosong, panduan, Auto Komentar)
+  "AI memantau yang sedang viral dan menyusun ide untuk akun yang Autopilot-nya menyala. Anda tidak perlu melakukan apa-apa, ide baru muncul di sini sendiri.": "AI watches what's going viral and prepares ideas for accounts with Autopilot on. You don't need to do anything; new ideas show up here on their own.",
 };
 
 export default dict;

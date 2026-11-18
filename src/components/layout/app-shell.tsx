@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AlertOctagon, Ban, CreditCard, Link2, LogOut, Megaphone, ShieldAlert, Sparkles } from "lucide-react";
+import { AlertOctagon, Ban, LogOut, Megaphone, ShieldAlert, Sparkles } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { BottomNav } from "./bottom-nav";
@@ -13,7 +13,7 @@ import { useMe } from "./use-me";
 import { PageGuide } from "./page-guide";
 import { FloatingAiBubble } from "@/components/chat/floating-ai-bubble";
 import { formatDateWib } from "@/components/settings/format";
-import { ThreadsConnectButton } from "@/components/settings/threads-connect-button";
+import { ConnectFirstBanner } from "./first-steps";
 import { useT } from "@/components/i18n/lang-provider";
 
 /** Halaman tanpa sesi (login, terima undangan, reset password, kebijakan legal) tampil polos: tanpa sidebar/header/bubble. */
@@ -128,7 +128,6 @@ function PlanExpiredBanner({ nama, berakhir, canRenew }: { nama: string | null; 
 }
 
 function Frame({ children, pathname }: { children: React.ReactNode; pathname: string }) {
-  const t = useT();
   const { me } = useMe();
   // Konsol super admin memiliki tata letak terpisah sendiri dan hanya dapat diakses oleh SUPERADMIN.
   const adminPage = pathname === "/admin" || pathname.startsWith("/admin/");
@@ -137,6 +136,7 @@ function Frame({ children, pathname }: { children: React.ReactNode; pathname: st
   }
 
   const blocked = me?.hasAccess === false;
+  const noAccounts = !blocked && me?.accountCount === 0;
 
   return (
     <>
@@ -157,34 +157,10 @@ function Frame({ children, pathname }: { children: React.ReactNode; pathname: st
               canRenew={me.role === "OWNER" || me.role === "ADMIN"}
             />
           )}
-          {/* Workspace baru belum punya akun Threads: arahkan ke penghubungan akun mandiri & pilihan paket sewa. */}
-          {!blocked && me?.accountCount === 0 && (
-            <div role="status" className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl bg-accent-soft text-fg p-4 text-sm">
-              <div className="flex items-start gap-3 min-w-0">
-                <Link2 className="w-[18px] h-[18px] mt-0.5 text-accent shrink-0" />
-                <p className="leading-relaxed">
-                  <span className="font-semibold">{t("Belum ada akun Threads yang terhubung ke workspace ini.")}</span>{" "}
-                  {t("Hubungkan akun Threads Anda secara mandiri untuk mengaktifkan analitik, penjadwalan, dan autopilot AI.")}
-                </p>
-              </div>
-              {/* Menghubungkan akun hanya untuk Pemilik/Admin (sama dengan /api/threads/oauth); peran lain diberi arahan. */}
-              {me.role === "OWNER" || me.role === "ADMIN" ? (
-              <div className="flex flex-wrap items-center gap-2 shrink-0 sm:ml-2">
-                <ThreadsConnectButton size="sm" />
-                <Link
-                  href="/billing"
-                  className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-surface border border-line-strong text-fg text-xs font-semibold hover:border-accent hover:text-accent transition-colors"
-                >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  {t("Pilih Paket Sewa")}
-                </Link>
-              </div>
-              ) : (
-                <p className="text-xs text-muted shrink-0 sm:ml-2">{t("Minta Pemilik atau Admin workspace menghubungkannya.")}</p>
-              )}
-            </div>
-          )}
-          {!blocked && me && <PageGuide pathname={pathname} />}
+          {/* Workspace baru belum punya akun Threads: satu ajakan saja (Ringkasan punya panduan langkahnya sendiri),
+              dan pita panduan halaman disembunyikan supaya tidak ada dua arahan sekaligus. */}
+          {noAccounts && pathname !== "/" && <ConnectFirstBanner canConnect={me.role === "OWNER" || me.role === "ADMIN"} />}
+          {!blocked && me && !noAccounts && <PageGuide pathname={pathname} />}
           {blocked ? me?.suspended ? <Suspended reason={me.suspended.reason} canSwitch={me.workspaces.length > 1} /> : <NoAccess /> : children}
         </main>
       </div>
