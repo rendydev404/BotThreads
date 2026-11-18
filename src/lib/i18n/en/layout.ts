@@ -216,6 +216,7 @@ const dict: Record<string, string> = {
   "Tinggal 3 langkah sampai posting pertama Anda": "3 steps to your first post",
   "Angka performa akan muncul di halaman ini begitu akun Threads terhubung dan posting pertama terbit.": "Performance numbers appear here once a Threads account is connected and the first post is published.",
   "Terbuka setelah langkah {n}": "Unlocks after step {n}",
+  "Membuka Konsol Admin...": "Opening the Admin Console...",
 };
 
 export default dict;

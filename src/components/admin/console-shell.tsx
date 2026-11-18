@@ -105,6 +105,9 @@ function NavList({ modules, active, onNavigate }: { modules: AdminModuleDef[]; a
 }
 
 function ProfileFooter({ name, username, roleNama }: { name: string; username: string; roleNama: string }) {
+  const { me } = useMe();
+  // Staf tanpa workspace tidak punya dashboard workspace (akan dialihkan balik ke konsol), jadi tautannya disembunyikan.
+  const hasWorkspace = me?.hasAccess !== false;
   return (
     <div className="p-3 border-t border-line space-y-2">
       <div className="flex items-center gap-2.5 px-2 py-1.5">
@@ -119,13 +122,15 @@ function ProfileFooter({ name, username, roleNama }: { name: string; username: s
           <LogOut className="w-4 h-4" />
         </button>
       </div>
-      <Link
-        href="/"
-        className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-line text-xs font-semibold text-muted hover:text-fg hover:border-line-strong transition-colors"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        Kembali ke Dashboard Workspace
-      </Link>
+      {hasWorkspace && (
+        <Link
+          href="/"
+          className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-line text-xs font-semibold text-muted hover:text-fg hover:border-line-strong transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Kembali ke Dashboard Workspace
+        </Link>
+      )}
     </div>
   );
 }

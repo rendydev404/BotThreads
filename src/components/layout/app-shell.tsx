@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { AlertOctagon, Ban, LogOut, Megaphone, ShieldAlert, Sparkles } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { AlertOctagon, Ban, Loader2, LogOut, Megaphone, ShieldAlert, Sparkles } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { BottomNav } from "./bottom-nav";
@@ -128,9 +128,17 @@ function PlanExpiredBanner({ nama, berakhir, canRenew }: { nama: string | null; 
 }
 
 function Frame({ children, pathname }: { children: React.ReactNode; pathname: string }) {
+  const t = useT();
   const { me } = useMe();
+  const router = useRouter();
   // Konsol super admin memiliki tata letak terpisah sendiri dan hanya dapat diakses oleh SUPERADMIN.
   const adminPage = pathname === "/admin" || pathname.startsWith("/admin/");
+  // Staf platform (super admin / peran admin) yang tidak tergabung di workspace mana pun: tidak ada dashboard
+  // workspace untuknya, jadi langsung ke Konsol Admin, bukan layar "Belum ada akses workspace".
+  const consoleOnly = !!me && me.hasAccess === false && !me.suspended && (me.superadmin || !!me.admin);
+  useEffect(() => {
+    if (consoleOnly && !adminPage) router.replace("/admin");
+  }, [consoleOnly, adminPage, router]);
   if (adminPage) {
     return <div className="flex min-h-screen w-full bg-bg text-fg">{children}</div>;
   }
@@ -161,7 +169,20 @@ function Frame({ children, pathname }: { children: React.ReactNode; pathname: st
               dan pita panduan halaman disembunyikan supaya tidak ada dua arahan sekaligus. */}
           {noAccounts && pathname !== "/" && <ConnectFirstBanner canConnect={me.role === "OWNER" || me.role === "ADMIN"} />}
           {!blocked && me && !noAccounts && <PageGuide pathname={pathname} />}
-          {blocked ? me?.suspended ? <Suspended reason={me.suspended.reason} canSwitch={me.workspaces.length > 1} /> : <NoAccess /> : children}
+          {blocked ? (
+            me?.suspended ? (
+              <Suspended reason={me.suspended.reason} canSwitch={me.workspaces.length > 1} />
+            ) : consoleOnly ? (
+              <p role="status" className="mt-16 flex items-center justify-center gap-2 text-sm text-muted">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {t("Membuka Konsol Admin...")}
+              </p>
+            ) : (
+              <NoAccess />
+            )
+          ) : (
+            children
+          )}
         </main>
       </div>
       <BottomNav />

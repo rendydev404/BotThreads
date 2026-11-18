@@ -200,7 +200,12 @@ export function PixelTab() {
             <TextField
               label="Access Token"
               type="password"
-              autoComplete="off"
+              // Chrome mengabaikan "off" pada kolom password dan mengisi password akun tersimpan; "new-password"
+              // + name khusus mencegahnya (pengelola password pihak ketiga ikut diabaikan lewat data-*).
+              autoComplete="new-password"
+              name="meta-capi-token"
+              data-1p-ignore
+              data-lpignore="true"
               value={form.accessToken}
               onChange={(accessToken) => setForm({ ...form, accessToken })}
               placeholder={px.hasAccessToken ? `Tersimpan: ${px.accessTokenMasked}` : "EAAG..."}
