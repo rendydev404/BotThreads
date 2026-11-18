@@ -243,6 +243,7 @@ CREATE TABLE IF NOT EXISTS "PostDispatch" (
   "releaseUrl"          TEXT,
   "platformPostId"      TEXT,
   "platformContainerId" TEXT,
+  "platformKind"        TEXT,
   "attempts"            INTEGER          DEFAULT 0,
   "lockedAt"            TIMESTAMP(3),
   "createdAt"           TIMESTAMP(3)     DEFAULT CURRENT_TIMESTAMP,

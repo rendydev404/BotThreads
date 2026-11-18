@@ -23,6 +23,7 @@ import { FormError, TextAreaField, TextField } from "@/components/settings/field
 import { MONTH_SHORT, errorDetails, errorStatus, errorText, formatDateWib, pad2, toScore100 } from "@/components/settings/format";
 import { usePaged } from "@/components/settings/use-remote";
 import { ThreadsSearchPanel } from "./threads-search-panel";
+import { TrendingTopicsPanel } from "./trending-topics-panel";
 import {
   BTN,
   BTN_OUTLINE,
@@ -38,11 +39,14 @@ import {
 
 /** Sumber yang diisi server dan ditawarkan sebagai saringan. Urutan = urutan tampil. */
 type OfferedSource = Extract<SignalSource, "NICHE" | "THREADS_SEARCH" | "WEB" | "GTRENDS" | "JARINGAN" | "MOMEN" | "MANUAL">;
-type SourceFilter = "ALL" | OfferedSource;
+/** "TRENDING" = Trending di Threads (Threads Trending Topics): dibaca langsung dari Threads, bukan baris radar. */
+type SourceFilter = "ALL" | "TRENDING" | OfferedSource;
+type ListFilter = Exclude<SourceFilter, "TRENDING">;
 
 const FILTER_SOURCES: OfferedSource[] = ["NICHE", "THREADS_SEARCH", "WEB", "GTRENDS", "JARINGAN", "MOMEN", "MANUAL"];
 const FILTERS: { value: SourceFilter; label: string }[] = [
   { value: "ALL", label: "Semua" },
+  { value: "TRENDING", label: "Trending di Threads" },
   ...FILTER_SOURCES.map((s) => ({ value: s, label: SIGNAL_SOURCE_LABEL[s] })),
 ];
 /** Sumber yang dikumpulkan tick autopilot (inspirasi manual tidak dihitung "pengambilan"). */
@@ -53,7 +57,7 @@ const TEXT_MIN = 10;
 /** Judul sependek ini (kata kunci tren, nama momen) ditebalkan; teks posting panjang tidak. */
 const SHORT_TITLE = 80;
 
-const EMPTY_COPY: Record<SourceFilter, { title: string; body: string }> = {
+const EMPTY_COPY: Record<ListFilter, { title: string; body: string }> = {
   ALL: {
     title: "Belum ada tren yang tertangkap.",
     body: "Tren diperbarui otomatis tiap beberapa jam: yang lagi naik di niche tiap akun, yang viral di Threads, yang lagi ramai di Indonesia, dan posting akun Anda yang sedang meledak.",
@@ -94,7 +98,7 @@ function formatWibFull(date: Date): string {
   return `${p.d} ${tr(MONTH_SHORT[p.m])} ${p.y}, ${pad2(p.h)}.${pad2(p.min)} WIB`;
 }
 
-function lastCaptureText(last: SignalListResponse["lastCapture"], source: SourceFilter): string | null {
+function lastCaptureText(last: SignalListResponse["lastCapture"], source: ListFilter): string | null {
   if (source === "MANUAL") return null;
   if (source === "ALL") {
     // ISO UTC berformat sama, jadi urutan teks = urutan waktu.
@@ -392,9 +396,11 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
   const formId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
 
+  const trending = source === "TRENDING";
   const list = usePaged<SignalDTO, SignalListResponse>(
-    `signals:${source}`,
-    (cursor, signal) => listRadarSignals({ source: source === "ALL" ? null : source, cursor }, signal),
+    // Trending di Threads tidak memakai daftar radar: kunci null = tidak ada fetch.
+    trending ? null : `signals:${source}`,
+    (cursor, signal) => listRadarSignals({ source: source === "ALL" || source === "TRENDING" ? null : source, cursor }, signal),
     (s) => s.id,
     "Gagal memuat tren viral."
   );
@@ -408,8 +414,8 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
 
   // Tombol dan form tambah tetap terpasang selama daftar memuat (mis. saat saringan diganti), supaya
   // teks yang sedang diketik tidak hilang; hanya disembunyikan bila skema radar memang belum dipasang.
-  const addable = canEdit && data?.installed !== false;
-  const captured = data?.installed ? lastCaptureText(data.lastCapture, source) : null;
+  const addable = canEdit && data?.installed !== false && !trending;
+  const captured = data?.installed && !trending ? lastCaptureText(data.lastCapture, source) : null;
 
   const onAdded = () => {
     const listed = source === "ALL" || source === "MANUAL";
@@ -460,7 +466,7 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
     }
   };
 
-  const empty = EMPTY_COPY[source];
+  const empty = EMPTY_COPY[trending ? "ALL" : source];
 
   return (
     <div className="space-y-4">
@@ -493,7 +499,7 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
           })}
         </div>
         <div className="flex items-center gap-2 self-end lg:self-auto shrink-0">
-          <RefreshButton onClick={reload} busy={list.refreshing} disabled={list.loading} />
+          {!trending && <RefreshButton onClick={reload} busy={list.refreshing} disabled={list.loading} />}
           {addable && (
             <button
               ref={toggleRef}
@@ -520,7 +526,9 @@ export function SignalsTab({ canEdit, onForbidden }: SignalsTabProps) {
 
       {source === "THREADS_SEARCH" && canEdit && <ThreadsSearchPanel accounts={accounts} onForbidden={onForbidden} />}
 
-      {list.loading ? (
+      {trending ? (
+        <TrendingTopicsPanel />
+      ) : list.loading ? (
         <ListSkeleton label={t("Memuat tren viral")} />
       ) : !data ? (
         <LoadFailure status={list.status} message={list.error ?? "Gagal memuat tren viral."} onRetry={reload} />

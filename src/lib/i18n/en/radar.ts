@@ -362,6 +362,31 @@ const dict: Record<string, string> = {
   '{n} hasil untuk "{q}"': '{n} result for "{q}"||{n} results for "{q}"',
   "Tidak ada posting yang cocok. Selama izin pencarian belum disetujui Meta, yang dicari hanya posting akun ini sendiri.":
     "No matching posts. Until Meta approves search, only this account's own posts are searched.",
+  // Trending di Threads (Threads Trending Topics)
+  "Trending di Threads": "Trending on Threads",
+  "Amerika Serikat": "United States",
+  "Negara tren": "Trend country",
+  "Topik yang sedang tren di aplikasi Threads saat ini. Ditampilkan apa adanya sebagai inspirasi; BotThreads tidak menyimpan atau mengubahnya.":
+    "Topics trending in the Threads app right now. Shown as-is for inspiration; BotThreads doesn't store or change them.",
+  "Threads belum menyediakan tren untuk Indonesia, jadi yang tampil tren Amerika Serikat. Tren Indonesia otomatis muncul di sini begitu Threads membukanya.":
+    "Threads doesn't provide trends for Indonesia yet, so United States trends are shown. Indonesian trends will appear here automatically once Threads makes them available.",
+  "{n} topik · diperbarui {time} · tren Threads berubah paling cepat sekali per jam":
+    "{n} topics · updated {time} · Threads trends change at most once an hour",
+  "Memuat tren Threads": "Loading Threads trends",
+  "Gagal memuat tren Threads.": "Couldn't load Threads trends.",
+  "Tren Threads belum bisa diambil. Coba lagi beberapa menit lagi.": "Couldn't get Threads trends yet. Try again in a few minutes.",
+  "Belum ada topik tren dari Threads.": "No trending topics from Threads yet.",
+  "Coba lagi nanti atau pilih negara lain.": "Try again later or choose another country.",
+  "Lihat posting tren": "See posts",
+  "Sembunyikan posting": "Hide posts",
+  "Urutan posting": "Post order",
+  "Memuat posting tren": "Loading trend posts",
+  "Gagal memuat posting tren.": "Couldn't load posts for this trend.",
+  "Belum ada posting untuk topik ini.": "No posts for this topic yet.",
+  "Posting untuk topik tren tampil di sini setelah Meta menyetujui fitur Threads Trending Topics untuk BotThreads. Sementara itu buka topiknya langsung di Threads.":
+    "Posts for a trending topic appear here once Meta approves the Threads Trending Topics feature for BotThreads. Meanwhile, open the topic directly on Threads.",
+  "Topik tren tidak valid.": "Invalid trending topic.",
+  "Negara tren tidak didukung.": "This trend country isn't supported.",
 };
 
 export default dict;

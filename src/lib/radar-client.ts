@@ -100,3 +100,28 @@ export interface ThreadsSearchResponse {
 /** Cari posting Threads dengan kata kunci memakai akun workspace (hasil tidak disimpan). */
 export const searchThreads = (p: { accountId: string; q: string; type: "TOP" | "RECENT" }, signal?: AbortSignal) =>
   call<ThreadsSearchResponse>("/api/radar/search", { method: "POST", body: JSON.stringify(p), signal });
+
+export interface TrendingTopicsResponse {
+  success: true;
+  country: "ID" | "US";
+  /** Negara yang diminta tapi kosong di Threads; `country` adalah cadangannya. */
+  fallbackFrom: "ID" | "US" | null;
+  topics: { trendId: string; title: string; description: string | null }[];
+  fetchedAt: string;
+}
+
+export interface TrendPostsResponse {
+  success: true;
+  /** false = fitur Threads Trending Topics belum disetujui Meta, posting belum bisa diambil. */
+  approved: boolean;
+  posts: { id: string; username: string; text: string; mediaType: string | null; permalink: string | null; timestamp: string | null }[];
+  fetchedAt: string;
+}
+
+/** Topik yang sedang tren di aplikasi Threads (Indonesia; cadangan AS selama Indonesia kosong). */
+export const listTrendingTopics = (country: "ID" | "US", signal?: AbortSignal) =>
+  call<TrendingTopicsResponse>(`/api/radar/trending?country=${country}`, { signal });
+
+/** Posting Threads untuk satu topik tren. */
+export const listTrendPosts = (trendId: string, type: "top" | "recent", signal?: AbortSignal) =>
+  call<TrendPostsResponse>(`/api/radar/trending?trend=${encodeURIComponent(trendId)}&type=${type}`, { signal });
