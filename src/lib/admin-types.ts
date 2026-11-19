@@ -99,6 +99,42 @@ export interface AdminWorkspaceListResponse {
   nextCursor: string | null;
 }
 
+/** Workspace buzzer/sumber lain yang menumpang di tenant dan akan DILEPAS (bukan dihapus) saat tenant dihapus. */
+export interface AdminWorkspaceLinkedDTO {
+  id: string;
+  nama: string;
+  akun: number;
+  autopilotAktif: number;
+}
+
+/** Gambaran dampak hapus workspace (sql/049): ditampilkan di dialog konfirmasi. */
+export interface AdminWorkspaceDeletePreview {
+  success: true;
+  id: string;
+  nama: string;
+  anggota: number;
+  /** Akun Threads milik workspace ini sendiri: ikut dihapus. */
+  akun: number;
+  /** Akun milik workspace ini yang terdaftar di pasukan buzzer. */
+  buzzer: number;
+  /** Tugas buzzer terjadwal yang akan dibatalkan. */
+  tugasBuzzer: number;
+  tagihanMenunggu: number;
+  paket: string | null;
+  /** Workspace ini menumpang di tenant lain: harus dilepas dulu lewat Sumber Akun. */
+  bagianKelompok: boolean;
+  dilepas: AdminWorkspaceLinkedDTO[];
+}
+
+export interface AdminWorkspaceDeleteResult {
+  success: true;
+  nama: string;
+  akunDihapus: number;
+  anggota: number;
+  tugasBuzzerDibatalkan: number;
+  dilepas: Omit<AdminWorkspaceLinkedDTO, "autopilotAktif">[];
+}
+
 /** suspend (wajib alasan) | unsuspend | member (identifier = email/username; role null = keluarkan) |
  *  plan (planId null = paket bawaan; until ISO atau null = tanpa batas waktu). */
 export type AdminWorkspaceAction = "suspend" | "unsuspend" | "member" | "plan";
@@ -156,6 +192,7 @@ export const ADMIN_ACTION_LABEL: Record<string, string> = {
   WORKSPACE_PULIHKAN: "Memulihkan workspace",
   WORKSPACE_ANGGOTA_ATUR: "Mengatur anggota workspace",
   WORKSPACE_ANGGOTA_HAPUS: "Mengeluarkan anggota workspace",
+  WORKSPACE_HAPUS: "Menghapus workspace",
   SUMBER_TAUTKAN: "Menautkan sumber akun",
   SISTEM_PENGATURAN: "Mengubah pengaturan sistem",
   PAKET_SIMPAN: "Menyimpan paket",

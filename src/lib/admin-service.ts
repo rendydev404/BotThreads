@@ -19,11 +19,13 @@ import {
   type AdminUserListResponse,
   type AdminUserStatus,
   type AdminWorkspaceDTO,
+  type AdminWorkspaceDeletePreview,
+  type AdminWorkspaceDeleteResult,
   type AdminWorkspaceListResponse,
 } from "./admin-types";
 import { MissingAutopilotSchemaError, isMissingAutopilotSchema } from "./autopilot-store";
 import { isPublishEnabled } from "./content-config";
-import { setWorkspacePlan, workspacePlans } from "./plan";
+import { forgetPlans, setWorkspacePlan, workspacePlans } from "./plan";
 import { forgetPlatform } from "./platform";
 import { forgetPublishAccounts } from "./publish-accounts";
 import { forgetMembership, type Role } from "./request-ctx";
@@ -300,6 +302,68 @@ export async function actOnWorkspace(adminId: string, workspaceId: string, body:
   forgetMembership();
   forgetPlatform();
   return { ok: true };
+}
+
+const DELETE_FILE = "sql/049_workspace_delete.sql";
+
+/** Panggil fungsi sql/049; bila belum dipasang, galatnya menyebut berkas itu. */
+async function callDelete<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+  try {
+    return await rpc<T>(fn, args);
+  } catch (err) {
+    if (err instanceof Error && /PGRST202|42883|42P01|42703/.test(err.message) && /dash_sa_workspace_delete|dash_sa__has_col/.test(err.message)) {
+      throw new MissingAutopilotSchemaError(DELETE_FILE);
+    }
+    throw err;
+  }
+}
+
+/** Dampak hapus workspace (anggota, akun, buzzer yang dilepas) untuk dialog konfirmasi. */
+export async function previewWorkspaceDelete(adminId: string, workspaceId: string): Promise<AdminWorkspaceDeletePreview | Failure> {
+  if (!ID.test(workspaceId)) return failure(400, "Id workspace tidak valid.");
+  const raw = await callDelete<Omit<AdminWorkspaceDeletePreview, "success"> | null>("dash_sa_workspace_delete_preview", {
+    p_actor: adminId,
+    p_ws: workspaceId,
+  });
+  if (!raw) return WORKSPACE_ERRORS.NOT_FOUND;
+  return { success: true, ...raw, dilepas: raw.dilepas ?? [] };
+}
+
+const DELETE_ERRORS: Record<string, Failure> = {
+  ...WORKSPACE_ERRORS,
+  NAMA_SALAH: failure(400, "Nama workspace yang diketik tidak cocok."),
+  BAGIAN_KELOMPOK: failure(409, "Workspace ini menumpang di workspace lain. Lepaskan dulu lewat menu Sumber Akun Threads."),
+};
+
+/**
+ * Hapus workspace permanen (sql/049). Urutannya di database, dalam satu transaksi: putus dulu dari semua akun
+ * buzzer/sumber yang tertaut (dilepas, tidak dihapus), lalu hapus akun Threads dan data dashboard milik workspace.
+ */
+export async function deleteWorkspace(adminId: string, workspaceId: string, body: unknown, now = new Date()): Promise<AdminWorkspaceDeleteResult | Failure> {
+  if (!ID.test(workspaceId)) return failure(400, "Id workspace tidak valid.");
+  const confirm = isRecord(body) && typeof body.confirm === "string" ? body.confirm.trim().slice(0, 200) : "";
+  if (!confirm) return failure(400, "Ketik nama workspace untuk mengonfirmasi.");
+  const res = await callDelete<{ status: string } & Partial<Omit<AdminWorkspaceDeleteResult, "success">>>("dash_sa_workspace_delete", {
+    p_actor: adminId,
+    p_ws: workspaceId,
+    p_confirm: confirm,
+    p_now: now,
+  });
+  if (res.status !== "OK") return DELETE_ERRORS[res.status] ?? failure(409, "Tindakan ditolak.");
+  // Anggota, tenant, daftar akun, dan paket berubah untuk banyak pengguna sekaligus.
+  forgetMembership();
+  forgetPlatform();
+  forgetAccountCaches();
+  forgetPublishAccounts();
+  forgetPlans();
+  return {
+    success: true,
+    nama: res.nama ?? "",
+    akunDihapus: Number(res.akunDihapus ?? 0),
+    anggota: Number(res.anggota ?? 0),
+    tugasBuzzerDibatalkan: Number(res.tugasBuzzerDibatalkan ?? 0),
+    dilepas: res.dilepas ?? [],
+  };
 }
 
 /* ------------------------------------------------------------------ sumber akun */

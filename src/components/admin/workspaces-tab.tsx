@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useId, useLayoutEffect, useState } from "react";
-import { Building2, ChevronDown, CirclePause, CirclePlay, Gem, Loader2, Save, UserCog, UserMinus, UserPlus } from "lucide-react";
+import { Building2, ChevronDown, CirclePause, CirclePlay, Gem, Loader2, Save, Trash2, UserCog, UserMinus, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listAdminWorkspaces, setWorkspaceMember, suspendWorkspace, unsuspendWorkspace } from "@/lib/admin-client";
 import type { AdminWorkspaceDTO, AdminWorkspaceListResponse } from "@/lib/admin-types";
@@ -16,6 +16,7 @@ import { errorText, formatDateWib, formatInt } from "@/components/settings/forma
 import { BTN_OUTLINE, EmptyState, ICON_BTN, Pill, RefreshButton, type PillTone } from "@/components/settings/states";
 import { usePaged } from "@/components/settings/use-remote";
 import { ActionMenu, AdminLoadError, type PlansRemote, ReasonDialog, RefreshError, SEARCH_DEBOUNCE_MS, SearchField, useAdmin, useDebounced } from "./shared";
+import { WorkspaceDeleteDialog } from "./workspace-delete-dialog";
 import { WorkspacePlanDialog } from "./workspace-plan-dialog";
 
 const LOAD_ERROR = "Gagal memuat daftar workspace.";
@@ -158,7 +159,7 @@ type Pending = { kind: "unsuspend"; ws: AdminWorkspaceDTO } | { kind: "remove"; 
 
 /** Tab Workspace: semua workspace dashboard beserta anggotanya; tangguhkan, pulihkan, atur paket, dan atur anggota. */
 export function WorkspacesTab({ plans: given }: { plans?: PlansRemote }) {
-  const { guard, rev, invalidate, plans: shared, can } = useAdmin();
+  const { guard, rev, invalidate, plans: shared, can, isSuper } = useAdmin();
   const plans = given ?? shared;
   // Jam acuan "paket habis" dipatok saat halaman dibuka (render harus murni).
   const [nowMs] = useState(() => Date.now());
@@ -179,6 +180,7 @@ export function WorkspacesTab({ plans: given }: { plans?: PlansRemote }) {
   const [suspending, setSuspending] = useState<AdminWorkspaceDTO | null>(null);
   const [editing, setEditing] = useState<{ ws: AdminWorkspaceDTO; member: Member | null } | null>(null);
   const [planningWs, setPlanningWs] = useState<AdminWorkspaceDTO | null>(null);
+  const [deletingWs, setDeletingWs] = useState<AdminWorkspaceDTO | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
   const [pendingError, setPendingError] = useState<string | null>(null);
@@ -193,6 +195,7 @@ export function WorkspacesTab({ plans: given }: { plans?: PlansRemote }) {
       setSuspending(null);
       setEditing(null);
       setPlanningWs(null);
+      setDeletingWs(null);
       setPending(null);
       setNotice(null);
     },
@@ -396,7 +399,7 @@ export function WorkspacesTab({ plans: given }: { plans?: PlansRemote }) {
                         Anggota
                         <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", open && "rotate-180")} />
                       </button>
-                      {(managePlan || manageWs) && (
+                      {(managePlan || manageWs || isSuper) && (
                         <ActionMenu
                           label={`Tindakan untuk ${ws.nama}`}
                           actions={[
@@ -408,6 +411,9 @@ export function WorkspacesTab({ plans: given }: { plans?: PlansRemote }) {
                                     ? { key: "unsuspend", label: "Pulihkan workspace", icon: <CirclePlay className="w-4 h-4" />, onSelect: () => openPending({ kind: "unsuspend", ws }) }
                                     : { key: "suspend", label: "Tangguhkan workspace", icon: <CirclePause className="w-4 h-4" />, danger: true, onSelect: () => setSuspending(ws) },
                                 ]
+                              : []),
+                            ...(isSuper
+                              ? [{ key: "delete", label: "Hapus workspace", icon: <Trash2 className="w-4 h-4" />, danger: true, onSelect: () => setDeletingWs(ws) }]
                               : []),
                           ]}
                         />
@@ -505,6 +511,27 @@ export function WorkspacesTab({ plans: given }: { plans?: PlansRemote }) {
             invalidate(["ringkasan", "audit", "paket"]);
             setNotice(`Paket workspace ${planningWs.nama} diperbarui.`);
             setPlanningWs(null);
+          }}
+        />
+      )}
+
+      {deletingWs && (
+        <WorkspaceDeleteDialog
+          key={deletingWs.id}
+          workspace={deletingWs}
+          onClose={() => setDeletingWs(null)}
+          onDeleted={(res) => {
+            const id = deletingWs.id;
+            mutate((d) => ({ ...d, items: d.items.filter((w) => w.id !== id) }));
+            setExpanded((prev) => {
+              const next = new Set(prev);
+              next.delete(id);
+              return next;
+            });
+            invalidate(["ringkasan", "audit", "pengguna", "sumber", "buzzer", "paket"]);
+            const lepas = res.dilepas.length ? ` ${res.dilepas.map((l) => l.nama).join(", ")} dilepas (akunnya tetap ada).` : "";
+            setNotice(`Workspace ${res.nama} dihapus beserta ${formatInt(res.akunDihapus)} akun Threads.${lepas}`);
+            setDeletingWs(null);
           }}
         />
       )}

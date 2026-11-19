@@ -10,6 +10,8 @@ import type {
   AdminSourceListResponse,
   AdminUserListResponse,
   AdminUserStatus,
+  AdminWorkspaceDeletePreview,
+  AdminWorkspaceDeleteResult,
   AdminWorkspaceListResponse,
 } from "./admin-types";
 import { call } from "./content-client";
@@ -56,6 +58,13 @@ export const unsuspendWorkspace = (id: string) => workspaceAction(id, { action: 
 export const setWorkspaceMember = (id: string, identifier: string, role: Role | null) => workspaceAction(id, { action: "member", identifier, role });
 
 /** Pasang paket ke workspace. `planId: null` = kembali ke paket bawaan; `until` ISO atau null (tanpa batas waktu). */
+/** Dampak hapus workspace (akun, anggota, buzzer yang dilepas). Hanya Super Admin. */
+export const previewWorkspaceDelete = (id: string, signal?: AbortSignal) =>
+  call<AdminWorkspaceDeletePreview>(`/api/admin/workspaces/${encodeURIComponent(id)}`, { signal });
+/** Hapus workspace permanen; `confirm` = nama workspace. Putus dari akun buzzer dulu, lalu hapus. */
+export const deleteWorkspace = (id: string, confirm: string) =>
+  call<AdminWorkspaceDeleteResult>(`/api/admin/workspaces/${encodeURIComponent(id)}`, { method: "DELETE", body: JSON.stringify({ confirm }) });
+
 export const setWorkspacePlan = (id: string, planId: string | null, until: string | null) => workspaceAction(id, { action: "plan", planId, until });
 
 export const fetchAdminPlans = (signal?: AbortSignal) => call<AdminPlansResponse>("/api/admin/plans", { signal });
