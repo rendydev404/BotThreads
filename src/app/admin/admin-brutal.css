@@ -1,0 +1,177 @@
+/*
+ * Tema neo-brutal KHUSUS konsol admin.
+ *
+ * Semua aturan di sini diawali `html.admin-brutal`. Kelas itu dipasang oleh AdminConsole saat konsol
+ * terbuka dan dilepas saat keluar, jadi dashboard pelanggan, landing, dan halaman lain tidak terpengaruh.
+ * Ditaruh di <html> (bukan di pembungkus konsol) supaya dialog dan menu yang di-portal ke <body> ikut.
+ *
+ * Gaya: garis hitam 2px, bayangan keras tanpa blur, ungu elektrik + putih + hitam.
+ */
+
+html.admin-brutal {
+  --c-canvas: #ffffff;
+  --c-surface: #ffffff;
+  --c-subtle: #f4eeff;
+  --c-line: #000000;
+  --c-line-strong: #000000;
+  --c-line-soft: #e2e2e2;
+
+  --c-fg: #000000;
+  --c-muted: #4a4a4a;
+  --c-faint: #7a7a7a;
+
+  --c-accent: #7b2fff;
+  --c-accent-hover: #5a12e0;
+  --c-accent-soft: #ede2ff;
+  --c-on-accent: #ffffff;
+
+  --c-success: #00843b;
+  --c-success-soft: #d3f8e0;
+  --c-warning: #9a5300;
+  --c-warning-soft: #ffe9b8;
+  --c-danger: #da1e1a;
+  --c-danger-soft: #ffd9d8;
+
+  --brutal-shadow: #000000;
+  --shadow-pop: 6px 6px 0 var(--brutal-shadow);
+}
+
+/* Mode gelap: kanvas hitam, garis putih, bayangan ungu (lebih spesifik dari html.admin-brutal). */
+html.dark.admin-brutal {
+  --c-canvas: #0b0b0b;
+  --c-surface: #151515;
+  --c-subtle: #22163a;
+  --c-line: #f2f2f2;
+  --c-line-strong: #f2f2f2;
+  --c-line-soft: #2e2e2e;
+
+  --c-fg: #ffffff;
+  --c-muted: #b5b5b5;
+  --c-faint: #858585;
+
+  --c-accent: #9b5cff;
+  --c-accent-hover: #b48cff;
+  --c-accent-soft: #2a1a4d;
+  --c-on-accent: #ffffff;
+
+  --c-success: #3ddc84;
+  --c-success-soft: #0f2e1d;
+  --c-warning: #ffb547;
+  --c-warning-soft: #33250a;
+  --c-danger: #ff6b66;
+  --c-danger-soft: #3a1414;
+
+  --brutal-shadow: #9b5cff;
+  --shadow-pop: 6px 6px 0 var(--brutal-shadow);
+}
+
+/* ------------------------------------------------------------ huruf judul */
+
+html.admin-brutal .brutal-head,
+html.admin-brutal main h1,
+html.admin-brutal main h2,
+html.admin-brutal [role="dialog"] h2 {
+  font-family: var(--font-brutal-head), var(--font-sans);
+  letter-spacing: -0.015em;
+}
+html.admin-brutal main h2,
+html.admin-brutal [role="dialog"] h2 {
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------ kartu & panel */
+
+html.admin-brutal .card {
+  border: 2px solid var(--c-line);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 var(--brutal-shadow);
+}
+
+/* Garis pemisah antarbaris di dalam daftar: tipis dan lembut, supaya bingkai hitam tetap jadi penekanan. */
+html.admin-brutal .divide-line > * {
+  border-color: var(--c-line-soft);
+}
+
+/* ------------------------------------------------------------ tombol */
+
+/* Tombol utama (BTN_PRIMARY dan tombol berlatar aksen lain). Menu aktif sidebar (aria-current) punya gaya sendiri. */
+html.admin-brutal :is(button, a).bg-accent:not([aria-current]) {
+  border: 2px solid var(--c-line);
+  border-radius: 10px;
+  box-shadow: 3px 3px 0 var(--brutal-shadow);
+  font-weight: 700;
+}
+/* Tombol garis (BTN_OUTLINE). */
+html.admin-brutal :is(button, a).border-line-strong {
+  border-width: 2px;
+  border-radius: 10px;
+  background-color: var(--c-surface);
+  box-shadow: 3px 3px 0 var(--brutal-shadow);
+  font-weight: 700;
+}
+html.admin-brutal :is(button, a):is(.bg-accent, .border-line-strong):not([aria-current]) {
+  transition: transform 80ms ease, box-shadow 80ms ease, background-color 120ms ease;
+}
+html.admin-brutal :is(button, a):is(.bg-accent, .border-line-strong):not([aria-current]):not(:disabled):hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--brutal-shadow);
+}
+html.admin-brutal :is(button, a):is(.bg-accent, .border-line-strong):not([aria-current]):not(:disabled):active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 var(--brutal-shadow);
+}
+html.admin-brutal :is(button, a).border-line-strong:not(:disabled):hover {
+  color: var(--c-fg);
+  border-color: var(--c-line);
+}
+
+/* ------------------------------------------------------------ input */
+
+html.admin-brutal :is(input, select, textarea)[class*="border"]:not([type="checkbox"]):not([type="radio"]) {
+  border-width: 2px;
+  border-color: var(--c-line);
+  border-radius: 10px;
+}
+html.admin-brutal :is(input, select, textarea)[class*="border"]:focus {
+  border-color: var(--c-accent);
+  box-shadow: 3px 3px 0 var(--c-accent);
+  outline: none;
+}
+
+/* ------------------------------------------------------------ chip / pill */
+
+/* Pill status (komponen Pill: span bulat setinggi 24px). */
+html.admin-brutal span.rounded-full.h-6 {
+  border: 1.5px solid var(--c-line);
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------ meter */
+
+html.admin-brutal [role="meter"] {
+  height: 10px;
+  border: 1.5px solid var(--c-line);
+  background-color: var(--c-surface);
+}
+
+/* ------------------------------------------------------------ menu, dialog, palet */
+
+html.admin-brutal [role="menu"],
+html.admin-brutal [role="dialog"][aria-modal="true"] > div[role="dialog"],
+html.admin-brutal [role="dialog"].bg-surface,
+html.admin-brutal div[role="dialog"][aria-modal="true"].relative {
+  border: 2px solid var(--c-line);
+  box-shadow: var(--shadow-pop);
+}
+html.admin-brutal [role="menu"] {
+  border-radius: 12px;
+}
+
+/* Kbd (Ctrl K / Esc). */
+html.admin-brutal kbd {
+  border: 1.5px solid var(--c-line);
+  border-radius: 6px;
+  padding: 0 6px;
+  background-color: var(--c-fg);
+  color: var(--c-surface);
+}

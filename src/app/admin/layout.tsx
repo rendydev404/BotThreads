@@ -1,5 +1,15 @@
 import type { Metadata } from "next";
+import { Poppins } from "next/font/google";
 import { AdminConsole } from "@/components/admin/console-shell";
+import "./admin-brutal.css";
+
+/** Huruf judul tema neo-brutal; hanya dimuat di konsol admin. */
+const brutalHead = Poppins({
+  subsets: ["latin"],
+  weight: ["700", "800"],
+  variable: "--font-brutal-head",
+  display: "swap",
+});
 
 /**
  * Isi konsol baru dirender setelah profil dan izin admin terbaca di peramban (sengaja: data admin tidak
@@ -18,5 +28,5 @@ export const metadata: Metadata = {
  * di bawah /admin). Hanya staf platform yang bisa membukanya; izin tiap modul diatur di Peran & Hak Akses.
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <AdminConsole>{children}</AdminConsole>;
+  return <AdminConsole fontClass={brutalHead.variable}>{children}</AdminConsole>;
 }
